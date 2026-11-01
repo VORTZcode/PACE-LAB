@@ -5,9 +5,9 @@ struct NutritionScreen: View {
     @State private var selected = "Lundi"
     @State private var didChooseInitialDay = false
 
-    private var day: PaceDay? { library.programme.plan.first { $0.day == selected } }
-    private var meals: [PaceRecipe] { library.programme.recipes.filter { $0.day == selected } }
-    private var days: [String] { library.programme.plan.map(\.day) }
+    private var day: PaceDay? { library.currentPlan.first { $0.day == selected } }
+    private var meals: [PaceRecipe] { library.currentRecipes.filter { $0.day == selected } }
+    private var days: [String] { library.currentPlan.map(\.day) }
     private func selectCurrentOrUpcoming() {
         guard !didChooseInitialDay else { return }
         didChooseInitialDay = true
@@ -15,7 +15,7 @@ struct NutritionScreen: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         let today = formatter.string(from: .now)
-        let list = library.programme.plan
+        let list = library.currentPlan
         if let same = list.first(where: { $0.date == today }) {
             selected = same.day
         } else if let upcoming = list.first(where: { $0.date > today }) {
@@ -121,6 +121,10 @@ struct NutritionScreen: View {
                 }
             }
             .onAppear { selectCurrentOrUpcoming() }
+            .onChange(of: library.activeCoachDraft?.id) { _, _ in
+                didChooseInitialDay = false
+                selectCurrentOrUpcoming()
+            }
         }
     }
 }

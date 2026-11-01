@@ -109,6 +109,7 @@ struct ActivityRow: View {
 struct WorkoutDetailScreen: View {
     @EnvironmentObject private var journal: PaceSessionJournal
     @State private var showJournal = false
+    @State private var showCoach = false
     @State private var showIntervals = false
     @State private var showComparison = false
     let workout: WorkoutPayload
@@ -250,7 +251,11 @@ struct WorkoutDetailScreen: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showCoach = true } label: {
+                    Image(systemName:"sparkles")
+                }
+                .accessibilityLabel("Faire analyser cette séance par ChatGPT")
                 Menu {
                     Button("Graphiques", systemImage: "waveform.path.ecg") {
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
@@ -279,6 +284,7 @@ struct WorkoutDetailScreen: View {
             PaceEffortEditor(uuid: workout.source_uuid)
                 .environmentObject(journal)
         }
+        .sheet(isPresented:$showCoach) { PaceCoachScreen() }
         }
     }
     private func recoveryValue(_ label: String, value: Double?) -> some View {

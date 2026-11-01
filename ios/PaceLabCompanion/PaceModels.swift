@@ -62,6 +62,7 @@ struct PaceBodyLog: Identifiable, Codable {
     @Published private(set) var eaten: Set<String>
     @Published private(set) var shoppingChecked: Set<String>
     @Published private(set) var bodyLogs: [PaceBodyLog]
+    @Published private(set) var activeCoachDraft: PaceAICoachDraft?
 
     init() {
         if let file = Bundle.main.url(forResource: "pace-programme", withExtension: "json", subdirectory: "AppData"),
@@ -76,6 +77,8 @@ struct PaceBodyLog: Identifiable, Codable {
         shoppingChecked = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.shopping") ?? [])
         let raw = UserDefaults.standard.data(forKey: "pace.v2.body")
         bodyLogs = raw.flatMap { try? JSONDecoder().decode([PaceBodyLog].self, from: $0) } ?? []
+        activeCoachDraft = UserDefaults.standard.data(forKey:"pace.coach.approved")
+            .flatMap { try? JSONDecoder().decode(PaceAICoachDraft.self,from:$0) }
     }
     func toggleDay(_ id: String) {
         if !completed.insert(id).inserted { completed.remove(id) }
@@ -108,15 +111,38 @@ struct PaceBodyLog: Identifiable, Codable {
             UserDefaults.standard.set(data, forKey: "pace.v2.body")
         }
     }
-    var completedCount: Int { programme.plan.filter { completed.contains($0.date) }.count }
+    var currentPlan: [PaceDay] {
+        guard let draft = activeCoachDraft else { return programme.plan }
+        return draft.training.sorted { $0.date < $1.date }.map { $0.asPaceDay(meals:draft.meals) }
+    }
+    var currentRecipes: [PaceRecipe] {
+        guard let draft = activeCoachDraft else { return programme.recipes }
+        return draft.meals.sorted { ($0.date, $0.meal) < ($1.date, $1.meal) }.map { $0.asRecipe() }
+    }
+    func acceptCoachDraft(_ draft: PaceAICoachDraft) throws {
+        try draft.validate()
+        let data = try JSONEncoder().encode(draft)
+        UserDefaults.standard.set(data,forKey:"pace.coach.approved")
+        activeCoachDraft = draft
+        // The old plan's grocery checklist must not silently cross over to new ingredients.
+        shoppingChecked.removeAll()
+        UserDefaults.standard.set([],forKey:"pace.v2.shopping")
+    }
+    func revertCoachPlan() {
+        UserDefaults.standard.removeObject(forKey:"pace.coach.approved")
+        activeCoachDraft = nil
+        shoppingChecked.removeAll()
+        UserDefaults.standard.set([],forKey:"pace.v2.shopping")
+    }
+    var completedCount: Int { currentPlan.filter { completed.contains($0.date) }.count }
     var nextDay: PaceDay? {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd"
         let today = formatter.string(from: .now)
-        guard let last = programme.plan.last, today <= last.date else { return nil }
-        return programme.plan.first(where: { $0.date >= today && !completed.contains($0.date) })
+        guard let last = currentPlan.last, today <= last.date else { return nil }
+        return currentPlan.first(where: { $0.date >= today && !completed.contains($0.date) })
     }
 }
 

@@ -1,5 +1,9 @@
 # PACE LAB — Projet 30
 
+## PACE LAB V3 — Coach ChatGPT
+
+La branche de travail V3 ajoute un coach ChatGPT à la version iOS native. Il utilise la connexion « Sign in with ChatGPT » du projet open source local, avec autorisation explicite et jetons protégés sur l’iPhone. Les propositions de séances et de repas ne sont appliquées qu’après validation. Voir [le guide V3](docs/V3_COACH_CHATGPT.md).
+
 ## Application native iOS V2 (branche de développement)
 
 La V2 est reconstruite en SwiftUI, avec cinq onglets iOS, navigation native Liquid Glass, historique Apple Santé local, graphiques Swift Charts, programme et nutrition. L'interface Web/PWA reste disponible séparément et n'a pas accès à HealthKit. Voir [le guide de la V2 native](docs/V2_NATIVE.md). Les informations Apple Santé ne sont jamais publiées sur GitHub.

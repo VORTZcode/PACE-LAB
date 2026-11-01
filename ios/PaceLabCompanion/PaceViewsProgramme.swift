@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgrammeScreen: View {
     @EnvironmentObject var library: PaceLibrary
+    @State private var showCoach = false
 
     var body: some View {
         NavigationStack {
@@ -9,9 +10,11 @@ struct ProgrammeScreen: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("CYCLE 01 · FONDATIONS")
                         .font(.caption2.weight(.bold)).tracking(1.4).foregroundStyle(PaceColors.teal)
-                    Text("Semaine 1")
+                    Text(library.activeCoachDraft == nil ? "Semaine 1" : "Programme coach")
                         .font(.title2.weight(.semibold))
-                    Text("Du 2 au 8 novembre 2026 · Course, renforcement et récupération.")
+                    Text(library.activeCoachDraft == nil
+                    ? "Du 2 au 8 novembre 2026 · Course, renforcement et récupération."
+                    : "Programme proposé par le coach et validé sur cet iPhone.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 PaceCard {
@@ -19,10 +22,10 @@ struct ProgrammeScreen: View {
                         ZStack {
                             Circle().stroke(PaceColors.teal.opacity(0.13), lineWidth: 7)
                             Circle()
-                                .trim(from: 0, to: CGFloat(library.completedCount) / CGFloat(max(library.programme.plan.count, 1)))
+                                .trim(from: 0, to: CGFloat(library.completedCount) / CGFloat(max(library.currentPlan.count, 1)))
                                 .stroke(PaceColors.teal, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
-                            Text("\(library.completedCount)/\(max(library.programme.plan.count, 1))")
+                            Text("\(library.completedCount)/\(max(library.currentPlan.count, 1))")
                                 .font(.subheadline.weight(.bold)).monospacedDigit()
                         }
                         .frame(width: 68, height: 68)
@@ -35,8 +38,20 @@ struct ProgrammeScreen: View {
                 }
 
                 PaceSectionTitle(title: "Votre semaine")
+                if let draft = library.activeCoachDraft {
+                    PaceCard {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("Programme personnalisé", systemImage: "sparkles")
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(PaceColors.teal)
+                            Text(draft.summary)
+                                .font(.footnote).foregroundStyle(.secondary).lineLimit(5)
+                            Button("Revenir au programme initial") { library.revertCoachPlan() }
+                                .font(.caption.weight(.medium)).tint(PaceColors.teal)
+                        }
+                    }
+                }
                 LazyVStack(spacing: 10) {
-                    ForEach(library.programme.plan) { day in
+                    ForEach(library.currentPlan) { day in
                         NavigationLink { DayDetailScreen(day: day) } label: {
                             HStack(spacing: 14) {
                                 VStack(spacing: 3) {
@@ -71,6 +86,13 @@ struct ProgrammeScreen: View {
                     .padding(.horizontal, 3)
             }
         }
+        .toolbar {
+            ToolbarItem(placement:.topBarTrailing) {
+                Button { showCoach = true } label: { Image(systemName:"sparkles") }
+                    .accessibilityLabel("Adapter mon programme avec ChatGPT")
+            }
+        }
+        .sheet(isPresented:$showCoach) { PaceCoachScreen() }
     }
 }
 
@@ -80,7 +102,10 @@ struct DayDetailScreen: View {
     let day: PaceDay
     @State private var showVariants = false
 
-    private var exercises: [PaceExercise] { library.programme.force.filter { $0.day == day.day } }
+    private var exercises: [PaceExercise] {
+        guard library.activeCoachDraft == nil else { return [] }
+        return library.programme.force.filter { $0.day == day.day }
+    }
     private var matchingActivity: WorkoutPayload? {
         let expected: String
         switch day.type {
