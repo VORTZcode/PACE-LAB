@@ -14,3 +14,8 @@ PACE_LAB_Donnees_Personnelles_A_Importer.json
 *.sqlite
 .DS_Store
 node_modules/
+
+# Local Xcode build artifacts (never commit)
+.generic-build/
+.signed-build/
+ios/PaceLabCompanion.xcodeproj/xcuserdata/

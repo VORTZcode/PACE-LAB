@@ -55,3 +55,11 @@ Modifier `assets/programme.js` (tableaux `plan`, `force`, `recipes`), valider le
 ## Sauvegardes et migration
 
 Pour retrouver les anciennes courses Apple sur un nouvel appareil : importer le fichier personnel JSON remis séparément via la page Réglages. **Ne pas l'envoyer dans GitHub**, ni l'utiliser dans les exemples ou les tickets d'incident. Exporter régulièrement une sauvegarde complète depuis Réglages. Si une sauvegarde contient une donnée médicale, la traiter comme une donnée privée.
+
+## Intégration Apple Santé / Apple Watch — chantier en cours
+
+La version iPhone native expérimentale se trouve dans `ios/` avec le pont `assets/native-health.js`. Elle lit HealthKit directement et conserve localement les séances, les séries de fréquence cardiaque et les mesures réellement disponibles pendant **les trois premières minutes de récupération**.
+
+**État :** compilée, signée, installée et testée sur un iPhone réel avec un historique pluriannuel (statistiques personnelles non publiées). Reste à valider la synchronisation automatique après une NOUVELLE activité Watch, y compris en arrière-plan. Aucun Supabase, backend ni compte externe n'est nécessaire. La PWA sur GitHub Pages ne peut pas lire HealthKit ni partager automatiquement les données locales de l'app iOS. Les notifications d'arrière-plan n'ont pas de délai garanti.
+
+Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.
