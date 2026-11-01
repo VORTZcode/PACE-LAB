@@ -35,6 +35,16 @@ private enum RunChartMetric: String, CaseIterable, Identifiable, Sendable {
         case .vertical: "Oscillation verticale du bassin"
         }
     }
+    var explanation: String {
+        switch self {
+        case .heart: "Battements du cœur par minute pendant l’effort. À interpréter avec votre allure, la température et votre fatigue."
+        case .speed: "Le temps nécessaire pour parcourir un kilomètre. Un chiffre plus faible signifie une allure plus rapide."
+        case .power: "Effort mécanique de course, exprimé en watts. À comparer surtout entre séances similaires."
+        case .stride: "Distance parcourue à chaque pas. Plus long n’est pas forcément meilleur."
+        case .contact: "Temps passé au sol à chaque pas, en millisecondes. Dépend notamment de la vitesse."
+        case .vertical: "Amplitude du mouvement vertical lors de la course. Une valeur isolée ne détermine pas la qualité de la foulée."
+        }
+    }
     var symbol: String {
         switch self {
         case .heart: "heart"
@@ -95,6 +105,8 @@ struct RunDynamicsSection: View {
     @State private var selectedMinute: Double?
     @State private var chartData: [RunChartPoint] = []
     @State private var isChartLoading = false
+    @State private var showAdvanced = false
+    @State private var showExplanation = false
 
     private var w: WorkoutPayload {
         engine.workout(id: original.source_uuid) ?? original
@@ -134,8 +146,8 @@ struct RunDynamicsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            PaceSectionTitle(title: "Analyse de l’effort")
-            if w.isRun {
+            PaceSectionTitle(title: "Fréquence cardiaque")
+            if w.isRun && showAdvanced {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(RunChartMetric.allCases) { item in
@@ -157,10 +169,19 @@ struct RunDynamicsSection: View {
             PaceCard {
                 VStack(alignment: .leading, spacing: 13) {
                     HStack(alignment: .top, spacing: 10) {
+                        Button {
+                            showExplanation = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.body)
+                                .foregroundStyle(PaceColors.teal)
+                        }
+                        .accessibilityLabel("Comprendre cette mesure")
                         VStack(alignment: .leading, spacing: 5) {
                             Text(metric.detail).font(.subheadline.weight(.semibold))
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Moyenne des échantillons : \(displayMean) \(metric.unit)")
+                            Text(metric == .heart ? "Moyenne : \(displayMean) bpm" :
+                                "Moyenne des mesures : \(displayMean) \(metric.unit)")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -213,6 +234,27 @@ struct RunDynamicsSection: View {
                 }
             }
             if w.isRun {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.20)) {
+                        showAdvanced.toggle()
+                        if !showAdvanced { metric = .heart }
+                        selectedMinute = nil
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                        Text(showAdvanced ? "Masquer les mesures avancées" : "Découvrir les mesures avancées")
+                        Spacer()
+                        Image(systemName: showAdvanced ? "chevron.up" : "chevron.down")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PaceColors.teal)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
+            if w.isRun && showAdvanced {
                 PaceSectionTitle(title: "Dynamique de course")
                 if !engine.advancedEnabled {
                     PaceCard {
@@ -257,6 +299,11 @@ struct RunDynamicsSection: View {
                     }
                 }
             }
+        }
+        .alert(metric.rawValue, isPresented: $showExplanation) {
+            Button("Compris", role: .cancel) {}
+        } message: {
+            Text(metric.explanation)
         }
         .task(id: chartKey) {
             let input = w

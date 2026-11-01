@@ -68,8 +68,8 @@ struct PaceEffortEditor: View {
                     Slider(value: Binding(get: { Double(effort) }, set: { effort = Int($0) }), in: 0...10, step: 1)
                         .tint(PaceColors.teal)
                         .accessibilityLabel("Difficulté ressentie de zéro à dix")
-                } header: { Text("Effort ressenti (RPE)") }
-                  footer: { Text("0 signifie non renseigné. Ce ressenti est saisi par vous : il ne provient pas de l’Apple Watch.") }
+                } header: { Text("Difficulté ressentie") }
+                  footer: { Text("Choisissez un niveau de 1 (très facile) à 10 (extrêmement difficile). Zéro signifie non renseigné. Cette note vient de votre ressenti, pas de la montre.") }
                 Section("Notes personnelles") {
                     TextEditor(text: $comment)
                         .frame(minHeight: 130)

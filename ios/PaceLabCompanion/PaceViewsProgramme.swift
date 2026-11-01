@@ -75,11 +75,29 @@ struct ProgrammeScreen: View {
 }
 
 struct DayDetailScreen: View {
+    @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     let day: PaceDay
     @State private var showVariants = false
 
     private var exercises: [PaceExercise] { library.programme.force.filter { $0.day == day.day } }
+    private var matchingActivity: WorkoutPayload? {
+        let expected: String
+        switch day.type {
+        case "Course": expected = "running"
+        case "Musculation": expected = "strength"
+        case "Récupération": expected = "walking"
+        default: return nil
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: day.date) else { return nil }
+        return engine.snapshot.first {
+            $0.activity_kind == expected && Calendar.current.isDate($0.startDate, inSameDayAs: date)
+        }
+    }
+
 
     var body: some View {
         PaceScreen(title: day.day) {
@@ -123,6 +141,27 @@ struct DayDetailScreen: View {
                             .tint(PaceColors.teal)
                             .font(.subheadline.weight(.medium))
                         }
+                    }
+                }
+            }
+
+            if let found = matchingActivity, !library.completed.contains(day.date) {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Activité trouvée dans Apple Santé", systemImage: "applewatch")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PaceColors.teal)
+                        Text("\(found.cadenceLabel) · \(PaceFormat.duration(found.duration_seconds))")
+                            .font(.subheadline)
+                        Text("Est-ce bien la séance prévue ? L’application ne peut pas vérifier toutes les consignes, ni les exercices réalisés.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button {
+                            library.toggleDay(day.date)
+                        } label: {
+                            Label("Oui, valider cette séance", systemImage: "checkmark.circle")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .tint(PaceColors.teal)
                     }
                 }
             }

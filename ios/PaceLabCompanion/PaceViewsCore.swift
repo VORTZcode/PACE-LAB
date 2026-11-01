@@ -220,7 +220,9 @@ struct TodayScreen: View {
                         }
                     }
                     HStack(spacing: 10) {
-                        PaceMetric(caption: "Dernière sortie", value: last.map { PaceFormat.distance($0.kilometers, places: 2) } ?? "—", suffix: "km", symbol: "figure.run.circle")
+                        PaceMetric(caption: "Distance ce mois", value: PaceFormat.distance(engine.runHistory.filter {
+                            Calendar.current.isDate($0.startDate, equalTo: .now, toGranularity: .month)
+                        }.reduce(0) { $0 + $1.kilometers }), suffix: "km", symbol: "calendar")
                         PaceMetric(caption: "FC moyenne", value: last.map { PaceFormat.heart($0.hr_average_bpm) } ?? "—", suffix: "bpm", symbol: "heart")
                     }
                     PaceCard {
@@ -241,17 +243,11 @@ struct TodayScreen: View {
                         }
                     }
                 }
-                PaceCard {
-                    HStack(alignment: .center, spacing: 16) {
-                        Image(systemName: "checkmark.shield")
-                            .font(.title3).foregroundStyle(PaceColors.teal)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Vos données restent sur l’iPhone").font(.subheadline.weight(.semibold))
-                            Text("Synchronisation directe avec Apple Santé. Aucun serveur.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
+                Label("Données Apple Santé conservées uniquement sur cet iPhone",
+                      systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

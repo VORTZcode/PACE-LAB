@@ -28,7 +28,7 @@ struct ProgressScreen: View {
         }
     }
     private var cardio: [CardioPoint] {
-        Array(engine.runHistory.filter { $0.hr_average_bpm != nil }.prefix(30).reversed())
+        Array(yearRuns.filter { $0.hr_average_bpm != nil }.prefix(30).reversed())
             .compactMap { w in
                 guard let bpm = w.hr_average_bpm else { return nil }
                 return CardioPoint(id: w.source_uuid, date: w.startDate, bpm: bpm)
@@ -85,7 +85,7 @@ struct ProgressScreen: View {
                 PaceSectionTitle(title: "Fréquence cardiaque")
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Moyenne des 30 dernières courses mesurées")
+                        Text("Fréquence moyenne des dernières courses de l’année sélectionnée")
                             .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
                         if cardio.count > 1 {
                             Chart(cardio) { item in
