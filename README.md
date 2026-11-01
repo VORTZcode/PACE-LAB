@@ -1,5 +1,9 @@
 # PACE LAB — Projet 30
 
+## Application native iOS V2 (branche de développement)
+
+La V2 est reconstruite en SwiftUI, avec cinq onglets iOS, navigation native Liquid Glass, historique Apple Santé local, graphiques Swift Charts, programme et nutrition. L'interface Web/PWA reste disponible séparément et n'a pas accès à HealthKit. Voir [le guide de la V2 native](docs/V2_NATIVE.md). Les informations Apple Santé ne sont jamais publiées sur GitHub.
+
 Application web progressive (PWA) pour programme sportif, entraînements, nutrition et évolution des performances. **Version de lancement : programme du 2 au 8 novembre 2026.**
 
 ## Installer localement
