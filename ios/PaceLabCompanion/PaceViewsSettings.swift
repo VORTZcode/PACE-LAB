@@ -35,7 +35,7 @@ struct PaceSettingsScreen: View {
             }
             Section("À propos") {
                 LabeledContent("Application", value: "PACE LAB")
-                LabeledContent("Version", value: "2.4 · Native")
+                LabeledContent("Version", value: "2.5 · Native")
                 Label("Aucune donnée Santé envoyée vers un serveur", systemImage: "lock.shield")
                     .font(.subheadline)
             }

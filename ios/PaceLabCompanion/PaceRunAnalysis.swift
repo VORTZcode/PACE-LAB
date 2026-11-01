@@ -74,7 +74,7 @@ private enum RunChartCalculator {
         let clock = ISO8601DateFormatter()
         guard let start = clock.date(from: workout.started_at),
               let finish = clock.date(from: workout.ended_at) else { return [] }
-        let step = max(1, Int(ceil(Double(selected.count) / 550)))
+        let step = max(1, Int(ceil(Double(selected.count) / 320)))
         return selected.enumerated().compactMap { i, point in
             guard i % step == 0,
                   let date = clock.date(from: point.timestamp),
@@ -101,141 +101,147 @@ private enum RunChartCalculator {
 struct RunDynamicsSection: View {
     @EnvironmentObject private var engine: HealthSyncEngine
     let original: WorkoutPayload
+
     @State private var metric: RunChartMetric = .heart
     @State private var selectedMinute: Double?
-    @State private var chartData: [RunChartPoint] = []
-    @State private var isChartLoading = false
+    // All series are prepared once. Switching metrics never clears the chart or triggers a spinner.
+    @State private var prepared: [RunChartMetric: [RunChartPoint]] = [:]
+    @State private var preparedKey: String?
     @State private var showAdvanced = false
     @State private var showExplanation = false
 
-    private var w: WorkoutPayload {
-        engine.workout(id: original.source_uuid) ?? original
-    }
+    private var w: WorkoutPayload { engine.workout(id: original.source_uuid) ?? original }
     private var sensorAvailable: Bool {
         (w.speed_series?.isEmpty == false) || (w.power_series?.isEmpty == false) ||
         (w.stride_series?.isEmpty == false)
     }
-    private var chartKey: String {
-        let value = w
-        let length: Int
-        switch metric {
-        case .heart: length = value.heart_rate_series.count
-        case .speed: length = value.speed_series?.count ?? 0
-        case .power: length = value.power_series?.count ?? 0
-        case .stride: length = value.stride_series?.count ?? 0
-        case .contact: length = value.ground_contact_series?.count ?? 0
-        case .vertical: length = value.vertical_series?.count ?? 0
-        }
-        return "\(metric.rawValue)|\(value.source_uuid)|\(length)"
+    private var preparationKey: String {
+        let item = w
+        return "\(item.source_uuid)|\(item.heart_rate_series.count)|\(item.speed_series?.count ?? 0)|\(item.power_series?.count ?? 0)|\(item.stride_series?.count ?? 0)|\(item.ground_contact_series?.count ?? 0)|\(item.vertical_series?.count ?? 0)"
     }
+    private var points: [RunChartPoint] { prepared[metric] ?? [] }
     private var selectedPoint: RunChartPoint? {
         guard let selectedMinute else { return nil }
-        return chartData.min { abs($0.minute - selectedMinute) < abs($1.minute - selectedMinute) }
+        return points.min { abs($0.minute - selectedMinute) < abs($1.minute - selectedMinute) }
     }
     private var displayMean: String {
         switch metric {
-        case .heart: PaceFormat.heart(w.hr_average_bpm)
+        case .heart: return PaceFormat.heart(w.hr_average_bpm)
         case .speed:
-            if let speed = w.mean_speed_mps, speed > 0 { PaceFormat.pace(1000 / speed / 60) } else { "—" }
-        case .power: w.mean_power_w.map { String(Int($0.rounded())) } ?? "—"
-        case .stride: w.mean_stride_m.map { PaceFormat.distance($0, places: 2) } ?? "—"
-        case .contact: w.mean_ground_contact_ms.map { String(Int($0.rounded())) } ?? "—"
-        case .vertical: w.mean_vertical_oscillation_cm.map { PaceFormat.distance($0, places: 1) } ?? "—"
+            if let speed = w.mean_speed_mps, speed > 0 { return PaceFormat.pace(1000 / speed / 60) }
+            return "—"
+        case .power: return w.mean_power_w.map { String(Int($0.rounded())) } ?? "—"
+        case .stride: return w.mean_stride_m.map { PaceFormat.distance($0, places: 2) } ?? "—"
+        case .contact: return w.mean_ground_contact_ms.map { String(Int($0.rounded())) } ?? "—"
+        case .vertical: return w.mean_vertical_oscillation_cm.map { PaceFormat.distance($0, places: 1) } ?? "—"
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            PaceSectionTitle(title: "Fréquence cardiaque")
+        VStack(alignment: .leading, spacing: 14) {
+            PaceSectionTitle(title: showAdvanced ? "Analyse de l’effort" : "Fréquence cardiaque")
             if w.isRun && showAdvanced {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(RunChartMetric.allCases) { item in
                             Button {
-                                metric = item
+                                guard metric != item else { return }
                                 selectedMinute = nil
+                                // Animate the selector, but not hundreds of Swift Charts marks.
+                                withAnimation(.easeOut(duration: 0.16)) { metric = item }
                             } label: {
                                 Label(item.rawValue, systemImage: item.symbol)
-                                    .font(.caption.weight(.medium))
-                                    .padding(.horizontal, 11).padding(.vertical, 10)
-                                    .foregroundStyle(metric == item ? Color.white : Color.primary)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 13)
+                                    .padding(.vertical, 11)
+                                    .foregroundStyle(metric == item ? .white : .primary)
                                     .background(metric == item ? PaceColors.teal : PaceColors.surface, in: Capsule())
+                                    .contentShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityAddTraits(metric == item ? .isSelected : [])
                         }
                     }
+                    .padding(.vertical, 3)
                 }
+                .contentMargins(.horizontal, 1)
             }
-            PaceCard {
-                VStack(alignment: .leading, spacing: 13) {
+            PaceCard(padding: 18) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top, spacing: 10) {
-                        Button {
-                            showExplanation = true
-                        } label: {
-                            Image(systemName: "info.circle")
-                                .font(.body)
-                                .foregroundStyle(PaceColors.teal)
-                        }
-                        .accessibilityLabel("Comprendre cette mesure")
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(metric.detail).font(.subheadline.weight(.semibold))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text(metric == .heart ? "Moyenne : \(displayMean) bpm" :
-                                "Moyenne des mesures : \(displayMean) \(metric.unit)")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(metric.detail)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(2)
+                                .frame(height: 39, alignment: .topLeading)
+                            Text(metric == .heart
+                                 ? "Moyenne : \(displayMean) bpm"
+                                 : "Moyenne : \(displayMean) \(metric.unit)")
                                 .font(.caption).foregroundStyle(.secondary)
+                                .monospacedDigit()
                         }
-                        Spacer()
+                        Spacer(minLength: 4)
+                        Button { showExplanation = true } label: {
+                            Image(systemName: "info.circle")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PaceColors.teal)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Comprendre \(metric.rawValue)")
+                    }
+                    ZStack {
+                        if preparedKey == preparationKey {
+                            if points.count >= 2 {
+                                Chart {
+                                    ForEach(points) { point in
+                                        LineMark(x: .value("Minute", point.minute),
+                                                 y: .value(metric.unit, point.value))
+                                            .foregroundStyle(PaceColors.teal)
+                                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                                            .interpolationMethod(.linear)
+                                    }
+                                    if let picked = selectedPoint {
+                                        RuleMark(x: .value("Minute choisie", picked.minute))
+                                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                            .foregroundStyle(.secondary)
+                                        PointMark(x: .value("Minute choisie", picked.minute),
+                                                  y: .value(metric.unit, picked.value))
+                                            .symbolSize(48)
+                                            .foregroundStyle(PaceColors.teal)
+                                    }
+                                }
+                                .chartXSelection(value: $selectedMinute)
+                                .chartXAxisLabel("Minutes d’effort")
+                                .transaction { transaction in transaction.animation = nil }
+                                .accessibilityLabel("\(metric.rawValue) — \(points.count) mesures enregistrées")
+                            } else {
+                                ContentUnavailableView("Aucune donnée", systemImage: metric.symbol,
+                                    description: Text("L’Apple Watch n’a pas enregistré cette mesure pour cette séance."))
+                            }
+                        } else {
+                            ProgressView("Préparation des graphiques")
+                                .controlSize(.small)
+                        }
+                    }
+                    .frame(height: 238)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Touchez la courbe pour voir une valeur")
+                            .font(.caption2).foregroundStyle(.secondary)
+                        Spacer(minLength: 3)
                         if let selectedPoint {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text(String(format: metric == .heart || metric == .power || metric == .contact ? "%.0f %@" : "%.1f %@", selectedPoint.value, metric.unit))
-                                    .font(.subheadline.weight(.semibold)).monospacedDigit()
-                                Text(String(format: "%.1f min", selectedPoint.minute))
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
+                            Text("\(selectedPoint.value.formatted(.number.precision(.fractionLength(1)))) \(metric.unit)")
+                                .font(.caption.weight(.semibold)).monospacedDigit()
                         }
                     }
-                    if isChartLoading && chartData.isEmpty {
-                        ProgressView("Préparation de la courbe")
-                            .frame(maxWidth: .infinity).frame(height: 180)
-                    } else if chartData.count >= 2 {
-                        Chart {
-                            ForEach(chartData) { point in
-                                LineMark(x: .value("Minute", point.minute),
-                                         y: .value(metric.unit, point.value))
-                                    .foregroundStyle(PaceColors.teal)
-                                    .lineStyle(StrokeStyle(lineWidth: 2))
-                                    .interpolationMethod(.linear)
-                            }
-                            if let point = selectedPoint {
-                                RuleMark(x: .value("Minute choisie", point.minute))
-                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4,4]))
-                                    .foregroundStyle(.secondary)
-                                PointMark(x: .value("Minute choisie", point.minute), y: .value(metric.unit, point.value))
-                                    .symbolSize(45)
-                                    .foregroundStyle(PaceColors.teal)
-                            }
-                        }
-                        .chartXSelection(value: $selectedMinute)
-                        .chartXAxisLabel("Minutes d’effort")
-                        .frame(height: 220)
-                        .accessibilityLabel("Courbe \(metric.rawValue), \(chartData.count) mesures disponibles")
-                    } else {
-                        ContentUnavailableView(
-                            "Aucune courbe disponible",
-                            systemImage: metric.symbol,
-                            description: Text(metric == .heart ?
-                                "Aucune série cardiaque enregistrée pour cette séance." :
-                                "Aucun échantillon Apple Santé pour cette métrique.")
-                        )
-                        .frame(height: 155)
-                    }
-                    Text("Touchez la courbe pour examiner une mesure. Les points manquants ne sont pas interpolés.")
-                        .font(.caption2).foregroundStyle(.secondary)
+                    .frame(height: 21, alignment: .top)
                 }
             }
             if w.isRun {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.20)) {
+                    withAnimation(.easeOut(duration: 0.20)) {
                         showAdvanced.toggle()
                         if !showAdvanced { metric = .heart }
                         selectedMinute = nil
@@ -249,23 +255,22 @@ struct RunDynamicsSection: View {
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(PaceColors.teal)
-                    .padding(.horizontal, 4)
                     .padding(.vertical, 8)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("Afficher ou masquer les indicateurs Apple Watch détaillés")
             }
             if w.isRun && showAdvanced {
                 PaceSectionTitle(title: "Dynamique de course")
                 if !engine.advancedEnabled {
                     PaceCard {
                         VStack(alignment: .leading, spacing: 12) {
-                            Label("Activer la télémétrie Apple Watch", systemImage: "applewatch")
+                            Label("Mesures Apple Watch supplémentaires", systemImage: "applewatch")
                                 .font(.subheadline.weight(.semibold))
-                            Text("Autorisez la lecture de la puissance, de la vitesse et de la dynamique de course dans Santé. Les données absentes resteront indiquées comme indisponibles.")
+                            Text("Autorisez la puissance, la vitesse et la dynamique de course dans Apple Santé. Les mesures indisponibles ne seront pas inventées.")
                                 .font(.subheadline).foregroundStyle(.secondary)
-                            Button {
-                                engine.requestAdvancedPermission()
-                            } label: {
+                            Button { engine.requestAdvancedPermission() } label: {
                                 Label("Autoriser les mesures", systemImage: "heart.text.square")
                                     .font(.subheadline.weight(.semibold))
                             }
@@ -285,16 +290,16 @@ struct RunDynamicsSection: View {
                         PaceMetric(caption: "Oscillation verticale", value: w.mean_vertical_oscillation_cm.map { PaceFormat.distance($0, places: 1) } ?? "—", suffix: "cm", symbol: "arrow.up.and.down")
                     }
                     HStack {
-                        Text("Cadence dérivée vitesse / longueur de pas :")
+                        Text("Cadence estimée")
                             .font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Text(w.cadence_estimated_spm.map { "\(Int($0.rounded())) pas/min (est.)" } ?? "indisponible")
+                        Text(w.cadence_estimated_spm.map { "\(Int($0.rounded())) pas/min (est.)" } ?? "Indisponible")
                             .font(.caption.weight(.semibold)).monospacedDigit()
                     }
-                    Text("Les moyennes correspondent aux échantillons disponibles. La cadence dérivée est indicative, sans équivalence avec une mesure native de cadence.")
+                    Text("La cadence est seulement une estimation calculée à partir des mesures disponibles.")
                         .font(.caption2).foregroundStyle(.secondary)
                     if w.advanced_loaded == true && !sensorAvailable {
-                        Text("Cette séance ne contient pas de télémétrie supplémentaire accessible à PACE LAB.")
+                        Text("Cette séance ne contient pas de mesures de course supplémentaires accessibles.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -305,17 +310,20 @@ struct RunDynamicsSection: View {
         } message: {
             Text(metric.explanation)
         }
-        .task(id: chartKey) {
+        .task(id: preparationKey) {
             let input = w
-            let selected = metric
-            chartData = []
-            isChartLoading = true
-            let points = await Task.detached(priority: .userInitiated) {
-                RunChartCalculator.build(input, metric: selected)
+            let expectedKey = preparationKey
+            let result = await Task.detached(priority: .userInitiated) {
+                var output: [RunChartMetric: [RunChartPoint]] = [:]
+                for item in RunChartMetric.allCases {
+                    if Task.isCancelled { return output }
+                    output[item] = RunChartCalculator.build(input, metric: item)
+                }
+                return output
             }.value
             guard !Task.isCancelled else { return }
-            chartData = points
-            isChartLoading = false
+            prepared = result
+            preparedKey = expectedKey
         }
     }
 }

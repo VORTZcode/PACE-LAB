@@ -98,6 +98,18 @@ struct PaceScreen<Content: View>: View {
     }
 }
 
+struct PaceHomeGlassSurface: ViewModifier {
+    var cornerRadius: CGFloat = 24
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
+        } else {
+            content.background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+}
+
 struct TodayScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
@@ -147,7 +159,7 @@ struct TodayScreen: View {
                                 Image(systemName: "arrow.up.right.circle.fill").font(.title3).foregroundStyle(PaceColors.teal)
                             }
                             .padding(17)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 19))
+                            .modifier(PaceHomeGlassSurface(cornerRadius: 19))
                         }
                         .buttonStyle(.plain)
                     }
@@ -192,7 +204,9 @@ struct TodayScreen: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     PaceSectionTitle(title: "Ma progression")
-                    PaceCard(padding: 22) {
+                    NavigationLink {
+                        PaceInsightScreen(kind: .year)
+                    } label: {
                         VStack(alignment: .leading, spacing: 15) {
                             HStack {
                                 Label("Distance parcourue en \(year)", systemImage: "figure.run")
@@ -214,34 +228,72 @@ struct TodayScreen: View {
                                 Text("\(engine.runs(year: year).count) courses cette année")
                                     .font(.subheadline).foregroundStyle(.secondary)
                                 Spacer()
-                                Image(systemName: "checkmark.circle.fill")
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(PaceColors.teal)
                             }
                         }
+                        .padding(22)
+                        .modifier(PaceHomeGlassSurface(cornerRadius: 26))
                     }
+                    .buttonStyle(.plain)
                     HStack(spacing: 10) {
-                        PaceMetric(caption: "Distance ce mois", value: PaceFormat.distance(engine.runHistory.filter {
-                            Calendar.current.isDate($0.startDate, equalTo: .now, toGranularity: .month)
-                        }.reduce(0) { $0 + $1.kilometers }), suffix: "km", symbol: "calendar")
-                        PaceMetric(caption: "FC moyenne", value: last.map { PaceFormat.heart($0.hr_average_bpm) } ?? "—", suffix: "bpm", symbol: "heart")
+                        NavigationLink {
+                            PaceInsightScreen(kind: .month)
+                        } label: {
+                            PaceMetric(caption: "Distance ce mois", value: PaceFormat.distance(engine.runHistory.filter {
+                                Calendar.current.isDate($0.startDate, equalTo: .now, toGranularity: .month)
+                            }.reduce(0) { $0 + $1.kilometers }), suffix: "km", symbol: "calendar")
+                                .overlay(alignment: .topTrailing) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(PaceColors.teal)
+                                        .padding(15)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        NavigationLink {
+                            PaceInsightScreen(kind: .heart)
+                        } label: {
+                            PaceMetric(caption: "FC dernière course",
+                                       value: last.map { PaceFormat.heart($0.hr_average_bpm) } ?? "—",
+                                       suffix: "bpm", symbol: "heart")
+                                .overlay(alignment: .topTrailing) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(PaceColors.teal)
+                                        .padding(15)
+                                }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    PaceCard {
+                    NavigationLink {
+                        PaceInsightScreen(kind: .week)
+                    } label: {
                         HStack(alignment: .center, spacing: 15) {
                             Image(systemName: "calendar")
                                 .font(.title3)
                                 .foregroundStyle(PaceColors.teal)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Sur les 7 derniers jours").font(.subheadline.weight(.semibold))
+                                Text("Sur les 7 derniers jours")
+                                    .font(.subheadline.weight(.semibold))
                                 Text("\(lastSeven.count) courses enregistrées")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 4)
                             VStack(alignment: .trailing, spacing: 3) {
-                                Text(PaceFormat.distance(sevenKm)).font(.title3.weight(.semibold)).monospacedDigit()
+                                Text(PaceFormat.distance(sevenKm))
+                                    .font(.title3.weight(.semibold)).monospacedDigit()
                                 Text("km").font(.caption).foregroundStyle(.secondary)
                             }
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(PaceColors.teal)
                         }
+                        .padding(18)
+                        .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 20))
                     }
+                    .buttonStyle(.plain)
                 }
                 Label("Données Apple Santé conservées uniquement sur cet iPhone",
                       systemImage: "lock.shield")
