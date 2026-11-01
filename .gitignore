@@ -1,0 +1,16 @@
+# Never commit personal Apple Health exports / private state / credentials
+*.zip
+export.xml
+export.zip
+**/AppleHealth/**
+**/private/**
+**/secrets/**
+*.env
+.env.*
+*.pem
+*.p12
+PACE_LAB_Donnees_Personnelles_A_Importer.json
+*sante*personnel*.json
+*.sqlite
+.DS_Store
+node_modules/
