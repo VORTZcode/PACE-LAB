@@ -1,5 +1,8 @@
 import SwiftUI
 
+private struct PaceWorkoutID: Identifiable {
+    let id: String
+}
 private enum PaceCoachTab: String, CaseIterable {
     case session = "Ma séance"
     case plan = "Mon programme"
@@ -20,6 +23,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var library: PaceLibrary
     @EnvironmentObject private var journal: PaceSessionJournal
     @EnvironmentObject private var athleteProfile: PaceAthleteProfileStore
+    @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
     @State private var showPreview = false
@@ -29,6 +33,7 @@ struct PaceCoachScreen: View {
     @State private var activeTab: PaceCoachTab = .session
     @State private var showAccountSettings = false
     @State private var showProfile = false
+    @State private var effortWorkoutID: PaceWorkoutID?
 
     var body: some View {
         NavigationStack {
@@ -42,6 +47,9 @@ struct PaceCoachScreen: View {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
                                 Label("Nouvelle sortie disponible pour le bilan",systemImage:"checkmark.circle")
                                     .font(.subheadline).foregroundStyle(PaceColors.teal)
+                            }
+                            if let suggested = adaptiveMonitor.visible {
+                                adaptiveReviewCard(suggested)
                             }
                             sessionAnalysisCard
                             if let report = coach.latestReport { sessionReportCard(report) }
@@ -102,6 +110,9 @@ struct PaceCoachScreen: View {
                 }
             }
             .sheet(isPresented:$showProfile) { PaceAthleteProfileScreen() }
+            .sheet(item:$effortWorkoutID) { uuid in
+                PaceEffortEditor(uuid:uuid.id).environmentObject(journal)
+            }
             .sheet(isPresented:$showAccountSettings) {
                 NavigationStack {
                     ScrollView {
@@ -428,6 +439,74 @@ struct PaceCoachScreen: View {
             }
             Text("\(currentRuns.count) courses cette semaine, \(previousRuns.count) la semaine précédente. Les différences de distance ne prouvent pas, à elles seules, une progression.")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func adaptiveReviewCard(_ recommendation:PaceAdaptation) -> some View {
+        PaceCard {
+            VStack(alignment:.leading,spacing:12) {
+                HStack {
+                    Image(systemName:recommendation.recommendation == .pause ?
+                          "exclamationmark.shield" : "checkmark.shield")
+                        .foregroundStyle(PaceColors.teal)
+                    Text("Après ta dernière sortie")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("Masquer") { adaptiveMonitor.dismiss() }
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(recommendation.headline)
+                    .font(.title3.weight(.semibold))
+                ForEach(recommendation.reasons,id:\.self) { reason in
+                    Text(reason).font(.footnote).foregroundStyle(.secondary)
+                }
+                if recommendation.recommendation == .requestFeedback {
+                    Button {
+                        effortWorkoutID = PaceWorkoutID(id:recommendation.workoutUUID)
+                    } label: {
+                        Label("Noter mon ressenti",systemImage:"pencil.line")
+                    }
+                    .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+                }
+                if recommendation.requiresApproval {
+                    if let date = recommendation.sessionDate {
+                        Text("Séance concernée : \(date)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if recommendation.recommendation == .easier,
+                           let duration = recommendation.proposedMinutes {
+                            Text("Durée proposée : \(duration) min, en endurance facile")
+                                .font(.subheadline.weight(.medium))
+                        } else {
+                            Text("Pause proposée avant la prochaine course. Consulte un professionnel en cas de douleur importante ou persistante.")
+                                .font(.footnote)
+                        }
+                        Button {
+                            do {
+                                try library.approveAdaptation(recommendation)
+                                adaptiveMonitor.dismiss()
+                            } catch { coach.error = error.localizedDescription }
+                        } label: {
+                            Label("Accepter pour cette séance uniquement",
+                                  systemImage:"checkmark.circle")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth:.infinity)
+                        }
+                        .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+                    } else {
+                        Text("Aucune future course n'est planifiée : il n'y a rien à modifier.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Button {
+                        effortWorkoutID = PaceWorkoutID(id:recommendation.workoutUUID)
+                    } label: {
+                        Label("Modifier mon ressenti",systemImage:"square.and.pencil")
+                    }
+                    .font(.caption.weight(.medium)).tint(PaceColors.teal)
+                    Button("Conserver le programme actuel") { adaptiveMonitor.dismiss() }
+                        .font(.subheadline).tint(.secondary)
+                        .frame(maxWidth:.infinity)
+                }
+            }
         }
     }
 

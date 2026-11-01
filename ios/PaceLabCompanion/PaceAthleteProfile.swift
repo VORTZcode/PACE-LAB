@@ -22,7 +22,7 @@ struct PaceAthleteProfile: Codable, Equatable {
             nutritionPreferences: "Deux repas principaux (midi et soir), quantités de féculents indiquées crues, éviter le poisson cuit.",
             injuryAndReadinessNotes: "",
             preferredRunsPerWeek: 3,
-            preferredStrengthPerWeek: 2,
+            preferredStrengthPerWeek: 3,
             createdAt: .now
         )
     }
@@ -92,6 +92,34 @@ struct PaceAthleteProfileScreen: View {
     @State private var failure = ""
     @State private var deletionConfirmation = false
 
+    @ViewBuilder
+    private func expandedField(_ title:String,text:Binding<String>,
+                               placeholder:String,minHeight:CGFloat) -> some View {
+        VStack(alignment:.leading,spacing:9) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            ZStack(alignment:.topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(placeholder)
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal,9).padding(.vertical,11)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text:text)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight:minHeight)
+                    .padding(.horizontal,3)
+                    .accessibilityLabel(title)
+            }
+            .padding(8)
+            .background(PaceColors.base,in:RoundedRectangle(cornerRadius:16))
+        }
+        .padding(.vertical,5)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -107,32 +135,35 @@ struct PaceAthleteProfileScreen: View {
                     }
                 }
                 Section("Ce que je veux accomplir") {
-                    LabeledContent("Objectif de course") {
-                        TextField("Ex. 10 km à 15 km/h",text:$draft.runningGoal,axis:.vertical)
-                            .multilineTextAlignment(.trailing).lineLimit(2...5)
-                    }
-                    LabeledContent("Composition corporelle") {
-                        TextField("Mon objectif",text:$draft.bodyGoal,axis:.vertical)
-                            .multilineTextAlignment(.trailing).lineLimit(2...5)
-                    }
-                    TextField("Pourquoi c'est important pour moi",text:$draft.motivation,axis:.vertical)
-                        .lineLimit(2...5)
+                    expandedField("Mon objectif en course", text:$draft.runningGoal,
+                                  placeholder:"Ex. Courir 10 km à 15 km/h avec de la réserve",
+                                  minHeight:142)
+                    expandedField("Composition corporelle",text:$draft.bodyGoal,
+                                  placeholder:"Maigrir progressivement sans perdre de muscle",
+                                  minHeight:110)
+                    expandedField("Pourquoi je veux progresser",text:$draft.motivation,
+                                  placeholder:"Ce qui me motive sur le long terme",
+                                  minHeight:120)
                 }
-                Section("Entraînement") {
-                    Stepper("Courses : \(draft.preferredRunsPerWeek) / semaine",
+                Section {
+                    Stepper("Course : \(draft.preferredRunsPerWeek) / semaine",
                             value:$draft.preferredRunsPerWeek,in:1...6)
                     Stepper("Musculation : \(draft.preferredStrengthPerWeek) / semaine",
                             value:$draft.preferredStrengthPerWeek,in:0...5)
-                    TextField("Matériel et contraintes",text:$draft.trainingConstraints,axis:.vertical)
-                        .lineLimit(2...6)
-                    TextField("Douleurs ou restrictions actuelles (facultatif)",
-                              text:$draft.injuryAndReadinessNotes,axis:.vertical)
-                        .lineLimit(2...6)
-                }
+                    Text("Le programme initial prévoit 3 courses, 3 séances de musculation et une journée de récupération. Ces chiffres sont des préférences modifiables, pas un engagement.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    expandedField("Matériel et contraintes",text:$draft.trainingConstraints,
+                                  placeholder:"Matériel, horaires, séances possibles",
+                                  minHeight:100)
+                    expandedField("Douleurs ou restrictions actuelles (facultatif)",
+                                  text:$draft.injuryAndReadinessNotes,
+                                  placeholder:"Préciser les symptômes ou laisser vide",
+                                  minHeight:105)
+                } header: { Text("Entraînement") }
                 Section("Alimentation") {
-                    TextField("Préférences, horaires, aliments à éviter",
-                              text:$draft.nutritionPreferences,axis:.vertical)
-                        .lineLimit(3...7)
+                    expandedField("Préférences alimentaires",text:$draft.nutritionPreferences,
+                                  placeholder:"Repas, horaires, allergies, préférences…",
+                                  minHeight:125)
                 }
                 Section {
                     Toggle("Autoriser le coach à utiliser ce profil",isOn:$store.shareProfile)
