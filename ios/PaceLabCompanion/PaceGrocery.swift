@@ -14,7 +14,7 @@ struct GroceryScreen: View {
     private var grouped: [PaceGroceryGroup] {
         var groups: [String: PaceGroceryGroup] = [:]
         var ordered: [String] = []
-        for recipe in library.programme.recipes {
+        for recipe in library.currentRecipes {
             for (index, raw) in recipe.ingredients.components(separatedBy: .newlines).enumerated() {
                 let cleaned = raw.replacingOccurrences(of: "•", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)

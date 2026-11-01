@@ -114,6 +114,7 @@ struct TodayScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     @State private var showSettings = false
+    @State private var showCoach = false
 
     private var last: WorkoutPayload? { engine.runHistory.first }
     private var year: Int { Calendar.current.component(.year, from: .now) }
@@ -164,6 +165,30 @@ struct TodayScreen: View {
                         .buttonStyle(.plain)
                     }
                 }
+                Button { showCoach = true } label: {
+                    HStack(spacing:14) {
+                        Image(systemName:"sparkles")
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(PaceColors.teal)
+                            .frame(width:46,height:46)
+                            .background(PaceColors.teal.opacity(0.12),
+                                in:RoundedRectangle(cornerRadius:15))
+                        VStack(alignment:.leading,spacing:5) {
+                            Text("Ton coach ChatGPT")
+                                .font(.headline).foregroundStyle(.primary)
+                            Text("Analyser · Adapter · Planifier")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength:5)
+                        Image(systemName:"arrow.up.right")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PaceColors.teal)
+                    }
+                    .padding(17)
+                    .modifier(PaceHomeGlassSurface(cornerRadius:21))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Ouvrir ton coach sportif personnel")
                 if let day = library.nextDay {
                     VStack(alignment: .leading, spacing: 17) {
                         HStack {
@@ -302,7 +327,11 @@ struct TodayScreen: View {
                     .padding(.horizontal, 4)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { showCoach = true } label: {
+                        Image(systemName:"sparkles")
+                    }
+                    .accessibilityLabel("Coach ChatGPT")
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape").font(.body)
                     }
@@ -311,6 +340,9 @@ struct TodayScreen: View {
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack { PaceSettingsScreen() }
+            }
+            .sheet(isPresented: $showCoach) {
+                PaceCoachScreen()
             }
         }
     }

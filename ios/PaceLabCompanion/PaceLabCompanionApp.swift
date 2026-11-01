@@ -20,6 +20,8 @@ struct PaceLabCompanionApp: App {
     @StateObject private var engine = HealthSyncEngine.shared
     @StateObject private var library = PaceLibrary()
     @StateObject private var journal = PaceSessionJournal()
+    @StateObject private var chatGPT = PaceChatGPTConnection()
+    @StateObject private var coach = PaceCoachEngine()
     @State private var hasLoaded = false
 
     var body: some Scene {
@@ -40,6 +42,15 @@ struct PaceLabCompanionApp: App {
             .environmentObject(engine)
             .environmentObject(library)
             .environmentObject(journal)
+            .environmentObject(chatGPT)
+            .environmentObject(coach)
+            .onReceive(engine.$revision) { _ in
+                coach.detectNewWorkout(engine:engine)
+                if chatGPT.planUsageEnabled && !coach.isLoading &&
+                   coach.beginAutomaticReview(engine:engine) {
+                    Task { await coach.generate(client:chatGPT,engine:engine,library:library) }
+                }
+            }
             .onAppear {
                 guard !hasLoaded else { return }
                 hasLoaded = true
