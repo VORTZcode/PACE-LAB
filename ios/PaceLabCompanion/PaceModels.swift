@@ -89,6 +89,13 @@ struct PaceBodyLog: Identifiable, Codable {
         if !shoppingChecked.insert(id).inserted { shoppingChecked.remove(id) }
         UserDefaults.standard.set(Array(shoppingChecked), forKey: "pace.v2.shopping")
     }
+    func setGroceries(_ ids: [String], checked: Bool) {
+        for id in ids {
+            if checked { shoppingChecked.insert(id) }
+            else { shoppingChecked.remove(id) }
+        }
+        UserDefaults.standard.set(Array(shoppingChecked), forKey: "pace.v2.shopping")
+    }
     func clearGrocery() {
         shoppingChecked.removeAll()
         UserDefaults.standard.set([], forKey: "pace.v2.shopping")

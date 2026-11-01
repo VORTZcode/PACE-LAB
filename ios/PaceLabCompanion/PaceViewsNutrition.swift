@@ -3,10 +3,28 @@ import SwiftUI
 struct NutritionScreen: View {
     @EnvironmentObject var library: PaceLibrary
     @State private var selected = "Lundi"
+    @State private var didChooseInitialDay = false
 
     private var day: PaceDay? { library.programme.plan.first { $0.day == selected } }
     private var meals: [PaceRecipe] { library.programme.recipes.filter { $0.day == selected } }
     private var days: [String] { library.programme.plan.map(\.day) }
+    private func selectCurrentOrUpcoming() {
+        guard !didChooseInitialDay else { return }
+        didChooseInitialDay = true
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: .now)
+        let list = library.programme.plan
+        if let same = list.first(where: { $0.date == today }) {
+            selected = same.day
+        } else if let upcoming = list.first(where: { $0.date > today }) {
+            selected = upcoming.day
+        } else if let recent = list.last {
+            selected = recent.day
+        }
+    }
+
 
     var body: some View {
         NavigationStack {
@@ -14,7 +32,7 @@ struct NutritionScreen: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("VOTRE PLAN ALIMENTAIRE")
                         .font(.caption2.weight(.bold)).tracking(1.3).foregroundStyle(PaceColors.teal)
-                    Text("Repas de la semaine")
+                    Text("Repas du programme")
                         .font(.title3.weight(.semibold))
                     Text("Deux repas par jour. Quantités de féculents indiquées à cru.")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -48,7 +66,7 @@ struct NutritionScreen: View {
                     PaceCard {
                         HStack(spacing: 18) {
                             VStack(alignment: .leading, spacing: 7) {
-                                Text("OBJECTIF DU JOUR").font(.caption2.weight(.bold)).tracking(1.1).foregroundStyle(.secondary)
+                                Text("REPÈRES DU JOUR SÉLECTIONNÉ").font(.caption2.weight(.bold)).tracking(1.1).foregroundStyle(.secondary)
                                 Text("\(Int(day.kcal)) kcal").font(.system(size: 27, weight: .semibold, design: .rounded)).monospacedDigit()
                                 Text("Repère alimentaire indicatif").font(.caption).foregroundStyle(.secondary)
                             }
@@ -102,6 +120,7 @@ struct NutritionScreen: View {
                     }
                 }
             }
+            .onAppear { selectCurrentOrUpcoming() }
         }
     }
 }

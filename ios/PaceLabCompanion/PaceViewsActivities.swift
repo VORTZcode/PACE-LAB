@@ -109,6 +109,8 @@ struct ActivityRow: View {
 struct WorkoutDetailScreen: View {
     @EnvironmentObject private var journal: PaceSessionJournal
     @State private var showJournal = false
+    @State private var showIntervals = false
+    @State private var showComparison = false
     let workout: WorkoutPayload
     var body: some View {
         ScrollViewReader { navigator in
@@ -134,8 +136,32 @@ struct WorkoutDetailScreen: View {
             }
             RunDynamicsSection(original: workout)
                 .id("heart-chart")
-            RunIntervalsSection(workout: workout)
-                .id("run-intervals")
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showIntervals.toggle() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "list.number")
+                            .foregroundStyle(PaceColors.teal)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Voir les intervalles").font(.subheadline.weight(.semibold))
+                            Text("Allure, fréquence cardiaque et puissance par 5 minutes")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: showIntervals ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+                if showIntervals {
+                    RunIntervalsSection(workout: workout)
+                }
+            }
+            .id("run-intervals")
             PaceSectionTitle(title: "Après l’effort").id("recovery")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {
@@ -169,7 +195,31 @@ struct WorkoutDetailScreen: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            SimilarRunComparison(workout: workout).id("comparison")
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showComparison.toggle() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "rectangle.split.2x1").foregroundStyle(PaceColors.teal)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Comparer avec une autre sortie").font(.subheadline.weight(.semibold))
+                            Text("Distances similaires, sans conclusion automatique")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: showComparison ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+                if showComparison {
+                    SimilarRunComparison(workout: workout)
+                }
+            }
+            .id("comparison")
             PaceSectionTitle(title: "Mon journal").id("journal")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {
@@ -193,16 +243,10 @@ struct WorkoutDetailScreen: View {
                     .tint(PaceColors.teal)
                 }
             }
-            PaceCard {
-                HStack(spacing: 12) {
-                    Image(systemName: "applewatch").foregroundStyle(PaceColors.teal)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Source : Apple Santé").font(.subheadline.weight(.semibold))
-                        Text("Données privées conservées sur cet iPhone")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
+            Label("Mesures enregistrées par Apple Santé", systemImage: "applewatch")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -211,13 +255,15 @@ struct WorkoutDetailScreen: View {
                     Button("Graphiques", systemImage: "waveform.path.ecg") {
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
                     }
-                    Button("Tranches de 5 minutes", systemImage: "list.number") {
+                    Button("Intervalles de 5 minutes", systemImage: "list.number") {
+                        showIntervals = true
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("run-intervals", anchor: .top) }
                     }
                     Button("Récupération", systemImage: "heart.text.square") {
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("recovery", anchor: .top) }
                     }
                     Button("Comparer", systemImage: "rectangle.split.2x1") {
+                        showComparison = true
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("comparison", anchor: .top) }
                     }
                     Button("Mon journal", systemImage: "square.and.pencil") {
