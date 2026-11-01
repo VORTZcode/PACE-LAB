@@ -18,6 +18,14 @@ struct NutritionScreen: View {
                         .font(.title3.weight(.semibold))
                     Text("Deux repas par jour. Quantités de féculents indiquées à cru.")
                         .font(.subheadline).foregroundStyle(.secondary)
+                    NavigationLink {
+                        GroceryScreen()
+                    } label: {
+                        Label("Liste de courses", systemImage: "basket")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(PaceColors.teal)
+                    .padding(.top, 6)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

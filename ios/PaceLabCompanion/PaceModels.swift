@@ -60,6 +60,7 @@ struct PaceBodyLog: Identifiable, Codable {
     let programme: PaceProgramme
     @Published private(set) var completed: Set<String>
     @Published private(set) var eaten: Set<String>
+    @Published private(set) var shoppingChecked: Set<String>
     @Published private(set) var bodyLogs: [PaceBodyLog]
 
     init() {
@@ -72,6 +73,7 @@ struct PaceBodyLog: Identifiable, Codable {
         }
         completed = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.completed") ?? [])
         eaten = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.eaten") ?? [])
+        shoppingChecked = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.shopping") ?? [])
         let raw = UserDefaults.standard.data(forKey: "pace.v2.body")
         bodyLogs = raw.flatMap { try? JSONDecoder().decode([PaceBodyLog].self, from: $0) } ?? []
     }
@@ -82,6 +84,14 @@ struct PaceBodyLog: Identifiable, Codable {
     func toggleMeal(_ id: String) {
         if !eaten.insert(id).inserted { eaten.remove(id) }
         UserDefaults.standard.set(Array(eaten), forKey: "pace.v2.eaten")
+    }
+    func toggleGrocery(_ id: String) {
+        if !shoppingChecked.insert(id).inserted { shoppingChecked.remove(id) }
+        UserDefaults.standard.set(Array(shoppingChecked), forKey: "pace.v2.shopping")
+    }
+    func clearGrocery() {
+        shoppingChecked.removeAll()
+        UserDefaults.standard.set([], forKey: "pace.v2.shopping")
     }
     func saveBody(date: Date, weight: Double?, waist: Double?) {
         let value = PaceBodyLog(id: UUID(), date: date, weightKg: weight, waistCm: waist)
@@ -100,7 +110,6 @@ struct PaceBodyLog: Identifiable, Codable {
         let today = formatter.string(from: .now)
         guard let last = programme.plan.last, today <= last.date else { return nil }
         return programme.plan.first(where: { $0.date >= today && !completed.contains($0.date) })
-            ?? programme.plan.first(where: { !completed.contains($0.date) })
     }
 }
 

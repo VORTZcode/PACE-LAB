@@ -5,10 +5,21 @@ struct ActivitiesScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @State private var kind = 0
     @State private var shown = 25
+    @State private var selectedYear = 0
+    private var availableYears: [Int] {
+        Array(Set(engine.snapshot.map { Calendar.current.component(.year, from: $0.startDate) }))
+            .sorted(by: >)
+    }
     private var all: [WorkoutPayload] {
-        engine.snapshot.filter { kind == 0 ? $0.isRun : kind == 1 ? $0.activity_kind == "walking" : true }
+        engine.snapshot.filter { workout in
+            let kindMatches = kind == 0 ? workout.isRun :
+                (kind == 1 ? workout.activity_kind == "walking" : true)
+            return kindMatches && (selectedYear == 0 ||
+                    Calendar.current.component(.year, from: workout.startDate) == selectedYear)
+        }
     }
     private var year: Int { Calendar.current.component(.year, from: .now) }
+    private var statYear: Int { selectedYear == 0 ? year : selectedYear }
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
@@ -20,10 +31,27 @@ struct ActivitiesScreen: View {
                 .pickerStyle(.segmented)
                 .onChange(of: kind) { _, _ in shown = 25 }
 
+                HStack {
+                    Text("Période").font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        Button("Toutes les années") { selectedYear = 0; shown = 25 }
+                        Divider()
+                        ForEach(availableYears, id: \.self) { year in
+                            Button(String(year)) { selectedYear = year; shown = 25 }
+                        }
+                    } label: {
+                        Label(selectedYear == 0 ? "Toutes les années" : String(selectedYear),
+                              systemImage: "line.3.horizontal.decrease")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .modifier(PaceGlassTreatment())
+                    .tint(.primary)
+                }
                 if kind == 0 {
                     HStack(spacing: 10) {
-                        PaceMetric(caption: "Courses \(year)", value: "\(engine.runs(year: year).count)", suffix: "", symbol: "figure.run")
-                        PaceMetric(caption: "Distance \(year)", value: PaceFormat.distance(engine.totalDistance(year: year)), suffix: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up")
+                        PaceMetric(caption: "Courses \(statYear)", value: "\(engine.runs(year: statYear).count)", suffix: "", symbol: "figure.run")
+                        PaceMetric(caption: "Distance \(statYear)", value: PaceFormat.distance(engine.totalDistance(year: statYear)), suffix: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up")
                     }
                 }
                 PaceSectionTitle(title: "Historique", subtitle: "\(all.count) activités")
@@ -85,6 +113,8 @@ private struct HeartSample: Identifiable {
 }
 
 struct WorkoutDetailScreen: View {
+    @EnvironmentObject private var journal: PaceSessionJournal
+    @State private var showJournal = false
     let workout: WorkoutPayload
     private var samples: [HeartSample] {
         let all = workout.heart_rate_series
@@ -92,6 +122,7 @@ struct WorkoutDetailScreen: View {
         return all.enumerated().compactMap { (i, point) in
             guard i % step == 0,
                   let date = PaceFormat.iso.date(from: point.timestamp),
+                  date >= workout.startDate, date <= workout.endDate,
                   point.bpm > 25, point.bpm < 245 else { return nil }
             return HeartSample(id: i, minute: date.timeIntervalSince(workout.startDate) / 60, bpm: point.bpm)
         }
@@ -160,9 +191,41 @@ struct WorkoutDetailScreen: View {
                         Spacer()
                         recoveryValue("3 min", value: workout.recovery_hr_3min)
                     }
+                    if let end = workout.hr_at_end_bpm, let one = workout.recovery_hr_1min {
+                        HStack {
+                            Label("Variation après 1 min", systemImage: "heart.text.square")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int((end - one).rounded())) bpm")
+                                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                        }
+                    }
                     Divider()
-                    Text("Valeurs réellement enregistrées par Apple Santé autour des instants indiqués. Une mesure absente n’est pas estimée.")
+                    Text("Mesures réelles disponibles autour de chaque instant. Le suivi peut être incomplet et n’est pas un diagnostic médical.")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            PaceSectionTitle(title: "Mon journal")
+            PaceCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    let entry = journal.note(for: workout.source_uuid)
+                    HStack(spacing: 12) {
+                        Image(systemName: "pencil.and.list.clipboard")
+                            .font(.title3).foregroundStyle(PaceColors.teal)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(entry.effort.map { "Effort ressenti : \($0)/10" } ?? "Ajouter mon ressenti")
+                                .font(.subheadline.weight(.semibold))
+                            Text(entry.comment.isEmpty ? "Note, sensations, fatigue et difficulté perçue" : entry.comment)
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                    }
+                    Button {
+                        showJournal = true
+                    } label: {
+                        Label(entry.effort == nil && entry.comment.isEmpty ? "Renseigner ma séance" : "Modifier mon journal", systemImage: "square.and.pencil")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(PaceColors.teal)
                 }
             }
             PaceCard {
@@ -177,6 +240,10 @@ struct WorkoutDetailScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showJournal) {
+            PaceEffortEditor(uuid: workout.source_uuid)
+                .environmentObject(journal)
+        }
     }
     private func recoveryValue(_ label: String, value: Double?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
