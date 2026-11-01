@@ -1,7 +1,6 @@
 import SwiftUI
 
-
-private struct PaceInterval: Identifiable {
+private struct PaceInterval: Identifiable, Sendable {
     let id: Int
     let startMinute: Int
     let endMinute: Int
@@ -10,58 +9,97 @@ private struct PaceInterval: Identifiable {
     let avgWatts: Double?
 }
 
+private struct PaceBucket: Sendable {
+    var heartSum = 0.0
+    var heartCount = 0
+    var speedSum = 0.0
+    var speedCount = 0
+    var wattsSum = 0.0
+    var wattsCount = 0
+}
+
+/// Process each sensor series exactly once, off the main thread.
+/// Old implementation scanned/parses each sample again for every 5-minute row.
+private enum PaceIntervalCalculator {
+    nonisolated static func calculate(_ workout: WorkoutPayload) -> [PaceInterval] {
+        guard workout.isRun, workout.duration_seconds >= 300 else { return [] }
+        let count = min(60, Int(ceil(workout.duration_seconds / 300)))
+        guard count > 0 else { return [] }
+        var buckets = Array(repeating: PaceBucket(), count: count)
+        let clock = ISO8601DateFormatter()
+        guard let start = clock.date(from: workout.started_at) else { return [] }
+
+        for p in workout.heart_rate_series {
+            guard let date = clock.date(from: p.timestamp) else { continue }
+            let elapsed = date.timeIntervalSince(start)
+            guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }
+            let index = min(count - 1, Int(elapsed / 300))
+            buckets[index].heartSum += p.bpm
+            buckets[index].heartCount += 1
+        }
+        for p in workout.speed_series ?? [] {
+            guard p.value.isFinite, p.value > 0,
+                  let date = clock.date(from: p.timestamp) else { continue }
+            let elapsed = date.timeIntervalSince(start)
+            guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }
+            let index = min(count - 1, Int(elapsed / 300))
+            buckets[index].speedSum += p.value
+            buckets[index].speedCount += 1
+        }
+        for p in workout.power_series ?? [] {
+            guard p.value.isFinite, p.value > 0,
+                  let date = clock.date(from: p.timestamp) else { continue }
+            let elapsed = date.timeIntervalSince(start)
+            guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }
+            let index = min(count - 1, Int(elapsed / 300))
+            buckets[index].wattsSum += p.value
+            buckets[index].wattsCount += 1
+        }
+        return buckets.enumerated().map { index, b in
+            PaceInterval(
+                id: index, startMinute: index*5,
+                endMinute: min(Int(ceil(workout.duration_seconds / 60)), (index+1)*5),
+                avgBPM: b.heartCount > 0 ? b.heartSum/Double(b.heartCount) : nil,
+                avgSpeed: b.speedCount > 0 ? b.speedSum/Double(b.speedCount) : nil,
+                avgWatts: b.wattsCount > 0 ? b.wattsSum/Double(b.wattsCount) : nil
+            )
+        }
+    }
+}
+
 struct RunIntervalsSection: View {
     let workout: WorkoutPayload
     @EnvironmentObject private var engine: HealthSyncEngine
     @State private var showAll = false
-    private var w: WorkoutPayload { engine.snapshot.first { $0.source_uuid == workout.source_uuid } ?? workout }
+    @State private var intervals: [PaceInterval] = []
+    @State private var isLoading = false
 
-    private var intervals: [PaceInterval] {
-        guard w.isRun, w.duration_seconds >= 5 * 60 else { return [] }
-        let windowCount = min(60, Int(ceil(w.duration_seconds / 300)))
-        return (0..<windowCount).map { bucket in
-            let begin = w.startDate.addingTimeInterval(Double(bucket * 300))
-            let end = min(w.endDate, begin.addingTimeInterval(300))
-            let h = w.heart_rate_series.compactMap { sample -> Double? in
-                guard let date = PaceFormat.iso.date(from: sample.timestamp),
-                      date >= begin, date < end else { return nil }
-                return sample.bpm
-            }
-            func average(_ points: [PaceSensorPoint]?) -> Double? {
-                let samples = (points ?? []).compactMap { sample -> Double? in
-                    guard let date = PaceFormat.iso.date(from: sample.timestamp),
-                          date >= begin, date < end, sample.value > 0 else { return nil }
-                    return sample.value
-                }
-                guard !samples.isEmpty else { return nil }
-                return samples.reduce(0,+)/Double(samples.count)
-            }
-            return PaceInterval(id: bucket,
-                                startMinute: bucket*5,
-                                endMinute: min(Int(ceil(w.duration_seconds/60)), (bucket+1)*5),
-                                avgBPM: h.isEmpty ? nil : h.reduce(0,+)/Double(h.count),
-                                avgSpeed: average(w.speed_series),
-                                avgWatts: average(w.power_series))
-        }
+    private var w: WorkoutPayload { engine.workout(id: workout.source_uuid) ?? workout }
+    private var dataKey: String {
+        let item = w
+        return "\(item.source_uuid)|\(item.heart_rate_series.count)|\(item.speed_series?.count ?? 0)|\(item.power_series?.count ?? 0)"
     }
 
     var body: some View {
-        if !intervals.isEmpty {
-            VStack(alignment: .leading, spacing: 13) {
-                PaceSectionTitle(title: "Par tranches de 5 minutes")
-                PaceCard {
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Temps").frame(maxWidth: .infinity, alignment: .leading)
-                            Text("Allure").frame(maxWidth: .infinity, alignment: .trailing)
-                            Text("FC").frame(maxWidth: .infinity, alignment: .trailing)
-                            Text("W").frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 12)
+        VStack(alignment: .leading, spacing: 13) {
+            PaceSectionTitle(title: "Par tranches de 5 minutes")
+            PaceCard {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Temps").frame(maxWidth: .infinity, alignment: .leading)
+                        Text("Allure").frame(maxWidth: .infinity, alignment: .trailing)
+                        Text("FC").frame(maxWidth: .infinity, alignment: .trailing)
+                        Text("W").frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 12)
+                    if isLoading && intervals.isEmpty {
+                        ProgressView("Préparation des intervalles")
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    } else {
                         ForEach(Array(intervals.prefix(showAll ? intervals.count : 6))) { item in
-                            HStack {
+                            HStack(spacing: 5) {
                                 Text("\(item.startMinute)–\(item.endMinute)'")
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 Text(item.avgSpeed.flatMap { $0 > 0.7 ? PaceFormat.pace(1000 / ($0 * 60)) : nil } ?? "—")
@@ -74,21 +112,42 @@ struct RunIntervalsSection: View {
                             .font(.footnote)
                             .monospacedDigit()
                             .padding(.vertical, 9)
-                            if item.id != intervals.prefix(showAll ? intervals.count : 6).last?.id {
+                            if item.id != (showAll ? intervals : Array(intervals.prefix(6))).last?.id {
                                 Divider()
                             }
                         }
                         if intervals.count > 6 {
-                            Button(showAll ? "Réduire" : "Afficher toutes les tranches") { showAll.toggle() }
+                            Button {
+                                showAll.toggle()
+                            } label: {
+                                HStack {
+                                    Image(systemName: showAll ? "chevron.up" : "chevron.down")
+                                    Text(showAll ? "Réduire" : "Afficher les \(intervals.count) tranches")
+                                }
                                 .font(.subheadline.weight(.semibold))
-                                .tint(PaceColors.teal)
-                                .padding(.top, 13)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 9)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(PaceColors.teal)
+                            .padding(.top, 6)
                         }
                     }
                 }
-                Text("Découpage temporel calculé par PACE LAB, différent des kilomètres intermédiaires ou tours officiels. Moyennes des échantillons disponibles uniquement.")
-                    .font(.caption2).foregroundStyle(.secondary)
             }
+            Text("Tranches temporelles calculées à partir des échantillons disponibles. Ce ne sont ni des kilomètres intermédiaires ni des tours Apple.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .task(id: dataKey) {
+            let input = w
+            guard input.isRun, input.duration_seconds >= 300 else { return }
+            isLoading = true
+            let result = await Task.detached(priority: .userInitiated) {
+                PaceIntervalCalculator.calculate(input)
+            }.value
+            guard !Task.isCancelled else { return }
+            intervals = result
+            isLoading = false
         }
     }
 }

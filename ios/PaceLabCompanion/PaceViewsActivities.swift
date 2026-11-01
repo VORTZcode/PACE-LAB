@@ -106,28 +106,12 @@ struct ActivityRow: View {
         .contentShape(Rectangle())
     }
 }
-private struct HeartSample: Identifiable {
-    let id: Int
-    let minute: Double
-    let bpm: Double
-}
-
 struct WorkoutDetailScreen: View {
     @EnvironmentObject private var journal: PaceSessionJournal
     @State private var showJournal = false
     let workout: WorkoutPayload
-    private var samples: [HeartSample] {
-        let all = workout.heart_rate_series
-        let step = max(1, all.count / 500)
-        return all.enumerated().compactMap { (i, point) in
-            guard i % step == 0,
-                  let date = PaceFormat.iso.date(from: point.timestamp),
-                  date >= workout.startDate, date <= workout.endDate,
-                  point.bpm > 25, point.bpm < 245 else { return nil }
-            return HeartSample(id: i, minute: date.timeIntervalSince(workout.startDate) / 60, bpm: point.bpm)
-        }
-    }
     var body: some View {
+        ScrollViewReader { navigator in
         PaceScreen(title: "Séance") {
             VStack(alignment: .leading, spacing: 6) {
                 Text(workout.cadenceLabel.uppercased())
@@ -149,8 +133,10 @@ struct WorkoutDetailScreen: View {
                 }
             }
             RunDynamicsSection(original: workout)
+                .id("heart-chart")
             RunIntervalsSection(workout: workout)
-            PaceSectionTitle(title: "Après l’effort")
+                .id("run-intervals")
+            PaceSectionTitle(title: "Après l’effort").id("recovery")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -183,8 +169,8 @@ struct WorkoutDetailScreen: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            SimilarRunComparison(workout: workout)
-            PaceSectionTitle(title: "Mon journal")
+            SimilarRunComparison(workout: workout).id("comparison")
+            PaceSectionTitle(title: "Mon journal").id("journal")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {
                     let entry = journal.note(for: workout.source_uuid)
@@ -219,9 +205,34 @@ struct WorkoutDetailScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Graphiques", systemImage: "waveform.path.ecg") {
+                        withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
+                    }
+                    Button("Tranches de 5 minutes", systemImage: "list.number") {
+                        withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("run-intervals", anchor: .top) }
+                    }
+                    Button("Récupération", systemImage: "heart.text.square") {
+                        withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("recovery", anchor: .top) }
+                    }
+                    Button("Comparer", systemImage: "rectangle.split.2x1") {
+                        withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("comparison", anchor: .top) }
+                    }
+                    Button("Mon journal", systemImage: "square.and.pencil") {
+                        withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("journal", anchor: .top) }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityLabel("Aller directement à une section")
+            }
+        }
         .sheet(isPresented: $showJournal) {
             PaceEffortEditor(uuid: workout.source_uuid)
                 .environmentObject(journal)
+        }
         }
     }
     private func recoveryValue(_ label: String, value: Double?) -> some View {

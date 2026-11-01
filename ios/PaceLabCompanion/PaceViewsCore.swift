@@ -83,7 +83,7 @@ struct PaceScreen<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 content
             }
             .padding(.horizontal, 18)
@@ -120,6 +120,37 @@ struct TodayScreen: View {
                     Spacer()
                     Label("Apple Santé", systemImage: "heart.text.square")
                         .font(.caption.weight(.medium)).foregroundStyle(PaceColors.teal)
+                }
+                if let last {
+                    VStack(alignment: .leading, spacing: 12) {
+                        PaceSectionTitle(title: "Dernière course")
+                        NavigationLink {
+                            WorkoutDetailScreen(workout: last)
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "figure.run")
+                                    .font(.title2).foregroundStyle(PaceColors.teal)
+                                    .frame(width: 46, height: 46)
+                                    .background(PaceColors.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Voir les statistiques").font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.8)
+                                    Text(last.startDate.formatted(.dateTime.day().month().year()))
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 4)
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("\(PaceFormat.distance(last.kilometers, places: 2)) km")
+                                        .font(.headline).foregroundStyle(.primary)
+                                    Text("\(PaceFormat.pace(last.paceMinutes)) /km")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Image(systemName: "arrow.up.right.circle.fill").font(.title3).foregroundStyle(PaceColors.teal)
+                            }
+                            .padding(17)
+                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 19))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 if let day = library.nextDay {
                     VStack(alignment: .leading, spacing: 17) {
@@ -208,37 +239,6 @@ struct TodayScreen: View {
                                 Text("km").font(.caption).foregroundStyle(.secondary)
                             }
                         }
-                    }
-                }
-                if let last {
-                    VStack(alignment: .leading, spacing: 12) {
-                        PaceSectionTitle(title: "Dernière activité")
-                        NavigationLink {
-                            WorkoutDetailScreen(workout: last)
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "figure.run")
-                                    .font(.title2).foregroundStyle(PaceColors.teal)
-                                    .frame(width: 46, height: 46)
-                                    .background(PaceColors.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Course à pied").font(.headline).foregroundStyle(.primary)
-                                    Text(PaceFormat.fullDate(last.startDate).capitalized)
-                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                                Spacer(minLength: 4)
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text("\(PaceFormat.distance(last.kilometers, places: 2)) km")
-                                        .font(.headline).foregroundStyle(.primary)
-                                    Text("\(PaceFormat.pace(last.paceMinutes)) /km")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                            }
-                            .padding(16)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 19))
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
                 PaceCard {

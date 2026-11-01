@@ -1,13 +1,13 @@
 import SwiftUI
 import Charts
 
-private struct RunChartPoint: Identifiable {
+private struct RunChartPoint: Identifiable, Sendable {
     let id: Int
     let minute: Double
     let value: Double
 }
 
-private enum RunChartMetric: String, CaseIterable, Identifiable {
+private enum RunChartMetric: String, CaseIterable, Identifiable, Sendable {
     case heart = "Cardio"
     case speed = "Allure"
     case power = "Puissance"
@@ -47,48 +47,74 @@ private enum RunChartMetric: String, CaseIterable, Identifiable {
     }
 }
 
+private enum RunChartCalculator {
+    nonisolated static func build(_ workout: WorkoutPayload, metric: RunChartMetric) -> [RunChartPoint] {
+        let selected: [PaceSensorPoint]
+        switch metric {
+        case .heart:
+            selected = workout.heart_rate_series.map {
+                PaceSensorPoint(timestamp: $0.timestamp, value: $0.bpm)
+            }
+        case .speed: selected = workout.speed_series ?? []
+        case .power: selected = workout.power_series ?? []
+        case .stride: selected = workout.stride_series ?? []
+        case .contact: selected = workout.ground_contact_series ?? []
+        case .vertical: selected = workout.vertical_series ?? []
+        }
+        let clock = ISO8601DateFormatter()
+        guard let start = clock.date(from: workout.started_at),
+              let finish = clock.date(from: workout.ended_at) else { return [] }
+        let step = max(1, Int(ceil(Double(selected.count) / 550)))
+        return selected.enumerated().compactMap { i, point in
+            guard i % step == 0,
+                  let date = clock.date(from: point.timestamp),
+                  date >= start, date <= finish,
+                  point.value.isFinite else { return nil }
+            let value: Double
+            switch metric {
+            case .speed:
+                guard point.value > 0.7 else { return nil }
+                value = 1000 / (point.value * 60)
+                guard (2...25).contains(value) else { return nil }
+            case .heart:
+                guard (25...245).contains(point.value) else { return nil }
+                value = point.value
+            default:
+                guard point.value > 0 else { return nil }
+                value = point.value
+            }
+            return RunChartPoint(id: i, minute: date.timeIntervalSince(start)/60, value: value)
+        }
+    }
+}
+
 struct RunDynamicsSection: View {
     @EnvironmentObject private var engine: HealthSyncEngine
     let original: WorkoutPayload
     @State private var metric: RunChartMetric = .heart
     @State private var selectedMinute: Double?
+    @State private var chartData: [RunChartPoint] = []
+    @State private var isChartLoading = false
 
     private var w: WorkoutPayload {
-        engine.snapshot.first { $0.source_uuid == original.source_uuid } ?? original
+        engine.workout(id: original.source_uuid) ?? original
     }
     private var sensorAvailable: Bool {
         (w.speed_series?.isEmpty == false) || (w.power_series?.isEmpty == false) ||
         (w.stride_series?.isEmpty == false)
     }
-    private var chartData: [RunChartPoint] {
-        let selected: [PaceSensorPoint]
+    private var chartKey: String {
+        let value = w
+        let length: Int
         switch metric {
-        case .heart:
-            selected = w.heart_rate_series.map { PaceSensorPoint(timestamp: $0.timestamp, value: $0.bpm) }
-        case .speed: selected = w.speed_series ?? []
-        case .power: selected = w.power_series ?? []
-        case .stride: selected = w.stride_series ?? []
-        case .contact: selected = w.ground_contact_series ?? []
-        case .vertical: selected = w.vertical_series ?? []
+        case .heart: length = value.heart_rate_series.count
+        case .speed: length = value.speed_series?.count ?? 0
+        case .power: length = value.power_series?.count ?? 0
+        case .stride: length = value.stride_series?.count ?? 0
+        case .contact: length = value.ground_contact_series?.count ?? 0
+        case .vertical: length = value.vertical_series?.count ?? 0
         }
-        return selected.enumerated().compactMap { i, p in
-            guard let date = PaceFormat.iso.date(from: p.timestamp),
-                  date >= w.startDate, date <= w.endDate, p.value.isFinite else { return nil }
-            let value: Double
-            switch metric {
-            case .speed:
-                guard p.value > 0.7 else { return nil }
-                value = 1000 / (p.value * 60)
-                guard (2...25).contains(value) else { return nil }
-            case .heart:
-                guard (25...245).contains(p.value) else { return nil }
-                value = p.value
-            default:
-                guard p.value > 0 else { return nil }
-                value = p.value
-            }
-            return RunChartPoint(id: i, minute: date.timeIntervalSince(w.startDate) / 60, value: value)
-        }
+        return "\(metric.rawValue)|\(value.source_uuid)|\(length)"
     }
     private var selectedPoint: RunChartPoint? {
         guard let selectedMinute else { return nil }
@@ -147,7 +173,10 @@ struct RunDynamicsSection: View {
                             }
                         }
                     }
-                    if chartData.count >= 2 {
+                    if isChartLoading && chartData.isEmpty {
+                        ProgressView("Préparation de la courbe")
+                            .frame(maxWidth: .infinity).frame(height: 180)
+                    } else if chartData.count >= 2 {
                         Chart {
                             ForEach(chartData) { point in
                                 LineMark(x: .value("Minute", point.minute),
@@ -228,6 +257,18 @@ struct RunDynamicsSection: View {
                     }
                 }
             }
+        }
+        .task(id: chartKey) {
+            let input = w
+            let selected = metric
+            chartData = []
+            isChartLoading = true
+            let points = await Task.detached(priority: .userInitiated) {
+                RunChartCalculator.build(input, metric: selected)
+            }.value
+            guard !Task.isCancelled else { return }
+            chartData = points
+            isChartLoading = false
         }
     }
 }

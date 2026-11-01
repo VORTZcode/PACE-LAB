@@ -14,6 +14,7 @@ final class HealthSyncEngine: ObservableObject {
     @Published private(set) var advancedEnabled = UserDefaults.standard.bool(forKey: "pace.v22.advanced")
     @Published private(set) var advancedRemaining = 0
 
+    @Published private(set) var snapshot: [WorkoutPayload] = []
     @Published private(set) var savedCount = 0
     @Published private(set) var revision = 0
     private let healthStore = HKHealthStore()
@@ -39,6 +40,7 @@ final class HealthSyncEngine: ObservableObject {
         if let data = try? Data(contentsOf: diskURL),
            let saved = try? JSONDecoder().decode([String: WorkoutPayload].self, from: data) {
             queue = saved
+            snapshot = saved.values.sorted { $0.started_at > $1.started_at }
             savedCount = saved.count
         }
     }
@@ -47,6 +49,7 @@ final class HealthSyncEngine: ObservableObject {
         try? data.write(to: diskURL, options: .atomic)
         try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: diskURL.path)
         savedCount = queue.count
+        snapshot = queue.values.sorted { $0.started_at > $1.started_at }
         revision += 1
         NotificationCenter.default.post(name: .paceHealthKitUpdated, object: nil)
     }
@@ -136,7 +139,7 @@ final class HealthSyncEngine: ObservableObject {
             }
         }
     }
-    var snapshot: [WorkoutPayload] { queue.values.sorted { $0.started_at > $1.started_at } }
+    func workout(id: String) -> WorkoutPayload? { queue[id] }
     func resync() { Task { await resyncAsync() } }
 
     // HealthKit's anchored pages import ALL years, and retain an incremental cursor across app launches.
@@ -353,16 +356,17 @@ final class HealthSyncEngine: ObservableObject {
                 let history = await workouts(predicate: nil)
                 let eligible = history.filter { missing.contains($0.uuid.uuidString.lowercased()) }
                     .prefix(15)
-                for workout in eligible {
+                for (index, workout) in eligible.enumerated() {
                     if Task.isCancelled { break }
                     let key = workout.uuid.uuidString.lowercased()
                     guard let old = queue[key] else { continue }
                     queue[key] = await enrichRunningMetrics(workout, existing: old)
-                    // Each workout is committed independently to survive an interruption.
-                    storeQueue()
                     advancedRemaining = max(0, advancedRemaining - 1)
                     advancedProcessed += 1
+                    // Commit every five workouts instead of serializing the entire library per sample.
+                    if (index + 1) % 5 == 0 { storeQueue() }
                 }
+                if advancedProcessed > 0 { storeQueue() }
             }
         }
 
