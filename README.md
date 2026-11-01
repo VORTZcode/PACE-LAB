@@ -55,3 +55,12 @@ Modifier `assets/programme.js` (tableaux `plan`, `force`, `recipes`), valider le
 ## Sauvegardes et migration
 
 Pour retrouver les anciennes courses Apple sur un nouvel appareil : importer le fichier personnel JSON remis séparément via la page Réglages. **Ne pas l'envoyer dans GitHub**, ni l'utiliser dans les exemples ou les tickets d'incident. Exporter régulièrement une sauvegarde complète depuis Réglages. Si une sauvegarde contient une donnée médicale, la traiter comme une donnée privée.
+
+## Intégration Apple Santé / Apple Watch — chantier en cours
+
+Une première implémentation expérimentale se trouve dans `ios/` et `assets/cloud-sync.js`.
+Elle vise à importer automatiquement les séances enregistrées par l'Apple Watch et les séries cardiaques, y compris **les mesures réellement disponibles pendant les cinq minutes après la fin**.
+
+**Important : l'automatisation de bout en bout n'est pas encore opérationnelle.** La PWA seule ne sait pas accéder à HealthKit. Il reste à configurer un projet Supabase dédié, construire et signer l'app native iOS, lui accorder les permissions Santé, puis effectuer des essais sur iPhone / Apple Watch réels. Les notifications d'arrière-plan et le réveil cinq minutes plus tard ne sont pas garantis par iOS ; les mesures manquantes restent absentes.
+
+Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.
