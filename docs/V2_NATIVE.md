@@ -36,7 +36,7 @@ xcodebuild -project ios/PaceLabCompanion.xcodeproj -scheme PaceLabCompanion -con
 ```
 Ouvrir `ios/PaceLabCompanion.xcodeproj` dans Xcode, choisir l'iPhone et Exécuter.
 
-## Limites connues
+La V2.2 approfondit les fiches de course avec des graphiques Swift Charts interactifs et des métriques HealthKit supplémentaires. Voir [V2.2 — analyse de la course](V2_RUNNING_ANALYSIS.md).\n\n## Limites connues
 - Le plan détaillé fourni n'a qu'une semaine; les semaines suivantes ne sont pas générées automatiquement.
 - La synchronisation des nouvelles séances en arrière-plan dépend d'iOS; les délais exacts ne sont pas garantis.
 - Les points de récupération cardiaque sont réels et peuvent être absents selon Apple Santé.

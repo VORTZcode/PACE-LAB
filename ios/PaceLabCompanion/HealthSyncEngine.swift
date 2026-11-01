@@ -11,6 +11,9 @@ final class HealthSyncEngine: ObservableObject {
     static let refreshIdentifier = "com.pacelab.healthcompanion.refresh"
 
     @Published private(set) var status = "Prêt à demander l'accès Santé."
+    @Published private(set) var advancedEnabled = UserDefaults.standard.bool(forKey: "pace.v22.advanced")
+    @Published private(set) var advancedRemaining = 0
+
     @Published private(set) var savedCount = 0
     @Published private(set) var revision = 0
     private let healthStore = HKHealthStore()
@@ -102,6 +105,34 @@ final class HealthSyncEngine: ObservableObject {
                 self?.startObservers()
                 self?.configureBackgroundDelivery()
                 await self?.resyncAsync()
+            }
+        }
+    }
+    func requestAdvancedPermission() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        let reads: Set<HKObjectType> = [
+            .quantityType(forIdentifier: .runningSpeed)!,
+            .quantityType(forIdentifier: .runningPower)!,
+            .quantityType(forIdentifier: .runningStrideLength)!,
+            .quantityType(forIdentifier: .runningGroundContactTime)!,
+            .quantityType(forIdentifier: .runningVerticalOscillation)!
+        ]
+        healthStore.requestAuthorization(toShare: [], read: reads) { [weak self] _, error in
+            Task { @MainActor in
+                guard let self else { return }
+                if let error {
+                    self.status = "Mesures de course : \(error.localizedDescription)"
+                    return
+                }
+                // Success does not prove that the user permitted every data type.
+                self.advancedEnabled = true
+                UserDefaults.standard.set(true, forKey: "pace.v22.advanced")
+                // Revisit workouts after any Health permission changes. Keep HR/history intact.
+                for key in Array(self.queue.keys) where self.queue[key]?.activity_kind == "running" {
+                    self.queue[key]?.advanced_loaded = false
+                }
+                self.storeQueue()
+                self.resync()
             }
         }
     }
@@ -205,15 +236,67 @@ final class HealthSyncEngine: ObservableObject {
             details_complete: true
         )
     }
+    private func enrichRunningMetrics(_ workout: HKWorkout, existing: WorkoutPayload) async -> WorkoutPayload {
+        var payload = existing
+        guard workout.workoutActivityType == .running else { return payload }
+        let range = (workout.startDate, workout.endDate)
+        let sensors: [(HKQuantityTypeIdentifier, HKUnit)] = [
+            (.runningSpeed, HKUnit.meter().unitDivided(by: .second())),
+            (.runningPower, HKUnit.watt()),
+            (.runningStrideLength, HKUnit.meter()),
+            (.runningGroundContactTime, HKUnit.secondUnit(with: .milli)),
+            (.runningVerticalOscillation, HKUnit.meterUnit(with: .centi))
+        ]
+        var series: [[PaceSensorPoint]] = []
+        var means: [Double?] = []
+        for (identifier, unit) in sensors {
+            guard let type = HKObjectType.quantityType(forIdentifier: identifier) else {
+                series.append([]); means.append(nil); continue
+            }
+            let raw = await quantities(type, start: range.0, end: range.1)
+                .filter { $0.startDate >= range.0 && $0.startDate <= range.1 }
+            let usable = raw.map { sample in
+                PaceSensorPoint(timestamp: clock.string(from: sample.startDate),
+                                value: sample.quantity.doubleValue(for: unit))
+            }.filter { $0.value.isFinite && $0.value >= 0 }
+            let average = usable.isEmpty ? nil : usable.reduce(0.0) { $0 + $1.value } / Double(usable.count)
+            let stride = max(1, Int(ceil(Double(usable.count) / 450)))
+            series.append(usable.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil })
+            means.append(average)
+        }
+        payload.mean_speed_mps = means[0]
+        payload.mean_power_w = means[1]
+        payload.mean_stride_m = means[2]
+        payload.mean_ground_contact_ms = means[3]
+        payload.mean_vertical_oscillation_cm = means[4]
+        payload.speed_series = series[0]
+        payload.power_series = series[1]
+        payload.stride_series = series[2]
+        payload.ground_contact_series = series[3]
+        payload.vertical_series = series[4]
+        // A rough derivation from two sample means, NOT a native cadence reading.
+        if let speed = means[0], let stepLength = means[2], stepLength > 0.5 {
+            let estimate = (60.0 * speed / stepLength)
+            payload.cadence_estimated_spm = (90...250).contains(estimate) ? estimate : nil
+        }
+        payload.advanced_loaded = true
+        return payload
+    }
+
     private func resyncAsync(enrichHistory: Bool = true) async {
         guard !isSyncing else {
             if enrichHistory { needsForegroundBackfill = true }
             return
         }
         isSyncing = true
+        var advancedProcessed = 0
         defer {
             isSyncing = false
-            if needsForegroundBackfill {
+            // Continue the historical enrichment without requiring repeated user taps.
+            // Each processed workout is persisted and can resume after iOS suspends the app.
+            let shouldContinue = enrichHistory && advancedEnabled &&
+                advancedRemaining > 0 && advancedProcessed > 0
+            if needsForegroundBackfill || shouldContinue {
                 needsForegroundBackfill = false
                 Task { await self.resyncAsync(enrichHistory: true) }
             }
@@ -260,6 +343,29 @@ final class HealthSyncEngine: ObservableObject {
             }
         }
 
+        // Limit enhanced backfill per foreground sync; preserve the anchor and all older payloads.
+        if enrichHistory && advancedEnabled && !Task.isCancelled {
+            let missing = Set(queue.values.filter {
+                $0.activity_kind == "running" && $0.advanced_loaded != true
+            }.map(\.source_uuid))
+            advancedRemaining = missing.count
+            if !missing.isEmpty {
+                let history = await workouts(predicate: nil)
+                let eligible = history.filter { missing.contains($0.uuid.uuidString.lowercased()) }
+                    .prefix(15)
+                for workout in eligible {
+                    if Task.isCancelled { break }
+                    let key = workout.uuid.uuidString.lowercased()
+                    guard let old = queue[key] else { continue }
+                    queue[key] = await enrichRunningMetrics(workout, existing: old)
+                    // Each workout is committed independently to survive an interruption.
+                    storeQueue()
+                    advancedRemaining = max(0, advancedRemaining - 1)
+                    advancedProcessed += 1
+                }
+            }
+        }
+
         // A post-workout heart-rate sample can arrive AFTER the workout itself.
         // Refresh recent workouts without reprocessing the entire historical library.
         let date = Date().addingTimeInterval(-6*3600)
@@ -267,9 +373,23 @@ final class HealthSyncEngine: ObservableObject {
         for workout in recent {
             if Task.isCancelled { break }
             guard let old = queue[workout.uuid.uuidString.lowercased()] else { continue }
+            // Preserve previously captured advanced measurements on routine HR refreshes.
             if old.recovery_state == "complete" { continue }
             let updated = await build(workout)
-            queue[updated.source_uuid] = updated
+            var preserved = updated
+            preserved.advanced_loaded = old.advanced_loaded
+            preserved.mean_power_w = old.mean_power_w
+            preserved.mean_speed_mps = old.mean_speed_mps
+            preserved.mean_stride_m = old.mean_stride_m
+            preserved.mean_ground_contact_ms = old.mean_ground_contact_ms
+            preserved.mean_vertical_oscillation_cm = old.mean_vertical_oscillation_cm
+            preserved.cadence_estimated_spm = old.cadence_estimated_spm
+            preserved.speed_series = old.speed_series
+            preserved.power_series = old.power_series
+            preserved.stride_series = old.stride_series
+            preserved.ground_contact_series = old.ground_contact_series
+            preserved.vertical_series = old.vertical_series
+            queue[updated.source_uuid] = preserved
         }
         storeQueue()
         status = "\(queue.count) activités Apple Santé enregistrées localement. Synchronisation terminée."

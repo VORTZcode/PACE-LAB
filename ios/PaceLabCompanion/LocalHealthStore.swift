@@ -5,6 +5,10 @@ struct HeartRatePoint: Codable {
     let timestamp: String
     let bpm: Double
 }
+struct PaceSensorPoint: Codable {
+    let timestamp: String
+    let value: Double
+}
 struct WorkoutPayload: Codable {
     let source_uuid: String
     let activity_type: Int
@@ -25,6 +29,20 @@ struct WorkoutPayload: Codable {
     let recovery_state: String
     let heart_rate_series: [HeartRatePoint]
     let details_complete: Bool? // Backward-compatible with local files created by older PACE LAB versions.
+    // Optional, backward-compatible sensor metrics: older saved workouts decode unchanged.
+    var advanced_loaded: Bool? = nil
+    var mean_power_w: Double? = nil
+    var mean_speed_mps: Double? = nil
+    var mean_stride_m: Double? = nil
+    var mean_ground_contact_ms: Double? = nil
+    var mean_vertical_oscillation_cm: Double? = nil
+    var cadence_estimated_spm: Double? = nil
+    var speed_series: [PaceSensorPoint]? = nil
+    var power_series: [PaceSensorPoint]? = nil
+    var stride_series: [PaceSensorPoint]? = nil
+    var ground_contact_series: [PaceSensorPoint]? = nil
+    var vertical_series: [PaceSensorPoint]? = nil
+
 }
 
 // Only summary fields cross from native Swift to the bundled offline web UI.
