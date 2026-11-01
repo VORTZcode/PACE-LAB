@@ -48,7 +48,8 @@ struct PaceLabCompanionApp: App {
                 coach.detectNewWorkout(engine:engine)
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
-                    Task { await coach.generate(client:chatGPT,engine:engine,library:library) }
+                    coach.focusWorkoutID = nil
+                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal) }
                 }
             }
             .onAppear {

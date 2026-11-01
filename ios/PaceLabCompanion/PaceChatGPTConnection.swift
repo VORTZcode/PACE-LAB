@@ -227,7 +227,11 @@ private enum PaceOIDCVerify {
     @Published var isBusy = false
     @Published var browser: PaceChatWebPage?
     @Published private(set) var models: [(name:String,slug:String)] = []
-    @Published var selectedModel = ""
+    @Published var selectedModel = UserDefaults.standard.string(forKey:"pace.coach.model") ?? "" {
+        didSet {
+            if !selectedModel.isEmpty { UserDefaults.standard.set(selectedModel,forKey:"pace.coach.model") }
+        }
+    }
 
     private var credentials: PaceChatSession?
     private var loopback: PaceLocalCallback?
@@ -395,7 +399,10 @@ private enum PaceOIDCVerify {
                   entry["visibility"] as? String == "list" else { return nil }
             return (name:entry["display_name"] as? String ?? slug,slug:slug)
         }
-        if !models.contains(where:{$0.slug == selectedModel}) { selectedModel = models.first?.slug ?? "" }
+        if !models.contains(where:{$0.slug == selectedModel}) {
+            selectedModel = models.first(where:{$0.slug == "gpt-6.1-sol"})?.slug
+                ?? models.first?.slug ?? ""
+        }
     }
 
     func answer(instructions:String, input:String) async throws -> String {
@@ -460,6 +467,7 @@ private enum PaceOIDCVerify {
         credentials = nil
         isBusy = false; isConnected = false; planUsageEnabled = false; email = ""
         models = []; selectedModel = ""
+        UserDefaults.standard.removeObject(forKey:"pace.coach.model")
         status = "Déconnecté de cet iPhone."
         if let former {
             Task {
