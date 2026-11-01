@@ -170,6 +170,9 @@ extension PaceAIMeal {
     @Published var shareDynamics = UserDefaults.standard.bool(forKey:"pace.coach.share-dynamics") {
         didSet { UserDefaults.standard.set(shareDynamics,forKey:"pace.coach.share-dynamics") }
     }
+    @Published var shareDynamicsTimeline = UserDefaults.standard.bool(forKey:"pace.coach.share-dynamics-timeline") {
+        didSet { UserDefaults.standard.set(shareDynamicsTimeline,forKey:"pace.coach.share-dynamics-timeline") }
+    }
     @Published var shareSessionNotes = UserDefaults.standard.bool(forKey:"pace.coach.share-notes") {
         didSet { UserDefaults.standard.set(shareSessionNotes,forKey:"pace.coach.share-notes") }
     }
@@ -234,7 +237,11 @@ extension PaceAIMeal {
                 let date = run.startDate.formatted(.dateTime.day().month().year())
                 pieces.append("Séance étudiée : \(date), \(PaceFormat.distance(run.kilometers,places:2)) km, \(PaceFormat.duration(run.duration_seconds)), allure \(PaceFormat.pace(run.paceMinutes))/km, FC moyenne \(PaceFormat.heart(run.hr_average_bpm))bpm, FC max \(PaceFormat.heart(run.hr_max_bpm))bpm.")
                 if shareDynamics { pieces.append(PaceCoachTelemetry.detailedMetrics(run)) }
-                if shareHeartProfile { pieces.append(PaceCoachTelemetry.heartMinuteProfile(run)) }
+                if shareDynamicsTimeline {
+                    pieces.append(PaceCoachTelemetry.synchronizedDynamics(run))
+                } else if shareHeartProfile {
+                    pieces.append(PaceCoachTelemetry.heartMinuteProfile(run))
+                }
                 if shareSessionNotes,let journal {
                     pieces.append(PaceCoachTelemetry.noteContext(run,journal:journal))
                 }

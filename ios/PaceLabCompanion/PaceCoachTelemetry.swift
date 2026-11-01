@@ -74,6 +74,23 @@ enum PaceCoachTelemetry {
             (values.isEmpty ? "Aucune mesure disponible" : values.joined(separator:" | "))
     }
 
+    static func synchronizedDynamics(_ run:WorkoutPayload) -> String {
+        func sample(_ points:[PaceSensorPoint]?) -> [PaceDynamicsTimeline.Sample] {
+            (points ?? []).map { .init(timestamp:$0.timestamp,value:$0.value) }
+        }
+        let metrics = [
+            PaceDynamicsTimeline.Metric(label:"FC",unit:"bpm",
+                samples:run.heart_rate_series.map { .init(timestamp:$0.timestamp,value:$0.bpm) }),
+            PaceDynamicsTimeline.Metric(label:"Vitesse",unit:"m/s",samples:sample(run.speed_series)),
+            PaceDynamicsTimeline.Metric(label:"Puissance",unit:"W",samples:sample(run.power_series)),
+            PaceDynamicsTimeline.Metric(label:"Foulée",unit:"m",samples:sample(run.stride_series)),
+            PaceDynamicsTimeline.Metric(label:"Contact",unit:"ms",samples:sample(run.ground_contact_series)),
+            PaceDynamicsTimeline.Metric(label:"Oscillation",unit:"cm",samples:sample(run.vertical_series))
+        ]
+        return PaceDynamicsTimeline.summarize(startedAt:run.started_at,
+                                               duration:run.duration_seconds,metrics:metrics)
+    }
+
     @MainActor static func noteContext(_ run:WorkoutPayload, journal:PaceSessionJournal) -> String {
         let note = journal.note(for:run.source_uuid)
         let score = note.effort.map { "RPE \($0)/10" } ?? "RPE non renseigné"
