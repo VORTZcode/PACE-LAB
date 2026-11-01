@@ -1,15 +1,15 @@
 import Foundation
 
 // On-device HealthKit payload. UUID is stable for idempotent updates.
-struct HeartRatePoint: Codable {
+struct HeartRatePoint: Codable, Sendable {
     let timestamp: String
     let bpm: Double
 }
-struct PaceSensorPoint: Codable {
+struct PaceSensorPoint: Codable, Sendable {
     let timestamp: String
     let value: Double
 }
-struct WorkoutPayload: Codable {
+struct WorkoutPayload: Codable, Sendable {
     let source_uuid: String
     let activity_type: Int
     let activity_kind: String
