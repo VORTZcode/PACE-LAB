@@ -63,6 +63,21 @@ struct PaceBodyLog: Identifiable, Codable {
     @Published private(set) var shoppingChecked: Set<String>
     @Published private(set) var bodyLogs: [PaceBodyLog]
     @Published private(set) var activeCoachDraft: PaceAICoachDraft?
+    @Published private(set) var approvedAdjustments: [String:PaceApprovedAdjustment] = [:]
+    private var adaptationURL: URL {
+        FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
+            .appendingPathComponent("pace-adaptive-approved.json")
+    }
+    private func persistAdaptations() {
+        guard let data = try? JSONEncoder().encode(approvedAdjustments) else { return }
+        try? FileManager.default.createDirectory(at:adaptationURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories:true)
+        if (try? data.write(to:adaptationURL,options:.atomic)) != nil {
+            try? FileManager.default.setAttributes(
+                [.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath:adaptationURL.path)
+        }
+    }
 
     init() {
         if let file = Bundle.main.url(forResource: "pace-programme", withExtension: "json", subdirectory: "AppData"),
@@ -79,6 +94,8 @@ struct PaceBodyLog: Identifiable, Codable {
         bodyLogs = raw.flatMap { try? JSONDecoder().decode([PaceBodyLog].self, from: $0) } ?? []
         activeCoachDraft = UserDefaults.standard.data(forKey:"pace.coach.approved")
             .flatMap { try? JSONDecoder().decode(PaceAICoachDraft.self,from:$0) }
+        approvedAdjustments = (try? Data(contentsOf:adaptationURL))
+            .flatMap { try? JSONDecoder().decode([String:PaceApprovedAdjustment].self,from:$0) } ?? [:]
     }
     func toggleDay(_ id: String) {
         if !completed.insert(id).inserted { completed.remove(id) }
@@ -112,8 +129,63 @@ struct PaceBodyLog: Identifiable, Codable {
         }
     }
     var currentPlan: [PaceDay] {
-        guard let draft = activeCoachDraft else { return programme.plan }
-        return draft.training.sorted { $0.date < $1.date }.map { $0.asPaceDay(meals:draft.meals) }
+        let base: [PaceDay]
+        if let draft = activeCoachDraft {
+            base = draft.training.sorted { $0.date < $1.date }.map { $0.asPaceDay(meals:draft.meals) }
+        } else {
+            base = programme.plan
+        }
+        return base.map { day in
+            guard let adjustment = approvedAdjustments[day.date] else { return day }
+            let isPause = adjustment.recommendation == .pause
+            return PaceDay(date:day.date,day:day.day,
+                type:isPause ? "Repos" : day.type,
+                title:isPause ? "Repos · adaptation validée" : "Course facile · adaptation validée",
+                minutes:Double(adjustment.minutes),
+                intensity:isPause ? "Repos" : "Très facile",
+                objective:isPause ? "Suspendre la course en raison de la gêne déclarée." :
+                    "Réduire la charge à court terme sans modifier le cycle complet.",
+                instructions:isPause ? "Repos. Si la douleur est importante ou persistante, demander un avis médical. " + adjustment.reason :
+                    "Allure de conversation, sans fractionné. " + adjustment.reason,
+                lunch:day.lunch,dinner:day.dinner,kcal:day.kcal,protein:day.protein,
+                status:day.status)
+        }
+    }
+    func nextScheduledRun(after endDate:Date) -> PaceDay? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier:"en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let next = Calendar.current.date(byAdding:.day,value:1,to:Calendar.current.startOfDay(for:endDate)) ?? endDate
+        let day = formatter.string(from:next)
+        return currentPlan.first(where:{ $0.date >= day && $0.type == "Course" && !completed.contains($0.date) })
+    }
+    func approveAdaptation(_ proposal:PaceAdaptation) throws {
+        guard proposal.requiresApproval,let date = proposal.sessionDate,
+              let target = currentPlan.first(where:{ $0.date == date }),
+              target.type == "Course", !completed.contains(date),
+              proposal.proposedMinutes != nil else {
+            throw PaceChatError.invalid("La séance proposée n'est plus disponible, aucune modification appliquée.")
+        }
+        let tomorrow = Calendar.current.date(byAdding:.day,value:1,
+                        to:Calendar.current.startOfDay(for:.now)) ?? .now
+        let format = DateFormatter()
+        format.locale = Locale(identifier:"en_US_POSIX")
+        format.dateFormat = "yyyy-MM-dd"
+        guard date >= format.string(from:tomorrow) else {
+            throw PaceChatError.invalid("Impossible de modifier une séance passée.")
+        }
+        let minutes = proposal.recommendation == .pause ? 0 : min(Int(target.minutes),max(15,proposal.proposedMinutes ?? 15))
+        let value = PaceApprovedAdjustment(sessionDate:date,originWorkout:proposal.workoutUUID,
+            recommendation:proposal.recommendation,minutes:minutes,
+            reason:proposal.reasons.joined(separator:" "),approvedAt:.now)
+        var copy = approvedAdjustments
+        copy[date] = value
+        approvedAdjustments = copy
+        persistAdaptations()
+    }
+    func undoAdaptation(on date:String) {
+        approvedAdjustments.removeValue(forKey:date)
+        persistAdaptations()
     }
     var currentRecipes: [PaceRecipe] {
         guard let draft = activeCoachDraft else { return programme.recipes }
@@ -124,6 +196,8 @@ struct PaceBodyLog: Identifiable, Codable {
         let data = try JSONEncoder().encode(draft)
         UserDefaults.standard.set(data,forKey:"pace.coach.approved")
         activeCoachDraft = draft
+        approvedAdjustments.removeAll()
+        try? FileManager.default.removeItem(at:adaptationURL)
         // The old plan's grocery checklist must not silently cross over to new ingredients.
         shoppingChecked.removeAll()
         UserDefaults.standard.set([],forKey:"pace.v2.shopping")

@@ -37,6 +37,34 @@ struct ProgrammeScreen: View {
                     }
                 }
 
+                if !library.approvedAdjustments.isEmpty {
+                    PaceCard {
+                        VStack(alignment:.leading,spacing:11) {
+                            Label("Adaptation validée",systemImage:"checkmark.shield")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(PaceColors.teal)
+                            Text("Une séance a été ajustée à partir de ton ressenti. Les autres jours du programme restent inchangés.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(library.approvedAdjustments.values.sorted(by:{$0.sessionDate < $1.sessionDate})) { adjustment in
+                                HStack(alignment:.center,spacing:10) {
+                                    VStack(alignment:.leading,spacing:4) {
+                                        Text(adjustment.sessionDate)
+                                            .font(.caption.weight(.medium))
+                                        Text(adjustment.recommendation == .pause ? "Repos" : "\(adjustment.minutes) min faciles")
+                                            .font(.subheadline)
+                                    }
+                                    Spacer()
+                                    Button("Annuler l'adaptation") {
+                                        library.undoAdaptation(on:adjustment.sessionDate)
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                }
+                                .tint(PaceColors.teal)
+                            }
+                        }
+                    }
+                }
+
                 PaceSectionTitle(title: "Votre semaine")
                 if let draft = library.activeCoachDraft {
                     PaceCard {

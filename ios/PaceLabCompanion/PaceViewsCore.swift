@@ -111,6 +111,7 @@ struct PaceHomeGlassSurface: ViewModifier {
 }
 
 struct TodayScreen: View {
+    @EnvironmentObject var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     @State private var showSettings = false
@@ -214,7 +215,9 @@ struct TodayScreen: View {
                         VStack(alignment:.leading,spacing:4) {
                             Text("Mon coach").font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.primary)
-                            Text("Bilan de séance · Mes objectifs")
+                            Text(adaptiveMonitor.visible == nil
+                                 ? "Bilan de séance · Mes objectifs"
+                                 : "Un point après séance t'attend")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength:6)

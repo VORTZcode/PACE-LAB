@@ -35,8 +35,8 @@ struct PaceSettingsScreen: View {
             }
             Section("À propos") {
                 LabeledContent("Application", value: "PACE LAB")
-                LabeledContent("Version", value: "3.2 · Coach")
-                Label("Aucune donnée Santé envoyée vers un serveur", systemImage: "lock.shield")
+                LabeledContent("Version", value: "3.3 · Coach")
+                Label("Les mesures Santé restent sur l’iPhone. Seuls les résumés autorisés du Coach sont envoyés à OpenAI.", systemImage: "lock.shield")
                     .font(.subheadline)
             }
         }
