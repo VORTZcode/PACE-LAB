@@ -105,6 +105,11 @@ struct TodayScreen: View {
 
     private var last: WorkoutPayload? { engine.runHistory.first }
     private var year: Int { Calendar.current.component(.year, from: .now) }
+    private var lastSeven: [WorkoutPayload] {
+        let beginning = Date.now.addingTimeInterval(-7 * 86400)
+        return engine.runHistory.filter { $0.startDate >= beginning && $0.startDate <= .now }
+    }
+    private var sevenKm: Double { lastSeven.reduce(0) { $0 + $1.kilometers } }
 
     var body: some View {
         NavigationStack {
@@ -154,15 +159,55 @@ struct TodayScreen: View {
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: 14) {
-                    PaceSectionTitle(title: "En un regard")
-                    HStack(spacing: 10) {
-                        PaceMetric(caption: "Distance \(year)", value: PaceFormat.distance(engine.totalDistance(year: year)), suffix: "km", symbol: "figure.run")
-                        PaceMetric(caption: "Sorties \(year)", value: "\(engine.runs(year: year).count)", suffix: "", symbol: "calendar")
+                VStack(alignment: .leading, spacing: 12) {
+                    PaceSectionTitle(title: "Ma progression")
+                    PaceCard(padding: 22) {
+                        VStack(alignment: .leading, spacing: 15) {
+                            HStack {
+                                Label("Distance parcourue en \(year)", systemImage: "figure.run")
+                                    .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                                Spacer()
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .foregroundStyle(PaceColors.teal)
+                            }
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(PaceFormat.distance(engine.totalDistance(year: year)))
+                                    .font(.system(size: 44, weight: .semibold, design: .rounded))
+                                    .minimumScaleFactor(0.75)
+                                    .lineLimit(1)
+                                    .monospacedDigit()
+                                Text("km").font(.headline).foregroundStyle(.secondary)
+                            }
+                            Divider()
+                            HStack {
+                                Text("\(engine.runs(year: year).count) courses cette année")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                Spacer()
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(PaceColors.teal)
+                            }
+                        }
                     }
                     HStack(spacing: 10) {
                         PaceMetric(caption: "Dernière sortie", value: last.map { PaceFormat.distance($0.kilometers, places: 2) } ?? "—", suffix: "km", symbol: "figure.run.circle")
                         PaceMetric(caption: "FC moyenne", value: last.map { PaceFormat.heart($0.hr_average_bpm) } ?? "—", suffix: "bpm", symbol: "heart")
+                    }
+                    PaceCard {
+                        HStack(alignment: .center, spacing: 15) {
+                            Image(systemName: "calendar")
+                                .font(.title3)
+                                .foregroundStyle(PaceColors.teal)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Sur les 7 derniers jours").font(.subheadline.weight(.semibold))
+                                Text("\(lastSeven.count) courses enregistrées")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text(PaceFormat.distance(sevenKm)).font(.title3.weight(.semibold)).monospacedDigit()
+                                Text("km").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 if let last {

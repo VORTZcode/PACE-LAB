@@ -19,6 +19,7 @@ struct PaceLabCompanionApp: App {
     @UIApplicationDelegateAdaptor(PaceLabDelegate.self) var delegate
     @StateObject private var engine = HealthSyncEngine.shared
     @StateObject private var library = PaceLibrary()
+    @StateObject private var journal = PaceSessionJournal()
     @State private var hasLoaded = false
 
     var body: some Scene {
@@ -38,6 +39,7 @@ struct PaceLabCompanionApp: App {
             .tint(PaceColors.teal)
             .environmentObject(engine)
             .environmentObject(library)
+            .environmentObject(journal)
             .onAppear {
                 guard !hasLoaded else { return }
                 hasLoaded = true

@@ -15,6 +15,10 @@ private struct CardioPoint: Identifiable {
 struct ProgressScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @State private var selectedYear = Calendar.current.component(.year, from: .now)
+    private var years: [Int] {
+        Array(Set(engine.runHistory.map { Calendar.current.component(.year, from: $0.startDate) }))
+            .sorted(by: >)
+    }
     private var yearRuns: [WorkoutPayload] { engine.runs(year: selectedYear) }
     private var monthSeries: [MonthBucket] {
         (1...12).map { month in
@@ -42,7 +46,7 @@ struct ProgressScreen: View {
                     }
                     Spacer()
                     Menu {
-                        ForEach([2026, 2025, 2024], id: \.self) { year in
+                        ForEach(years, id: \.self) { year in
                             Button(String(year)) { selectedYear = year }
                         }
                     } label: {

@@ -42,3 +42,15 @@ Ouvrir `ios/PaceLabCompanion.xcodeproj` dans Xcode, choisir l'iPhone et Exécute
 - Les points de récupération cardiaque sont réels et peuvent être absents selon Apple Santé.
 - L'app V2 n'a pas encore de suivi GPS ni de routes, ni de calcul fiable de forme/fatigue tenant compte de l'allure et du terrain.
 - L'icône et les cinq onglets sont validés à la compilation et sur un iPhone réel. Les parcours complets de tous les sous-écrans nécessitent une validation tactile utilisateur.
+
+## Évolutions V2.1 (branche feature/native-v2-1)
+
+- Accueil hiérarchisé autour du kilométrage annuel et du volume des sept derniers jours.
+- Filtre annuel natif dans l'historique et années réelles disponibles dans Progression.
+- Fiche de séance : courbe cardiaque limitée à la durée de l'effort et récupération séparée, delta à une minute calculé uniquement si disponible.
+- Journal de séance : RPE choisi manuellement de 1 à 10 et notes de terrain, enregistrés dans Application Support avec protection des fichiers iOS. Aucune donnée personnelle incluse dans Git.
+- Liste de courses cochable pour 14 recettes, organisée par repas avec partage explicite. Les quantités ne sont pas fusionnées automatiquement.
+- Programme : aucun recyclage implicite d'une séance passée lorsque le cycle planifié est terminé.
+- L'identifiant du bundle est inchangé : mise à jour en place sans réinitialiser l'historique Apple Santé.
+
+Validation nécessaire : test tactile des formulaires de journal, du filtre annuel, de la liste de courses, des recettes, et synchronisation d'une nouvelle sortie Watch sans intervention.
