@@ -1,51 +1,33 @@
-# PACE LAB — Synchronisation automatique Apple Santé (prototype technique)
+# PACE LAB — Apple Santé sans serveur (projet iOS en développement)
 
-## Ce qui est réellement pris en charge
+## Architecture
 
-- L'application web PWA n'a **pas** accès à HealthKit. Aucun code JavaScript de GitHub Pages ne peut lire les données Apple Santé directement.
-- `ios/` contient le **code source** d'un compagnon iOS natif SwiftUI. Il lit les exercices HealthKit autorisés, observe les nouvelles séances, et conserve une file d'attente locale chiffrée/protégée par le système de fichiers iOS tant que l'envoi n'aboutit pas.
-- `supabase/schema/healthkit.sql` crée la table privée destinée à recevoir les activités et les fréquences cardiaques, avec RLS fondée exclusivement sur `auth.uid()`.
-- La PWA propose dans Réglages une connexion privée Supabase. Elle récupère les nouvelles courses dès qu'elle est ouverte/connectée, avec actualisation au retour au premier plan.
+- **iPhone natif SwiftUI + WKWebView** : interface PACE LAB incluse dans l'application et chargée depuis son bundle signé. Seule une page `file://` intégrée au bundle peut recevoir les résumés HealthKit.
+- **HealthKit** : demande un consentement en lecture pour workouts, fréquence cardiaque, distance, énergie, récupération minute 1. La lecture est directe, sans SDK ni serveur d'un prestataire.
+- **Fichiers locaux protégés** : `Application Support/local-healthkit-workouts.json`, protection iOS `completeUntilFirstUserAuthentication`. Les séries détaillées restent sur le téléphone.
+- **Pont interne Swift → JavaScript** : uniquement des résumés de courses ; `source_uuid` stable permet les mises à jour idempotentes, y compris après ajout de données de récupération.
+- **PWA GitHub Pages** : fonctionne pour le planning, les repas, les mesures manuelles et les imports JSON, mais n'a **pas** accès à HealthKit et n'est pas synchronisée automatiquement avec la version native.
+- **Aucun Supabase, aucun compte utilisateur, aucune transmission d'informations de santé vers Internet.**
 
-**Non réalisé / non vérifié :** aucun projet Supabase PACE LAB n'a encore été créé, le schéma n'est pas déployé, le projet Xcode n'a pas été compilé sur macOS ni signé/installé sur iPhone, et aucun test réel de livraison Apple Watch → Santé → PACE LAB → Supabase → PWA n'a été exécuté.
+## Récupération cardiaque et cadence de mise à jour
 
-## Fonctionnement après configuration
+L'Apple Watch échantillonne généralement activement la FC dans les trois minutes après un entraînement (support.apple.com/guide/watch/end-and-view-a-summary-of-your-workout-apd95450de2a/watchos). Notre requête cherche les vraies mesures jusqu'à T+5 min, sans extrapolation. Aucune mesure à T+4 ou T+5 n'est garantie. Le statut `partial` n'est donc pas une erreur.
 
-1. Une séance Apple Watch est sauvegardée dans Apple Santé.
-2. L'app compagnon reçoit une notification `HKObserverQuery` lorsque HealthKit enregistre une activité (activation `enableBackgroundDelivery`). Le système peut la retarder ; observer queries **ne garantissent pas de notification à la seconde**.
-3. Le compagnon relit les séances avec `HKSampleQuery`, collecte les échantillons cardio `heartRate` pendant l'entraînement et jusqu'à **300 secondes après** sa fin. Les séquences cardiaques sont transmises avec leur vraie date/heure, sans interpolation.
-4. Une première copie de la séance est mise en file d'attente locale puis envoyée au backend avec identifiant HealthKit UUID stable et upsert idempotent.
-5. Une lecture complémentaire est demandée via `BGAppRefreshTaskRequest` (au plus tôt 5 min), les nouvelles mesures HR (observées au mieux) et à chaque ouverture de l'app. Les minuteries de `BGTaskScheduler` ne constituent **pas une garantie** d'exécution exactement à T+5 min.
-6. Le statut de récupération vaut `pending` tant que les cinq minutes ne sont pas passées, `partial` si la minute 5 n'a pas été mesurée, `complete` si une vraie mesure proche de T+5 min existe. Un statut `partial` ne signifie **pas un échec**, mais qu'il manque un échantillon.
-7. Les champs `recovery_hr_1min`, `2min`, `3min`, `5min` proviennent de la mesure la plus proche dans une fenêtre de ±35 secondes, ou sont `null`. Le champ `apple_recovery_1min_delta` est la **mesure distincte** fournie par Apple (différence entre pic et 1 minute), quand elle existe.
-8. La PWA récupère les activités associées au compte authentifié et n'affiche dans son onglet Courses que les activités de type course à pied. Les autres activités restent présentes dans la base pour la prochaine vue multi-sport.
+`HKObserverQuery` et `enableBackgroundDelivery` réveillent l'app en arrière-plan **au mieux**. `BGAppRefreshTask` ne garantit pas une exécution à T+5. Au prochain lancement, les séances récentes sont relues automatiquement. Une montre déconnectée ou verrouillée peut retarder la synchronisation.
 
-> Apple indique que le capteur de fréquence cardiaque reste actif environ **3 minutes** après la fin d'un entraînement dans l'application Exercice. Les mesures 4 et 5 minutes ne sont pas assurées : impossible d'exiger cinq minutes continues sans envisager une app watchOS dédiée et le consentement explicite de l'utilisateur pour maintenir une session active.
+## Compiler et installer
 
-## Mise en route restante (sur appareils et comptes réels)
+1. Mac avec Xcode récent, XcodeGen (`brew install xcodegen` facultatif). Depuis la racine du dépôt : `xcodegen generate --spec ios/project.yml --project ios`.
+2. Dans Xcode, sélectionner une équipe Apple, adapter le bundle ID à son équipe. Vérifier HealthKit et Background Delivery et le dossier **WebApp** comme *folder reference* dans Copy Bundle Resources.
+3. Compiler sur **vrai iPhone**, associé à l'Apple Watch. Les notifications HealthKit arrière-plan ne sont pas testables correctement avec le simulateur.
+4. Ouvrir PACE LAB → onglet Apple Santé → Autoriser la lecture. Revenir au premier onglet : les courses autorisées apparaissent.
+5. Effectuer une sortie test : fermer l'écran, terminer l'activité depuis l'Apple Watch, puis comparer les valeurs à celles de Santé après 1, 3, 5 et 15 min. Réouvrir PACE LAB si la notification est retardée.
 
-1. Créer un **projet Supabase PACE LAB distinct** (ne pas mélanger NailPilot / Uniligue / Quest). Région UE. Vérifier le devis du projet avant toute création facturable.
-2. Activer Supabase Auth (email + mot de passe ou autre méthode autorisée, confirmations recommandées) ; appliquer `supabase/schema/healthkit.sql` après revue. Vérifier les politiques RLS et l'exposition de l'API avec un utilisateur authentifié puis un autre.
-3. Installer `XcodeGen` sur un Mac, puis `xcodegen generate --spec ios/project.yml --project ios` depuis la racine. Vérifier la valeur `CODE_SIGN_ENTITLEMENTS` et ajouter les capacités **HealthKit**, **HealthKit Background Delivery**, **Background fetch**. Dans Xcode, sélectionner une équipe Apple et adapter le Bundle Identifier à un domaine appartenant à l'équipe.
-4. Tester uniquement sur **un iPhone physique avec Apple Watch**, pas sur le simulateur iOS pour les notifications HealthKit. Autoriser l'accès **en lecture seule** aux entraînements, au cardio, aux distances, à l'énergie active et au recul FC 1 minute.
-5. Renseigner dans le compagnon l'URL du projet Supabase et sa **clé publique** (jamais de clé secrète/service-role), se connecter avec un compte privé.
-6. Ouvrir la PWA, Réglages > Apple Santé, renseigner le même projet et se connecter avec le même compte, puis cliquer « Actualiser depuis Santé ».
-7. Sur Apple Watch : enregistrer une marche/course test, terminer, rester 5 minutes, puis contrôler les mesures réellement sauvegardées, la file d'attente, une ligne unique par `source_uuid` en base, puis l'affichage dans la PWA.
-8. Refaire le test écran verrouillé et téléphone hors-ligne, puis remise en ligne, et après un redémarrage. Mesurer le délai effectif d'apparition. Corriger les écarts éventuels.
+## Limitations avant production
 
-## Sécurité et confidentialité
-
-- **Ne pas committer** les exports Apple Santé, identifiants d'utilisateur, JWT, URL privées contenant un secret ni données GPS.
-- La clé publique de Supabase peut être présente dans l'application ; les **jetons utilisateurs** doivent rester dans Keychain côté iOS et dans le stockage du navigateur uniquement après consentement.
-- Le schéma active RLS et refuse toute lecture anonyme. Une requête `POST` est authentifiée par le JWT et insère `user_id = auth.uid()` côté base.
-- La PWA est sur GitHub Pages, un site public. **Les données de santé ne doivent jamais être publiées via GitHub Pages ou GitHub Actions**.
-- Les routes GPS sont volontairement **non collectées** par ce prototype. Les détails de fréquence cardiaque sont des données sensibles.
-- Une application distribuée avec HealthKit doit respecter les règles Apple et les exigences RGPD (consentement clair, export, suppression de données, transparence, durée de conservation, etc.). Aucune utilisation publicitaire.
-
-## API utilisée
-
-`POST /rest/v1/health_workouts?on_conflict=user_id,source_uuid` avec headers `apikey` (clé publique), `Authorization: Bearer <user JWT>`, `Prefer: resolution=merge-duplicates,return=minimal`.
-
-`GET /rest/v1/health_workouts?select=...&order=started_at.desc&limit=500` avec les mêmes en-têtes d'authentification.
-
-À compléter avant sortie publique : synchronisation des suppressions de Santé, mécanisme de re-synchronisation sur 30 jours, parcours clair de réauthentification, historique complet de toutes les séries, et suppression du compte / données.
+- Ce code est un **prototype non compilé sur macOS** dans cette session ; uniquement analyse syntaxique Swift et tests JS locaux. Il faut valider effectivement le projet Xcode, les entitlements et les autorisations Apple.
+- La première lecture recherche les **40 dernières séances sur 30 jours** ; les entraînements antérieurs restent importables par JSON. Étendre l'historique avec `HKAnchoredObjectQuery` paginé avant lancement.
+- Les suppressions d'activités dans Santé ne sont pas encore propagées automatiquement : adopter `HKAnchoredObjectQuery` avec `HKDeletedObject`.
+- Le programme et les repas sont actuellement conservés dans le `localStorage` du WKWebView ; la suppression de l'application supprime aussi ces données. Prévoir export/restauration et sauvegarde locale chiffrée.
+- Une application native signée devra être redéployée via Xcode/TestFlight pour les mises à jour iOS ; GitHub Actions/Pages met à jour uniquement la **version web**. Aucun déploiement natif automatique n'est actif.
+- Ne pas utiliser iCloud/CloudKit comme stockage de données de santé personnelles : les directives Apple de publication des apps l’interdisent. En cas de besoin multi-appareil, réévaluer le périmètre des données et la solution juridique/technique avant implémentation.

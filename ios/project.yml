@@ -1,4 +1,3 @@
-# Generate with: xcodegen generate --spec ios/project.yml --project ios
 name: PaceLabCompanion
 options:
   bundleIdPrefix: com.pacelab
@@ -8,7 +7,6 @@ settings:
   base:
     SWIFT_VERSION: '5.0'
     TARGETED_DEVICE_FAMILY: '1'
-    DEVELOPMENT_TEAM: '' # Select your Apple development team in Xcode
     CODE_SIGN_STYLE: Automatic
 targets:
   PaceLabCompanion:
@@ -16,19 +14,22 @@ targets:
     platform: iOS
     sources:
       - path: PaceLabCompanion
+        excludes:
+          - WebApp/**
+      - path: PaceLabCompanion/WebApp
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pacelab.healthcompanion
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_NSHealthShareUsageDescription: "PACE LAB lit les séances et les mesures cardiaques pour ton suivi sportif privé."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "PACE LAB ne modifie pas les données Santé dans cette version."
-        INFOPLIST_KEY_UIBackgroundModes: "fetch"
-        INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers: [com.pacelab.healthcompanion.refresh]
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "PACE LAB lit les séances et le cardio pour ton suivi sportif local."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "PACE LAB ne modifie pas Apple Santé."
         CODE_SIGN_ENTITLEMENTS: PaceLabCompanion/PaceLabCompanion.entitlements
     info:
       path: PaceLabCompanion/Info.plist
       properties:
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.pacelab.healthcompanion.refresh]
-        NSHealthShareUsageDescription: "PACE LAB lit tes séances et données cardiaques pour assurer ton suivi sportif."
-        NSHealthUpdateUsageDescription: "PACE LAB n'écrit pas dans Santé."
+        NSHealthShareUsageDescription: "PACE LAB lit les séances et les mesures cardiaques sur ton iPhone."
+        NSHealthUpdateUsageDescription: "PACE LAB ne modifie pas Apple Santé."

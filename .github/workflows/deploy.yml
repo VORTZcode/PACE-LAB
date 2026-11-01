@@ -20,7 +20,7 @@ jobs:
           node tests/validate.mjs
           node tests/smoke.mjs
           node tests/healthkit-contract.mjs
-          node --check assets/cloud-sync.js
+          node --check assets/native-health.js
           node --check assets/app.js
           node --check assets/programme.js
       - name: Générer la version PWA

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>PACE LAB — Projet 30</title><meta name="theme-color" content="#0c1420"/>
+<meta name="description" content="Ton cockpit personnel pour la course, la musculation, la nutrition et la progression."/>
+<link rel="manifest" href="./manifest.webmanifest"/>
+<link rel="stylesheet" href="./assets/styles.css"/>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+ <div class="brand"><div class="brandMark">P/</div><div class="brandTxt">PACE LAB<small>PROJET 30</small></div></div>
+ <div class="navSub">TON ESPACE</div><nav id="sidebarNav"></nav>
+ <div class="sidebarFoot"><div class="sideFootLabel">OBJECTIF ULTIME · 10 KM</div><div class="sideFootBig">29:59</div><div class="sideFootHint">Un horizon ambitieux.<br>Chaque progrès compte.</div><div class="sideMeter"><span></span></div><div class="sideFootHint">Cycle 01 / 12 · Fondations</div></div>
+</aside>
+<main class="main"><header class="topbar"><div><div class="kicker" id="pageKicker">01 / 12 · PRÉPARATION PHYSIQUE</div><h1 class="pageTitle" id="pageTitle">Tableau de bord</h1></div><div class="toolbar"><span class="dateCircle" id="dateTop"></span><button id="settingsTop" class="iconButton" title="Réglages et sauvegarde" aria-label="Réglages"></button></div></header><div id="view"></div><div class="footerNote">PACE LAB · Données locales · Apple Santé en local via la version iPhone native · Aucune base externe<br>Programme sportif informatif, à adapter en cas de douleur ou contre-indication médicale.</div></main>
+</div>
+<nav id="mobileNav" class="mobileNav"></nav><div id="modalRoot"></div><div id="toast" class="toast" role="status"></div>
+<script defer src="./assets/programme.js"></script>
+<script defer src="./assets/app.js"></script>
+<script defer src="./assets/native-health.js"></script>
+</body></html>

@@ -11,11 +11,11 @@ final class HealthSyncEngine: ObservableObject {
     static let refreshIdentifier = "com.pacelab.healthcompanion.refresh"
 
     @Published private(set) var status = "Prêt à demander l'accès Santé."
-    @Published private(set) var queuedCount = 0
+    @Published private(set) var savedCount = 0
+    @Published private(set) var revision = 0
     private let healthStore = HKHealthStore()
     private let bpmUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
     private let clock = ISO8601DateFormatter()
-    private let calendar = Calendar.current
     private var startedObservers = false
     private var isSyncing = false
     private let diskURL: URL
@@ -24,18 +24,20 @@ final class HealthSyncEngine: ObservableObject {
     private init() {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        diskURL = directory.appendingPathComponent("pending-healthkit-sync.json")
+        diskURL = directory.appendingPathComponent("local-healthkit-workouts.json")
         if let data = try? Data(contentsOf: diskURL),
            let saved = try? JSONDecoder().decode([String: WorkoutPayload].self, from: data) {
             queue = saved
-            queuedCount = saved.count
+            savedCount = saved.count
         }
     }
     private func storeQueue() {
         guard let data = try? JSONEncoder().encode(queue) else { return }
         try? data.write(to: diskURL, options: .atomic)
         try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: diskURL.path)
-        queuedCount = queue.count
+        savedCount = queue.count
+        revision += 1
+        NotificationCenter.default.post(name: .paceHealthKitUpdated, object: nil)
     }
     func startObservers() {
         guard HKHealthStore.isHealthDataAvailable(), !startedObservers else { return }
@@ -76,16 +78,7 @@ final class HealthSyncEngine: ObservableObject {
             }
         }
     }
-    func signIn(url: String, publicKey: String, email: String, password: String) async {
-        do {
-            try SyncTransport.shared.configure(url: url, publicKey: publicKey)
-            try await SyncTransport.shared.signIn(email: email, password: password)
-            status = "Connecté. Synchronisation en cours…"
-            await resyncAsync()
-        } catch {
-            status = "Connexion impossible (aucune séance envoyée) : \(error.localizedDescription)"
-        }
-    }
+    var snapshot: [WorkoutPayload] { queue.values.sorted { $0.started_at > $1.started_at } }
     func resync() { Task { await resyncAsync() } }
 
     private func workouts() async -> [HKWorkout] {
@@ -120,7 +113,7 @@ final class HealthSyncEngine: ObservableObject {
         let window = await quantities(heart, start: workout.startDate, end: end.addingTimeInterval(300))
         let inWorkout = window.filter { $0.startDate >= workout.startDate && $0.startDate <= end }
         let bpm = inWorkout.map { $0.quantity.doubleValue(for: bpmUnit) }
-        // HR@end = nearest actual reading in last 60 seconds. Do not use absolute peak as a proxy.
+        // HR at finish = last actual reading within 60 seconds. Never substitute peak HR.
         let beforeEnd = inWorkout.filter { $0.startDate >= end.addingTimeInterval(-60) }
         let endHR = beforeEnd.last?.quantity.doubleValue(for: bpmUnit)
         let post = window.filter { $0.startDate > end && $0.startDate <= end.addingTimeInterval(300) }
@@ -157,28 +150,13 @@ final class HealthSyncEngine: ObservableObject {
         let recent = await workouts()
         for workout in recent {
             let payload = await build(workout)
-            // Keep a local copy even when network, Auth or background fetch is unavailable.
+            // Persist a protected local copy; no network request or third-party account.
             if let previous = queue[payload.source_uuid], previous.recovery_state == "complete" && payload.recovery_state != "complete" { continue }
             queue[payload.source_uuid] = payload
         }
         storeQueue()
-        await flushQueue()
+        status = "\(queue.count) séances stockées sur cet iPhone. Aucune donnée transmise à un serveur."
         if recent.contains(where: { Date().timeIntervalSince($0.endDate) < 3600 }) { scheduleBackgroundRefresh() }
-    }
-    private func flushQueue() async {
-        for (uuid, payload) in queue.sorted(by: { $0.key < $1.key }) {
-            do {
-                try await SyncTransport.shared.upsert(payload)
-                // Pending workout is still monitored for updated post-workout recovery.
-                if payload.recovery_state != "pending" { queue.removeValue(forKey: uuid) }
-            } catch {
-                status = "Synchronisation en attente : \(queue.count) séance(s). Vérifier la connexion."
-                storeQueue()
-                return
-            }
-        }
-        storeQueue()
-        status = queuedCount == 0 ? "Synchronisation terminée." : "Séance transmise, récupération encore en observation."
     }
     private func scheduleBackgroundRefresh() {
         let req = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
@@ -193,4 +171,8 @@ final class HealthSyncEngine: ObservableObject {
             scheduleBackgroundRefresh()
         }
     }
+}
+
+extension Notification.Name {
+    static let paceHealthKitUpdated = Notification.Name("pace.healthkit.updated")
 }
