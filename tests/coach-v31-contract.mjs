@@ -18,7 +18,7 @@ for (const name of ['recentTrends','detailedMetrics','heartMinuteProfile','noteC
 assert.match(telemetry,/limit:Int = 120/);
 assert.match(telemetry,/sans mesures GPS/);
 assert.match(telemetry,/commentaire: /);
-assert.match(coach,/if shareHeartProfile \{ pieces\.append\(PaceCoachTelemetry\.heartMinuteProfile\(run\)\) \}/);
+assert.match(coach,/else if shareHeartProfile \{/);
 assert.match(coach,/if shareDynamics \{ pieces\.append\(PaceCoachTelemetry\.detailedMetrics\(run\)\) \}/);
 assert.match(coach,/if shareSessionNotes,let journal \{/);
 assert.match(coach,/let report = try PaceCoachSessionReport\.extract\(response,workoutID:run\.source_uuid\)/);

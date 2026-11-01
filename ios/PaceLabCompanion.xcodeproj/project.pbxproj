@@ -11,6 +11,7 @@
 		09D4B523084C5E0B1682CCB5 /* HealthSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C74956E8A0A5F9CC499A428 /* HealthSyncEngine.swift */; };
 		0B844BCDA8269168540E365C /* PaceViewsProgramme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4A1ABD21CE1C41FD39FB0B /* PaceViewsProgramme.swift */; };
 		137A6CB89D08CBB203C80DCB /* PaceSessionJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9140FE8C7FE4B816A9A60B /* PaceSessionJournal.swift */; };
+		142B71FB281BDA72E61B1637 /* PaceDynamicsTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E4FA87BF5DBFD139042184 /* PaceDynamicsTimeline.swift */; };
 		16FA4EDDC88C03705E3CAC64 /* PaceLabCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176CFF022E34A43DAC6A4B2B /* PaceLabCompanionApp.swift */; };
 		1BB263ADD92BEB0A1C818D3B /* PaceViewsCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9F8BCEACF8087EBD130A81 /* PaceViewsCore.swift */; };
 		1D954331806C158E70748C08 /* PaceGrocery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACBCE80E26F52101147BAFF /* PaceGrocery.swift */; };
@@ -58,6 +59,7 @@
 		9F3BDF401D370836BD1476C9 /* PaceEvidenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceEvidenceEngine.swift; sourceTree = "<group>"; };
 		9F85D5F2009BDC2CF0B20699 /* WebApp */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WebApp; path = PaceLabCompanion/WebApp; sourceTree = SOURCE_ROOT; };
 		A1235F022DC687D66B33F6C6 /* PaceCoachTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceCoachTelemetry.swift; sourceTree = "<group>"; };
+		A3E4FA87BF5DBFD139042184 /* PaceDynamicsTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceDynamicsTimeline.swift; sourceTree = "<group>"; };
 		A84B0661D8BF866CCABA00F1 /* LocalHealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalHealthStore.swift; sourceTree = "<group>"; };
 		B35D0A8453B17EACE0BC3430 /* PaceRunIntervals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceRunIntervals.swift; sourceTree = "<group>"; };
 		BDAE5360FE288A5A6A648CE5 /* PaceCoachReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceCoachReport.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				BDAE5360FE288A5A6A648CE5 /* PaceCoachReport.swift */,
 				4551D3A4A34591F565C5BB68 /* PaceCoachScreen.swift */,
 				A1235F022DC687D66B33F6C6 /* PaceCoachTelemetry.swift */,
+				A3E4FA87BF5DBFD139042184 /* PaceDynamicsTimeline.swift */,
 				9F3BDF401D370836BD1476C9 /* PaceEvidenceEngine.swift */,
 				6ACBCE80E26F52101147BAFF /* PaceGrocery.swift */,
 				D1D3ED394A04E165CD90340A /* PaceHomeInsights.swift */,
@@ -215,6 +218,7 @@
 				5F86AC93D7FB780E06A17241 /* PaceCoachReport.swift in Sources */,
 				9BCC353FF52FCFEB4DF3B286 /* PaceCoachScreen.swift in Sources */,
 				58E678FF25CDA9B7B648A8B0 /* PaceCoachTelemetry.swift in Sources */,
+				142B71FB281BDA72E61B1637 /* PaceDynamicsTimeline.swift in Sources */,
 				516ED7A07B69FC4B7FD1A1F2 /* PaceEvidenceEngine.swift in Sources */,
 				1D954331806C158E70748C08 /* PaceGrocery.swift in Sources */,
 				4FD7EC315163D16808AD58CA /* PaceHomeInsights.swift in Sources */,

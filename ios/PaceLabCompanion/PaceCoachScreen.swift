@@ -368,6 +368,13 @@ struct PaceCoachScreen: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    Toggle(isOn:$coach.shareDynamicsTimeline) {
+                        VStack(alignment:.leading,spacing:3) {
+                            Text("Analyse croisée de toutes les courbes")
+                            Text("Fréquence cardiaque, allure, puissance, foulée, contact au sol et oscillation, alignés dans le temps. Profils agrégés sur l’iPhone avant envoi à OpenAI, sans GPS. Jusqu'à 120 intervalles.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Toggle(isOn:$coach.shareSessionNotes) {
                         VStack(alignment:.leading,spacing:3) {
                             Text("Mon ressenti et mes notes")
