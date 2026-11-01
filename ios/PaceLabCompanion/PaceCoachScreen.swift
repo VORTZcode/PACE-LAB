@@ -1,99 +1,252 @@
 import SwiftUI
 
+private enum PaceCoachTab: String, CaseIterable {
+    case session = "Ma séance"
+    case plan = "Mon programme"
+    case chat = "Discuter"
+    var symbol: String {
+        switch self {
+        case .session: return "waveform.path.ecg"
+        case .plan: return "calendar"
+        case .chat: return "bubble.left.and.bubble.right"
+        }
+    }
+}
+
 struct PaceCoachScreen: View {
     @EnvironmentObject private var client: PaceChatGPTConnection
     @EnvironmentObject private var coach: PaceCoachEngine
     @EnvironmentObject private var engine: HealthSyncEngine
     @EnvironmentObject private var library: PaceLibrary
     @EnvironmentObject private var journal: PaceSessionJournal
+    @EnvironmentObject private var athleteProfile: PaceAthleteProfileStore
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
     @State private var showPreview = false
     @State private var showDataControls = false
     @State private var showConsent = false
     @State private var showingConfirmation = false
+    @State private var activeTab: PaceCoachTab = .session
+    @State private var showAccountSettings = false
+    @State private var showProfile = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment:.leading,spacing:22) {
-                    introduction
-                    connectionCard
+                LazyVStack(alignment:.leading,spacing:22) {
                     if client.planUsageEnabled {
-                        consentCard
-                        if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
-                            PaceCard {
-                                VStack(alignment:.leading,spacing:9) {
-                                    Label("Une nouvelle course est prête à être analysée",
-                                          systemImage:"figure.run.circle")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(PaceColors.teal)
-                                    Text("Le coach peut proposer des ajustements après l’enregistrement de la récupération.")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                    Button("Analyser cette course") {
-                                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal) }
-                                    }
-                                    .buttonStyle(.bordered).tint(PaceColors.teal)
-                                }
+                        coachHeader
+                        trainingSnapshot
+                        modeSelector
+                        if activeTab == .session {
+                            if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
+                                Label("Nouvelle sortie disponible pour le bilan",systemImage:"checkmark.circle")
+                                    .font(.subheadline).foregroundStyle(PaceColors.teal)
                             }
+                            sessionAnalysisCard
+                            if let report = coach.latestReport { sessionReportCard(report) }
+                        } else if activeTab == .plan {
+                            programmeEvidenceCard
+                            updateCard
+                            if let pending = coach.pending { proposalCard(pending) }
+                        } else {
+                            chatSection
                         }
-                        recentTrainingLoad
-                        sessionAnalysisCard
-                        if let report = coach.latestReport {
-                            sessionReportCard(report)
-                        }
-                        updateCard
-                        if let pending = coach.pending {
-                            proposalCard(pending)
-                        }
-                        chatSection
+                    } else {
+                        introduction
+                        connectionCard
+                        Text("Connecte ton compte pour obtenir une analyse personnalisée. Tu pourras ensuite confirmer tes objectifs et décider des données partagées.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     if !coach.error.isEmpty {
-                        Label(coach.error,systemImage:"exclamationmark.circle")
-                            .font(.footnote).foregroundStyle(.orange)
+                        Label(coach.error,systemImage:"exclamationmark.triangle")
+                            .font(.subheadline).foregroundStyle(.orange)
                             .padding(14)
+                            .frame(maxWidth:.infinity,alignment:.leading)
+                            .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:16))
                     }
                     if coach.isLoading {
                         HStack(spacing:11) {
                             ProgressView().controlSize(.small)
-                            Text("Le coach analyse les données autorisées…")
+                            Text("Le coach prépare son analyse…")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal,5)
+                        .padding(14)
                     }
-                    Text("PACE LAB n’est pas un dispositif médical. Les suggestions du coach ne remplacent pas un professionnel de santé.")
+                    Text("Conseils sportifs à examiner, pas diagnostic médical. Les décisions et modifications du programme restent sous ton contrôle.")
                         .font(.caption2).foregroundStyle(.secondary)
-                        .padding(.bottom,22)
+                        .padding(.bottom,20)
                 }
                 .frame(maxWidth:750)
-                .padding(.horizontal,18).padding(.top,14)
+                .padding(.horizontal,18)
+                .padding(.top,15)
                 .frame(maxWidth:.infinity)
             }
             .background(PaceColors.base)
             .navigationTitle("Coach")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear { if !coach.shareRunSummaries { showDataControls = true } }
             .toolbar {
-                ToolbarItem(placement:.topBarTrailing) {
+                ToolbarItemGroup(placement:.topBarTrailing) {
+                    if client.planUsageEnabled {
+                        Button { showProfile = true } label: {
+                            Image(systemName:"person.crop.circle")
+                        }
+                        .accessibilityLabel("Mon profil sportif")
+                        Button { showAccountSettings = true } label: {
+                            Image(systemName:"gearshape")
+                        }
+                        .accessibilityLabel("Compte et confidentialité")
+                    }
                     Button("Fermer") { dismiss() }
                         .font(.subheadline.weight(.semibold))
                 }
             }
-            .sheet(item:$client.browser) { web in
-                PaceChatBrowser(url:web.url)
-                    .ignoresSafeArea()
+            .sheet(isPresented:$showProfile) { PaceAthleteProfileScreen() }
+            .sheet(isPresented:$showAccountSettings) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment:.leading,spacing:16) {
+                            connectionCard
+                            consentCard
+                            Text("Données partagées uniquement après autorisation. Consulte ton compte ChatGPT pour gérer les limites de l'application.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .padding(18)
+                    }
+                    .background(PaceColors.base)
+                    .navigationTitle("Compte et données")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement:.topBarTrailing) {
+                            Button("Terminé") { showAccountSettings = false }
+                        }
+                    }
+                }
             }
-            .alert("Appliquer cette proposition ?",isPresented:$showingConfirmation) {
+            .sheet(item:$client.browser) { web in
+                PaceChatBrowser(url:web.url).ignoresSafeArea()
+            }
+            .alert("Adopter cette proposition ?",isPresented:$showingConfirmation) {
                 Button("Annuler",role:.cancel){}
-                Button("Appliquer") {
+                Button("Adopter") {
                     guard let pending = coach.pending else { return }
+                    let evidence = PaceEvidenceEngine.evaluate(engine.runHistory)
+                    let concerns = PaceEvidenceEngine.review(plan:pending,baseline:evidence,profile:athleteProfile.profile)
+                    guard concerns.isEmpty,
+                          pending.adjustmentRationale?.isEmpty == false,
+                          pending.evidenceNotes?.isEmpty == false else {
+                        coach.error = "Ce programme demande une révision : " +
+                            (concerns.isEmpty ? "justifications manquantes" : concerns.joined(separator:" · "))
+                        return
+                    }
                     do {
                         try library.acceptCoachDraft(pending)
                         coach.dismissPending()
                     } catch { coach.error = error.localizedDescription }
                 }
             } message: {
-                Text("Les séances et repas du programme affiché seront remplacés. Vous pourrez restaurer le programme initial depuis l’onglet Programme.")
+                Text("Tu confirmes les sept séances et les repas proposés. Tu pourras revenir au programme initial dans Programme.")
+            }
+        }
+    }
+
+    private var coachHeader: some View {
+        VStack(alignment:.leading,spacing:15) {
+            HStack(alignment:.center,spacing:10) {
+                Image(systemName:"sparkles")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(PaceColors.teal)
+                    .frame(width:49,height:49)
+                    .background(PaceColors.teal.opacity(0.10),
+                                in:RoundedRectangle(cornerRadius:16))
+                VStack(alignment:.leading,spacing:3) {
+                    Text("Ton entraînement")
+                        .font(.title2.weight(.semibold))
+                    Text("Des données, des décisions éclairées")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let profile = athleteProfile.profile {
+                Text(profile.runningGoal)
+                    .font(.subheadline)
+                    .fixedSize(horizontal:false,vertical:true)
+            } else {
+                Text("Confirme ton objectif pour personnaliser les prochaines séances.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            Button {
+                showProfile = true
+            } label: {
+                HStack(spacing:7) {
+                    Text(athleteProfile.profile == nil ? "Confirmer mes objectifs" : "Modifier mes objectifs")
+                    Image(systemName:"arrow.up.right")
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+            .tint(PaceColors.teal)
+        }
+        .padding(21)
+        .frame(maxWidth:.infinity,alignment:.leading)
+        .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:24))
+    }
+
+    private var trainingSnapshot: some View {
+        let evidence = PaceEvidenceEngine.evaluate(engine.runHistory)
+        return HStack(spacing:10) {
+            PaceMetric(caption:"Courses sur 28 jours",
+                       value:"\(evidence.runCount28Days)",suffix:"",
+                       symbol:"figure.run")
+            PaceMetric(caption:"Distance sur 28 jours",
+                       value:PaceFormat.distance(evidence.distance28Days,places:1),
+                       suffix:"km",symbol:"chart.bar")
+        }
+        .accessibilityElement(children:.contain)
+    }
+
+    private var modeSelector: some View {
+        Picker("Espace du coach",selection:$activeTab) {
+            ForEach(PaceCoachTab.allCases,id:\.self) { tab in
+                Text(tab.rawValue).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Choisir entre séance, programme et discussion")
+    }
+
+    private var programmeEvidenceCard: some View {
+        let evidence = PaceEvidenceEngine.evaluate(engine.runHistory)
+        return PaceCard {
+            VStack(alignment:.leading,spacing:11) {
+                HStack {
+                    Label("Base d'entraînement",systemImage:"checkmark.shield")
+                        .font(.headline)
+                    Spacer()
+                    Text(evidence.dataQuality)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(PaceColors.teal)
+                }
+                Text("Analyse des 28 derniers jours")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("\(evidence.runCount28Days) courses · \(PaceFormat.distance(evidence.distance28Days,places:1)) km · \(Int(evidence.minutes28Days)) minutes")
+                    .font(.subheadline.weight(.semibold))
+                Text(evidence.analysis)
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .fixedSize(horizontal:false,vertical:true)
+                DisclosureGroup("Méthode et références") {
+                    VStack(alignment:.leading,spacing:10) {
+                        Text("Les propositions utilisent la fréquence, l'intensité, le volume récent, les objectifs confirmés et les limites des mesures. Aucun modèle ne peut garantir un résultat.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        ForEach(PaceEvidenceEngine.sources,id:\.url) { source in
+                            if let url = URL(string:source.url) {
+                                Link(source.title,destination:url)
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    .padding(.top,8)
+                }
+                .font(.subheadline)
+                .tint(PaceColors.teal)
             }
         }
     }
@@ -213,6 +366,8 @@ struct PaceCoachScreen: View {
                     }
                 }
                 .disabled(!coach.shareRunSummaries)
+                Toggle("Utiliser mon profil sportif confirmé",isOn:$athleteProfile.shareProfile)
+                    .disabled(athleteProfile.profile == nil)
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
                 Toggle("Repas prévus",isOn:$coach.shareNutrition)
                 Divider()
@@ -230,7 +385,7 @@ struct PaceCoachScreen: View {
                 .font(.subheadline.weight(.semibold))
                 .tint(PaceColors.teal)
                 if showPreview {
-                    Text(coach.contextPreview(engine:engine,library:library,journal:journal))
+                    Text(coach.contextPreview(engine:engine,library:library,journal:journal,profile:athleteProfile))
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .frame(maxWidth:.infinity,alignment:.leading)
@@ -311,7 +466,7 @@ struct PaceCoachScreen: View {
                     Text("Analyse la fréquence cardiaque, la récupération, tes quatre dernières semaines et les informations que tu autorises.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button {
-                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal) }
+                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
                     } label: {
                         Label("Analyser cette sortie",systemImage:"sparkles")
                             .font(.subheadline.weight(.semibold))
@@ -379,7 +534,7 @@ struct PaceCoachScreen: View {
                 Text("Le coach propose sept jours de séances et quatorze repas à partir des résumés autorisés. Rien ne sera modifié sans validation.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Button {
-                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal) }
+                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
                 } label: {
                     Label("Analyser et proposer",systemImage:"sparkles")
                         .font(.subheadline.weight(.semibold))
@@ -387,7 +542,14 @@ struct PaceCoachScreen: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(PaceColors.teal)
-                .disabled(coach.isLoading || !coach.shareRunSummaries)
+                .disabled(coach.isLoading || !coach.shareRunSummaries ||
+                          athleteProfile.profile == nil || !athleteProfile.shareProfile)
+                if athleteProfile.profile == nil || !athleteProfile.shareProfile {
+                    Text("Confirme d'abord ton profil et autorise son utilisation pour éviter un programme générique.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Compléter mon profil") { showProfile = true }
+                        .font(.subheadline.weight(.semibold)).tint(PaceColors.teal)
+                }
             }
         }
     }
@@ -400,6 +562,16 @@ struct PaceCoachScreen: View {
                     Label(draft.title,systemImage:"sparkles")
                         .font(.headline).foregroundStyle(PaceColors.teal)
                     Text(draft.summary).font(.subheadline)
+                    Text("Pourquoi ce programme ?")
+                        .font(.subheadline.weight(.semibold))
+                    Text(draft.adjustmentRationale ?? "Justification indisponible")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    if let evidence = draft.evidenceNotes {
+                        ForEach(evidence,id:\.self) { detail in
+                            Label(detail,systemImage:"chart.xyaxis.line")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Divider()
                     ForEach(draft.training.sorted(by:{$0.date < $1.date})) { day in
                         VStack(alignment:.leading,spacing:4) {
@@ -421,7 +593,7 @@ struct PaceCoachScreen: View {
                             VStack(alignment:.leading,spacing:4) {
                                 Text("\(meal.date) · \(meal.meal) : \(meal.title)")
                                     .font(.subheadline.weight(.semibold))
-                                Text("\(meal.kcal) kcal · \(meal.protein) g protéines")
+                                Text("≈ \(meal.kcal) kcal · ≈ \(meal.protein) g de protéines (estimations)")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             .padding(.vertical,5)
@@ -487,7 +659,7 @@ struct PaceCoachScreen: View {
                         Button {
                             let text = question
                             question = ""
-                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal) }
+                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
                         } label: {
                             Image(systemName:"arrow.up.circle.fill")
                                 .font(.system(size:32))

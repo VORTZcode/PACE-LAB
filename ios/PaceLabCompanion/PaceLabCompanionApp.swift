@@ -22,6 +22,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var journal = PaceSessionJournal()
     @StateObject private var chatGPT = PaceChatGPTConnection()
     @StateObject private var coach = PaceCoachEngine()
+    @StateObject private var athleteProfile = PaceAthleteProfileStore()
     @State private var hasLoaded = false
 
     var body: some Scene {
@@ -44,12 +45,13 @@ struct PaceLabCompanionApp: App {
             .environmentObject(journal)
             .environmentObject(chatGPT)
             .environmentObject(coach)
+            .environmentObject(athleteProfile)
             .onReceive(engine.$revision) { _ in
                 coach.detectNewWorkout(engine:engine)
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
                     coach.focusWorkoutID = nil
-                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal) }
+                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile) }
                 }
             }
             .onAppear {

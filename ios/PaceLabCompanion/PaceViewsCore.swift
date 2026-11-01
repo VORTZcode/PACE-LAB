@@ -165,30 +165,6 @@ struct TodayScreen: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Button { showCoach = true } label: {
-                    HStack(spacing:14) {
-                        Image(systemName:"sparkles")
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(PaceColors.teal)
-                            .frame(width:46,height:46)
-                            .background(PaceColors.teal.opacity(0.12),
-                                in:RoundedRectangle(cornerRadius:15))
-                        VStack(alignment:.leading,spacing:5) {
-                            Text("Ton coach ChatGPT")
-                                .font(.headline).foregroundStyle(.primary)
-                            Text("Analyser · Adapter · Planifier")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength:5)
-                        Image(systemName:"arrow.up.right")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(PaceColors.teal)
-                    }
-                    .padding(17)
-                    .modifier(PaceHomeGlassSurface(cornerRadius:21))
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Ouvrir ton coach sportif personnel")
                 if let day = library.nextDay {
                     VStack(alignment: .leading, spacing: 17) {
                         HStack {
@@ -227,6 +203,29 @@ struct TodayScreen: View {
                         }
                     }
                 }
+                Button { showCoach = true } label: {
+                    HStack(spacing:13) {
+                        Image(systemName:"waveform.path.ecg")
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(PaceColors.teal)
+                            .frame(width:43,height:43)
+                            .background(PaceColors.teal.opacity(0.10),
+                                        in:RoundedRectangle(cornerRadius:14))
+                        VStack(alignment:.leading,spacing:4) {
+                            Text("Mon coach").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text("Bilan de séance · Mes objectifs")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength:6)
+                        Image(systemName:"chevron.right")
+                            .font(.caption.weight(.semibold)).foregroundStyle(PaceColors.teal)
+                    }
+                    .padding(15)
+                    .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:19))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Ouvrir le suivi sportif personnalisé")
                 VStack(alignment: .leading, spacing: 12) {
                     PaceSectionTitle(title: "Ma progression")
                     NavigationLink {
