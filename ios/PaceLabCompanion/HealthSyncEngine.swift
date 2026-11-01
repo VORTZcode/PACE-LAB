@@ -127,7 +127,8 @@ final class HealthSyncEngine: ObservableObject {
         let post = window.filter { $0.startDate > end && $0.startDate <= end.addingTimeInterval(300) }
         let recoveryType = HKObjectType.quantityType(forIdentifier: .heartRateRecoveryOneMinute)!
         let recordedRecovery = await quantities(recoveryType, start: end.addingTimeInterval(-30), end: end.addingTimeInterval(900))
-        let delta = recordedRecovery.first?.quantity.doubleValue(for: HKUnit.count())
+        // Apple stores heart-rate recovery with a rate unit (count/min), not plain count.
+        let delta = recordedRecovery.first?.quantity.doubleValue(for: bpmUnit)
         let third = nearbyBPM(post, at: end.addingTimeInterval(180), tolerance: 35)
         let fifth = nearbyBPM(post, at: end.addingTimeInterval(300), tolerance: 35)
         let oldEnough = Date().timeIntervalSince(end) >= 180

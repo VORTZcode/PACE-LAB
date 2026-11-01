@@ -8,7 +8,10 @@ const index=txt('index.html');
 assert.match(engine,/HKObserverQuery/);
 assert.match(engine,/enableBackgroundDelivery/);
 assert.match(engine,/local-healthkit-workouts\.json/);
-assert.match(engine,/\.addingTimeInterval\(300\)/);
+assert.match(engine,/\.addingTimeInterval\(180\)/);
+// Regression: HK heart-rate recovery is expressed in beats/min, never plain count.
+assert.match(engine,/recordedRecovery\.first\?\.quantity\.doubleValue\(for: bpmUnit\)/);
+assert.doesNotMatch(engine,/recordedRecovery\.first\?\.quantity\.doubleValue\(for: HKUnit\.count\(\)\)/);
 assert.match(bridge,/loadFileURL/);
 assert.match(bridge,/scheme == "file"/);
 assert.match(app,/source_uuid/);
