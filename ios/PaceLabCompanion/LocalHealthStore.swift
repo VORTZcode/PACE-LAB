@@ -24,6 +24,7 @@ struct WorkoutPayload: Codable {
     let apple_recovery_1min_delta: Double?
     let recovery_state: String
     let heart_rate_series: [HeartRatePoint]
+    let details_complete: Bool? // Backward-compatible with local files created by older PACE LAB versions.
 }
 
 // Only summary fields cross from native Swift to the bundled offline web UI.

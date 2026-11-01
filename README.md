@@ -60,6 +60,6 @@ Pour retrouver les anciennes courses Apple sur un nouvel appareil : importer le 
 
 La version iPhone native expérimentale se trouve dans `ios/` avec le pont `assets/native-health.js`. Elle lit HealthKit directement et conserve localement les séances, les séries de fréquence cardiaque et les mesures réellement disponibles pendant **les trois premières minutes de récupération**.
 
-**État :** l'application iOS a été compilée et signée sur macOS avec Xcode. Le fonctionnement réel Apple Watch → HealthKit → PACE LAB doit encore être validé sur l'iPhone. Aucun Supabase, backend ni compte externe n'est nécessaire. La PWA sur GitHub Pages ne peut pas lire HealthKit ni partager automatiquement les données locales de l'app iOS. Les notifications d'arrière-plan n'ont pas de délai garanti.
+**État :** compilée, signée, installée et testée sur un iPhone réel avec un historique pluriannuel (statistiques personnelles non publiées). Reste à valider la synchronisation automatique après une NOUVELLE activité Watch, y compris en arrière-plan. Aucun Supabase, backend ni compte externe n'est nécessaire. La PWA sur GitHub Pages ne peut pas lire HealthKit ni partager automatiquement les données locales de l'app iOS. Les notifications d'arrière-plan n'ont pas de délai garanti.
 
 Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.

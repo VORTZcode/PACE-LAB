@@ -9,6 +9,11 @@
   }
   function ingest(items) {
     if (!Array.isArray(items)) return 0;
+    const liveIDs = new Set(items.filter(x => x && x.activity_kind === 'running' && typeof x.source_uuid === 'string').map(x => x.source_uuid));
+    const before = state.runs.length;
+    // HealthKit deletions invalidate only HealthKit-origin records, never manual records.
+    state.runs = state.runs.filter(r => r.origin !== 'healthkit-local' || liveIDs.has(r.uuid));
+    const removed = before - state.runs.length;
     let updates = 0;
     for (const x of items) {
       if (!x || x.activity_kind !== 'running' || typeof x.source_uuid !== 'string') continue;
@@ -31,7 +36,7 @@
       else state.runs.push(next);
       updates++;
     }
-    if (updates) {persist(); render();}
+    if (updates || removed) {persist(); render();}
     return updates;
   }
   function mount(){

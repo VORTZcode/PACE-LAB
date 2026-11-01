@@ -9,6 +9,14 @@
 - **PWA GitHub Pages** : fonctionne pour le planning, les repas, les mesures manuelles et les imports JSON, mais n'a **pas** accès à HealthKit et n'est pas synchronisée automatiquement avec la version native.
 - **Aucun Supabase, aucun compte utilisateur, aucune transmission d'informations de santé vers Internet.**
 
+## Historique intégral et mises à jour automatiques
+
+- Première synchronisation : `HKAnchoredObjectQuery` paginé, sans limitation à 30 jours ou 40 entraînements.
+- Les résumés de toutes les activités arrivent d'abord, pour reconstruire les cumuls annuels sans attendre le chargement de toutes les courbes.
+- L'enrichissement cardio récupère les vrais échantillons par activité et reprend après interruption. Un drapeau interne évite de retraiter inutilement les séances terminées.
+- La position incrémentale HealthKit est enregistrée localement après chaque page. Les mises à jour et suppressions utilisent l'UUID HealthKit sans doublons.
+- La lecture détaillée a été validée sur un iPhone physique avec un historique pluriannuel. Les totaux réels et toute donnée de santé restent strictement hors du dépôt.
+
 ## Récupération cardiaque et cadence de mise à jour
 
 L'Apple Watch échantillonne généralement activement la FC dans les trois minutes après un entraînement (support.apple.com/guide/watch/end-and-view-a-summary-of-your-workout-apd95450de2a/watchos). Le statut de récupération vérifie les mesures disponibles autour de T+3 min, sans extrapolation. Les échantillons à T+4 et T+5 peuvent être stockés s'ils existent, mais ne sont plus nécessaires pour classer la récupération complète.
@@ -25,9 +33,9 @@ L'Apple Watch échantillonne généralement activement la FC dans les trois minu
 
 ## Limitations avant production
 
-- Ce code est un **prototype non compilé sur macOS** dans cette session ; uniquement analyse syntaxique Swift et tests JS locaux. Il faut valider effectivement le projet Xcode, les entitlements et les autorisations Apple.
-- La première lecture recherche les **40 dernières séances sur 30 jours** ; les entraînements antérieurs restent importables par JSON. Étendre l'historique avec `HKAnchoredObjectQuery` paginé avant lancement.
-- Les suppressions d'activités dans Santé ne sont pas encore propagées automatiquement : adopter `HKAnchoredObjectQuery` avec `HKDeletedObject`.
+- **Compilé, signé et installé sur un vrai iPhone** ; il reste à vérifier le comportement automatique après une nouvelle séance Watch, avec iPhone verrouillé et mode hors ligne.
+- Les suppressions HealthKit sont traitées via `HKDeletedObject` et retirées de l'interface ; scénario de suppression réelle à tester.
+- Les séances sans mesures cardiaques disponibles restent sans fréquence calculée : jamais de valeur inventée.
 - Le programme et les repas sont actuellement conservés dans le `localStorage` du WKWebView ; la suppression de l'application supprime aussi ces données. Prévoir export/restauration et sauvegarde locale chiffrée.
 - Une application native signée devra être redéployée via Xcode/TestFlight pour les mises à jour iOS ; GitHub Actions/Pages met à jour uniquement la **version web**. Aucun déploiement natif automatique n'est actif.
 - Ne pas utiliser iCloud/CloudKit comme stockage de données de santé personnelles : les directives Apple de publication des apps l’interdisent. En cas de besoin multi-appareil, réévaluer le périmètre des données et la solution juridique/technique avant implémentation.

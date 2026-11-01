@@ -18,6 +18,7 @@ final class PaceLabDelegate: NSObject, UIApplicationDelegate {
 struct PaceLabCompanionApp: App {
     @UIApplicationDelegateAdaptor(PaceLabDelegate.self) var delegate
     @StateObject private var engine = HealthSyncEngine.shared
+    @State private var hasStartedFullSync = false
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -27,6 +28,12 @@ struct PaceLabCompanionApp: App {
                     .tabItem { Label("Apple Santé", systemImage: "heart.text.square") }
             }
             .environmentObject(engine)
+            .onAppear {
+                if !hasStartedFullSync {
+                    hasStartedFullSync = true
+                    engine.resync() // Backfill historical heart-rate details when the native app first opens.
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 engine.resync()
             }
