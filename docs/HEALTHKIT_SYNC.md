@@ -11,9 +11,9 @@
 
 ## Récupération cardiaque et cadence de mise à jour
 
-L'Apple Watch échantillonne généralement activement la FC dans les trois minutes après un entraînement (support.apple.com/guide/watch/end-and-view-a-summary-of-your-workout-apd95450de2a/watchos). Notre requête cherche les vraies mesures jusqu'à T+5 min, sans extrapolation. Aucune mesure à T+4 ou T+5 n'est garantie. Le statut `partial` n'est donc pas une erreur.
+L'Apple Watch échantillonne généralement activement la FC dans les trois minutes après un entraînement (support.apple.com/guide/watch/end-and-view-a-summary-of-your-workout-apd95450de2a/watchos). Le statut de récupération vérifie les mesures disponibles autour de T+3 min, sans extrapolation. Les échantillons à T+4 et T+5 peuvent être stockés s'ils existent, mais ne sont plus nécessaires pour classer la récupération complète.
 
-`HKObserverQuery` et `enableBackgroundDelivery` réveillent l'app en arrière-plan **au mieux**. `BGAppRefreshTask` ne garantit pas une exécution à T+5. Au prochain lancement, les séances récentes sont relues automatiquement. Une montre déconnectée ou verrouillée peut retarder la synchronisation.
+`HKObserverQuery` et `enableBackgroundDelivery` réveillent l'app en arrière-plan **au mieux**. `BGAppRefreshTask` ne garantit pas une exécution à T+3. Au prochain lancement, les séances récentes sont relues automatiquement. Une montre déconnectée ou verrouillée peut retarder la synchronisation.
 
 ## Compiler et installer
 
@@ -21,7 +21,7 @@ L'Apple Watch échantillonne généralement activement la FC dans les trois minu
 2. Dans Xcode, sélectionner une équipe Apple, adapter le bundle ID à son équipe. Vérifier HealthKit et Background Delivery et le dossier **WebApp** comme *folder reference* dans Copy Bundle Resources.
 3. Compiler sur **vrai iPhone**, associé à l'Apple Watch. Les notifications HealthKit arrière-plan ne sont pas testables correctement avec le simulateur.
 4. Ouvrir PACE LAB → onglet Apple Santé → Autoriser la lecture. Revenir au premier onglet : les courses autorisées apparaissent.
-5. Effectuer une sortie test : fermer l'écran, terminer l'activité depuis l'Apple Watch, puis comparer les valeurs à celles de Santé après 1, 3, 5 et 15 min. Réouvrir PACE LAB si la notification est retardée.
+5. Effectuer une sortie test : fermer l'écran, terminer l'activité depuis l'Apple Watch, puis comparer les valeurs à celles de Santé après 1, 3 et 15 min. Réouvrir PACE LAB si la notification est retardée.
 
 ## Limitations avant production
 

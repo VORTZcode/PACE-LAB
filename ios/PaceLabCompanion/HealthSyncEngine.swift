@@ -53,12 +53,19 @@ final class HealthSyncEngine: ObservableObject {
                 }
             }
             healthStore.execute(observer)
-            let requestedFrequency: HKUpdateFrequency = type == HKObjectType.workoutType() ? .immediate : .hourly
-            healthStore.enableBackgroundDelivery(for: type, frequency: requestedFrequency) { [weak self] enabled, error in
-                if !enabled { Task { @MainActor in self?.status = "Notification Santé en arrière-plan indisponible. Vérifier les autorisations et les entitlements." } }
+        }
+        configureBackgroundDelivery()
+        scheduleBackgroundRefresh()
+    }
+    private func configureBackgroundDelivery() {
+        // Retry after the user grants HealthKit permission, not only on first app launch.
+        let watched: [HKSampleType] = [HKObjectType.workoutType(), HKObjectType.quantityType(forIdentifier: .heartRate)!]
+        for type in watched {
+            let frequency: HKUpdateFrequency = type == HKObjectType.workoutType() ? .immediate : .hourly
+            healthStore.enableBackgroundDelivery(for: type, frequency: frequency) { [weak self] enabled, _ in
+                if !enabled { Task { @MainActor in self?.status = "Notification Santé en arrière-plan indisponible. Tu pourras toujours actualiser à l'ouverture." } }
             }
         }
-        scheduleBackgroundRefresh()
     }
     func requestPermission() {
         guard HKHealthStore.isHealthDataAvailable() else { status = "HealthKit indisponible sur cet appareil."; return }
@@ -74,6 +81,7 @@ final class HealthSyncEngine: ObservableObject {
                 if let error = error { self?.status = "Autorisation Santé : \(error.localizedDescription)"; return }
                 self?.status = "Demande d'autorisation terminée. Importation des séances disponibles…"
                 self?.startObservers()
+                self?.configureBackgroundDelivery()
                 await self?.resyncAsync()
             }
         }
@@ -120,9 +128,10 @@ final class HealthSyncEngine: ObservableObject {
         let recoveryType = HKObjectType.quantityType(forIdentifier: .heartRateRecoveryOneMinute)!
         let recordedRecovery = await quantities(recoveryType, start: end.addingTimeInterval(-30), end: end.addingTimeInterval(900))
         let delta = recordedRecovery.first?.quantity.doubleValue(for: HKUnit.count())
-        let oldEnough = Date().timeIntervalSince(end) >= 300
+        let third = nearbyBPM(post, at: end.addingTimeInterval(180), tolerance: 35)
         let fifth = nearbyBPM(post, at: end.addingTimeInterval(300), tolerance: 35)
-        let state = !oldEnough ? "pending" : fifth == nil ? "partial" : "complete"
+        let oldEnough = Date().timeIntervalSince(end) >= 180
+        let state = !oldEnough ? "pending" : third == nil ? "partial" : "complete"
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
         let energyType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
         // Apple's workout summaries can have different associated quantities depending on activity.
@@ -137,7 +146,7 @@ final class HealthSyncEngine: ObservableObject {
             hr_at_end_bpm: endHR,
             recovery_hr_1min: nearbyBPM(post, at: end.addingTimeInterval(60), tolerance: 35),
             recovery_hr_2min: nearbyBPM(post, at: end.addingTimeInterval(120), tolerance: 35),
-            recovery_hr_3min: nearbyBPM(post, at: end.addingTimeInterval(180), tolerance: 35),
+            recovery_hr_3min: third,
             recovery_hr_5min: fifth, apple_recovery_1min_delta: delta,
             recovery_state: state,
             heart_rate_series: window.map { HeartRatePoint(timestamp: clock.string(from: $0.startDate), bpm: $0.quantity.doubleValue(for: bpmUnit)) }
@@ -160,7 +169,7 @@ final class HealthSyncEngine: ObservableObject {
     }
     private func scheduleBackgroundRefresh() {
         let req = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
-        req.earliestBeginDate = Date().addingTimeInterval(5*60)
+        req.earliestBeginDate = Date().addingTimeInterval(3*60)
         try? BGTaskScheduler.shared.submit(req) // earliestBeginDate is not a guaranteed wake-up time.
     }
     func handleRefreshTask(_ task: BGAppRefreshTask) {

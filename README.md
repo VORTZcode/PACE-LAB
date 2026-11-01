@@ -58,9 +58,8 @@ Pour retrouver les anciennes courses Apple sur un nouvel appareil : importer le 
 
 ## Intégration Apple Santé / Apple Watch — chantier en cours
 
-Une première implémentation expérimentale se trouve dans `ios/` et `assets/cloud-sync.js`.
-Elle vise à importer automatiquement les séances enregistrées par l'Apple Watch et les séries cardiaques, y compris **les mesures réellement disponibles pendant les cinq minutes après la fin**.
+La version iPhone native expérimentale se trouve dans `ios/` avec le pont `assets/native-health.js`. Elle lit HealthKit directement et conserve localement les séances, les séries de fréquence cardiaque et les mesures réellement disponibles pendant **les trois premières minutes de récupération**.
 
-**Important : l'automatisation de bout en bout n'est pas encore opérationnelle.** La PWA seule ne sait pas accéder à HealthKit. Il reste à configurer un projet Supabase dédié, construire et signer l'app native iOS, lui accorder les permissions Santé, puis effectuer des essais sur iPhone / Apple Watch réels. Les notifications d'arrière-plan et le réveil cinq minutes plus tard ne sont pas garantis par iOS ; les mesures manquantes restent absentes.
+**État :** l'application iOS a été compilée et signée sur macOS avec Xcode. Le fonctionnement réel Apple Watch → HealthKit → PACE LAB doit encore être validé sur l'iPhone. Aucun Supabase, backend ni compte externe n'est nécessaire. La PWA sur GitHub Pages ne peut pas lire HealthKit ni partager automatiquement les données locales de l'app iOS. Les notifications d'arrière-plan n'ont pas de délai garanti.
 
 Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.

@@ -92,8 +92,8 @@ struct HealthBridgeView: View {
                     Text("\(engine.savedCount) séance(s) enregistrée(s) localement").font(.subheadline)
                 }
                 Section("Récupération cardiaque") {
-                    Text("Les échantillons réels de fréquence cardiaque sont recherchés pendant les 5 minutes suivant la séance. L'Apple Watch suit normalement activement la récupération pendant 3 minutes ; les données à 4 et 5 minutes peuvent manquer.")
-                    Text("Les mises à jour en arrière-plan dépendent d'iOS et ne sont pas garanties à T+5 minutes.")
+                    Text("PACE LAB analyse les mesures réelles de fréquence cardiaque pendant les 3 minutes suivant la séance. L'actualisation dépend de la disponibilité des données dans Santé.")
+                    Text("Les mises à jour en arrière-plan dépendent d'iOS et ne sont pas garanties exactement 3 minutes après la séance.")
                 }
                 Section("Confidentialité") {
                     Text("Aucune connexion Supabase, aucun compte PACE LAB, aucun envoi de données de santé à un serveur. Les données détaillées restent sur cet iPhone.")
