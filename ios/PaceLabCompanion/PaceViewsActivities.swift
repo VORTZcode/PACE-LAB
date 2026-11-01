@@ -148,30 +148,8 @@ struct WorkoutDetailScreen: View {
                     if workout.isRun { PacePill(label: "\(PaceFormat.pace(workout.paceMinutes)) /km", symbol: "speedometer") }
                 }
             }
-            PaceSectionTitle(title: "Fréquence cardiaque")
-            HStack(spacing: 10) {
-                PaceMetric(caption: "Moyenne", value: PaceFormat.heart(workout.hr_average_bpm), suffix: "bpm", symbol: "heart")
-                PaceMetric(caption: "Maximum", value: PaceFormat.heart(workout.hr_max_bpm), suffix: "bpm", symbol: "heart.fill")
-            }
-            PaceCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Évolution pendant la séance").font(.subheadline.weight(.semibold))
-                    if samples.count >= 2 {
-                        Chart(samples) { point in
-                            LineMark(x: .value("Minute", point.minute), y: .value("FC", point.bpm))
-                                .interpolationMethod(.catmullRom)
-                                .foregroundStyle(PaceColors.teal)
-                                .lineStyle(StrokeStyle(lineWidth: 2.2))
-                        }
-                        .chartYScale(domain: 50...210)
-                        .chartXAxisLabel("Minutes")
-                        .frame(height: 210)
-                    } else {
-                        ContentUnavailableView("Mesures indisponibles", systemImage: "heart", description: Text("Apple Santé ne contient pas assez de points pour afficher cette courbe."))
-                            .frame(height: 170)
-                    }
-                }
-            }
+            RunDynamicsSection(original: workout)
+            RunIntervalsSection(workout: workout)
             PaceSectionTitle(title: "Après l’effort")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {
@@ -205,6 +183,7 @@ struct WorkoutDetailScreen: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            SimilarRunComparison(workout: workout)
             PaceSectionTitle(title: "Mon journal")
             PaceCard {
                 VStack(alignment: .leading, spacing: 14) {

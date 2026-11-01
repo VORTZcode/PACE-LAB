@@ -16,6 +16,12 @@ struct PaceSettingsScreen: View {
                     Image(systemName: "heart.text.square.fill").foregroundStyle(PaceColors.teal)
                 }
                 Button("Actualiser les activités") { engine.resync() }
+                Button("Autoriser les mesures de course avancées") { engine.requestAdvancedPermission() }
+                    .foregroundStyle(PaceColors.teal)
+                if engine.advancedEnabled {
+                    LabeledContent("Télémétrie", value: engine.advancedRemaining == 0 ?
+                        "Recherche à jour" : "\(engine.advancedRemaining) courses à enrichir")
+                }
                 Button("Réglages de l’application") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
@@ -29,7 +35,7 @@ struct PaceSettingsScreen: View {
             }
             Section("À propos") {
                 LabeledContent("Application", value: "PACE LAB")
-                LabeledContent("Version", value: "2.1 · Native")
+                LabeledContent("Version", value: "2.2 · Native")
                 Label("Aucune donnée Santé envoyée vers un serveur", systemImage: "lock.shield")
                     .font(.subheadline)
             }
