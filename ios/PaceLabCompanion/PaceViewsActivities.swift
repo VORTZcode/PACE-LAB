@@ -108,6 +108,7 @@ struct ActivityRow: View {
 }
 struct WorkoutDetailScreen: View {
     @EnvironmentObject private var journal: PaceSessionJournal
+    @EnvironmentObject private var coach: PaceCoachEngine
     @State private var showJournal = false
     @State private var showCoach = false
     @State private var showIntervals = false
@@ -252,7 +253,10 @@ struct WorkoutDetailScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { showCoach = true } label: {
+                Button {
+                    coach.focusWorkoutID = workout.source_uuid
+                    showCoach = true
+                } label: {
                     Image(systemName:"sparkles")
                 }
                 .accessibilityLabel("Faire analyser cette séance par ChatGPT")

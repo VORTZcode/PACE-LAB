@@ -71,3 +71,5 @@ La version iPhone native expérimentale se trouve dans `ios/` avec le pont `asse
 **État :** compilée, signée, installée et testée sur un iPhone réel avec un historique pluriannuel (statistiques personnelles non publiées). Reste à valider la synchronisation automatique après une NOUVELLE activité Watch, y compris en arrière-plan. Aucun Supabase, backend ni compte externe n'est nécessaire. La PWA sur GitHub Pages ne peut pas lire HealthKit ni partager automatiquement les données locales de l'app iOS. Les notifications d'arrière-plan n'ont pas de délai garanti.
 
 Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.
+
+V3.1 : bilans ciblés avec partage facultatif de métriques cardiaques agrégées et de notes, comparaison de charge sur quatre semaines, proposition sans modification automatique du programme. Voir [le guide Coach V3.1](docs/V3_1_COACH_ANALYTICS.md).
