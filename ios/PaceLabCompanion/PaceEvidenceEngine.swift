@@ -1,0 +1,123 @@
+import Foundation
+
+/// Descriptive baseline from HealthKit. No fictional thresholds or diagnosed "readiness" score.
+struct PaceTrainingEvidence {
+    let runCount28Days: Int
+    let distance28Days: Double
+    let minutes28Days: Double
+    let longestRun28Days: Double
+    let completeWeeks: [Double]
+    let baselineWeeklyKm: Double?
+    let currentSevenDaysKm: Double
+    let dataQuality: String
+    let analysis: String
+
+    var promptContext: String {
+        let week = baselineWeeklyKm.map {
+            PaceFormat.distance($0,places:2) + " km"
+        } ?? "non fiable"
+        return [
+            "BASELINE OBSERVÉE (Apple Santé ; aucune estimation de VO2max, de seuil lactique ou de score de forme).",
+            "28 derniers jours : \(runCount28Days) courses, \(PaceFormat.distance(distance28Days,places:2)) km, \(Int(minutes28Days)) min.",
+            "Sortie la plus longue : \(PaceFormat.distance(longestRun28Days,places:2)) km.",
+            "4 semaines de 7 jours : \(completeWeeks.enumerated().map { "S\($0.offset + 1)=\(PaceFormat.distance($0.element,places:1))km" }.joined(separator:" ; ")).",
+            "Moyenne hebdomadaire observée : \(week).",
+            "7 derniers jours : \(PaceFormat.distance(currentSevenDaysKm,places:2)) km.",
+            "Qualité de référence : \(dataQuality).",
+            "Décision fondée sur : \(analysis)"
+        ].joined(separator:"\n")
+    }
+}
+
+enum PaceEvidenceEngine {
+    static let sources: [(title:String,url:String)] = [
+        ("ACC 2026 — prescription individualisée FITT","https://www.jacc.org/doi/10.1016/j.jacc.2026.09.008"),
+        ("Oliveira et al. 2024 — distribution de l’intensité","https://pubmed.ncbi.nlm.nih.gov/38717713/"),
+        ("Meta-analyse 2025 — musculation et masse maigre","https://pubmed.ncbi.nlm.nih.gov/40909191/"),
+        ("Étude cohorte 2025 — augmentation ponctuelle des distances","https://pubmed.ncbi.nlm.nih.gov/40623829/"),
+        ("Revue 2022 — pas de règle universelle des 10 %","https://pmc.ncbi.nlm.nih.gov/articles/PMC9528699/")
+    ]
+
+    static func evaluate(_ runs:[WorkoutPayload],now:Date = .now) -> PaceTrainingEvidence {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for:now)
+        let lower = calendar.date(byAdding:.day,value:-28,to:now) ?? .distantPast
+        let recent = runs.filter { $0.startDate >= lower && $0.startDate <= now && $0.kilometers > 0 }
+        let total = recent.reduce(0.0) { $0 + $1.kilometers }
+        let duration = recent.reduce(0.0) { $0 + $1.duration_seconds/60 }
+        let longest = recent.map(\.kilometers).max() ?? 0
+        let weeks = (0..<4).map { index -> Double in
+            let start = calendar.date(byAdding:.day,value:-(index + 1)*7,to:today) ?? .distantPast
+            let end = calendar.date(byAdding:.day,value:-index*7,to:today) ?? now
+            return runs.filter { $0.startDate >= start && $0.startDate < end }
+                .reduce(0.0) { $0 + max(0,$1.kilometers) }
+        }
+        let average = recent.count >= 4 ? weeks.reduce(0,+)/4 : nil
+        let weekStart = calendar.date(byAdding:.day,value:-7,to:now) ?? .distantPast
+        let last7 = runs.filter { $0.startDate >= weekStart && $0.startDate <= now }
+            .reduce(0.0) { $0 + max(0,$1.kilometers) }
+        let quality: String
+        let interpretation: String
+        if recent.count < 4 {
+            quality = "Insuffisante"
+            interpretation = "Moins de quatre courses sur 28 jours : conserver une charge modeste, demander le ressenti, ne pas estimer une progression individuelle fiable."
+        } else if weeks.filter({ $0 > 0 }).count < 3 {
+            quality = "Partielle"
+            interpretation = "Historique irrégulier : les moyennes de semaines ne sont pas une capacité garantie. Ne pas extrapoler une cible agressive."
+        } else {
+            quality = "Descriptive sur 28 jours"
+            interpretation = "Comparer volumes et fréquences ; demander symptômes, douleur, sommeil, facilité perçue et terrain avant tout ajustement d'intensité."
+        }
+        return .init(runCount28Days:recent.count,distance28Days:total,minutes28Days:duration,
+                     longestRun28Days:longest,completeWeeks:weeks,baselineWeeklyKm:average,
+                     currentSevenDaysKm:last7,dataQuality:quality,analysis:interpretation)
+    }
+
+    /// Safety gate, not a validated universal training rule; protects against unexplained jumps.
+    static func review(plan:PaceAICoachDraft,baseline:PaceTrainingEvidence,
+                       profile:PaceAthleteProfile? = nil) -> [String] {
+        var concerns:[String] = []
+        let runs = plan.training.filter { $0.type == "Course" }
+        if runs.isEmpty { concerns.append("Aucune course planifiée malgré l’objectif de course.") }
+        if let profile {
+            if runs.count > profile.preferredRunsPerWeek + 1 {
+                concerns.append("Le nombre de courses dépasse fortement la fréquence souhaitée dans le profil confirmé.")
+            }
+            if profile.preferredStrengthPerWeek > 0 &&
+               plan.training.filter({ $0.type == "Musculation" }).isEmpty {
+                concerns.append("Le programme a supprimé tout le renforcement malgré l’objectif de préserver le muscle.")
+            }
+        }
+        if runs.contains(where:{ $0.plannedDistanceKm == nil || ($0.plannedDistanceKm ?? 0) <= 0 }) {
+            concerns.append("Distance prévisionnelle absente : impossible de comparer le plan à la charge réelle.")
+        }
+        if runs.contains(where:{ $0.effortCategory == nil }) {
+            concerns.append("Intensité prévue absente : impossible d’évaluer la répartition des efforts.")
+        }
+        let values = runs.compactMap(\.plannedDistanceKm)
+        if let biggest = values.max(),baseline.longestRun28Days > 0,
+           biggest > baseline.longestRun28Days * 1.10 {
+            concerns.append("La plus longue sortie proposée dépasse de plus de 10 % la plus longue sortie enregistrée sur 28 jours. Seuil prudent de revue inspiré d’une étude de cohorte, pas une règle individuelle validée.")
+        }
+        let total = values.reduce(0,+)
+        if let weekly = baseline.baselineWeeklyKm,weekly > 1,
+           total > weekly * 1.35 {
+            concerns.append("Le volume proposé dépasse de plus de 35 % le volume hebdomadaire observé. Revoir avec le coureur avant adoption.")
+        }
+        let sorted = plan.training.sorted { $0.date < $1.date }
+        for pair in zip(sorted,sorted.dropFirst()) {
+            if pair.0.effortCategory == "intense" && pair.1.effortCategory == "intense" {
+                concerns.append("Deux séances intenses consécutives sont proposées.")
+                break
+            }
+        }
+        let intenseCount = runs.filter { $0.effortCategory == "intense" }.count
+        if intenseCount > 1 && baseline.runCount28Days < 12 {
+            concerns.append("Plus d’une séance de course intense proposée avec un historique récent limité.")
+        }
+        if baseline.dataQuality == "Insuffisante" && intenseCount > 0 {
+            concerns.append("Historique insuffisant pour justifier une séance intense sans évaluation préalable.")
+        }
+        return concerns
+    }
+}

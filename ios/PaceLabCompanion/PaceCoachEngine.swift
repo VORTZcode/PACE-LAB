@@ -8,6 +8,8 @@ struct PaceAITrainingDay: Codable, Identifiable {
     let minutes: Int
     let objective: String
     let instructions: String
+    let plannedDistanceKm: Double?
+    let effortCategory: String?
     var id: String { date }
 }
 
@@ -24,12 +26,14 @@ struct PaceAIMeal: Codable, Identifiable {
 
 struct PaceAICoachDraft: Codable, Identifiable {
     let id = UUID()
-    enum CodingKeys: String, CodingKey { case title, summary, training, meals, cautions }
+    enum CodingKeys: String, CodingKey { case title, summary, training, meals, cautions, evidenceNotes, adjustmentRationale }
     let title: String
     let summary: String
     let training: [PaceAITrainingDay]
     let meals: [PaceAIMeal]
     let cautions: [String]
+    let evidenceNotes: [String]?
+    let adjustmentRationale: String?
 
     static func extract(from text: String) throws -> PaceAICoachDraft {
         let clean = text.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -73,6 +77,15 @@ struct PaceAICoachDraft: Codable, Identifiable {
                let previous = formatter.date(from:normalized[index-1].date),
                calendar.dateComponents([.day],from:previous,to:parsed).day != 1 {
                 throw PaceChatError.invalid("Les séances proposées ne couvrent pas sept jours consécutifs.")
+            }
+        }
+        for day in normalized {
+            if let planned = day.plannedDistanceKm,!(0...35).contains(planned) {
+                throw PaceChatError.invalid("Distance de course impossible dans le programme.")
+            }
+            if let effort = day.effortCategory,
+               !["facile","modéré","intense","repos"].contains(effort) {
+                throw PaceChatError.invalid("Intensité prévue non reconnue.")
             }
         }
         for meal in meals {
@@ -136,6 +149,7 @@ extension PaceAIMeal {
     @Published var conversation: [PaceCoachMessage] = [] {
         didSet { saveConversation() }
     }
+    @Published private(set) var evidenceConcerns: [String] = []
     @Published var pending: PaceAICoachDraft?
     @Published private(set) var latestReport: PaceCoachSessionReport?
     @Published var focusWorkoutID: String?
@@ -194,14 +208,19 @@ extension PaceAIMeal {
         return engine.workout(id:focusWorkoutID) ?? engine.runHistory.first
     }
     func contextPreview(engine: HealthSyncEngine, library: PaceLibrary,
-                        journal: PaceSessionJournal? = nil) -> String {
+                        journal: PaceSessionJournal? = nil,
+                        profile:PaceAthleteProfileStore? = nil) -> String {
         var pieces = [
-            "Objectif : construire progressivement l’endurance et la vitesse sur 10 km, tout en améliorant la composition corporelle sans perdre de muscle.",
-            "Contraintes : entraînement durable, progression prudente, renforcement à domicile avec un haltère, séances de course et récupération.",
-            "Programme actuel : " + library.currentPlan.prefix(7).map {
-                "\($0.date) \($0.type) \($0.title) \(Int($0.minutes)) min"
+            "Contexte actuel PACE LAB (pas d’accès automatique aux souvenirs ChatGPT).",
+            "Séances prévues : " + library.currentPlan.prefix(7).map {
+                "\($0.date) \($0.type) \($0.title) \(Int($0.minutes)) minutes"
             }.joined(separator:" ; ")
         ]
+        if let profile,profile.shareProfile,let value = profile.profile {
+            pieces.append(value.aiContext)
+        } else {
+            pieces.append("Profil détaillé non validé ou non partagé : ne pas inventer d'objectifs, de limitations ou de préférences.")
+        }
         if shareRunSummaries {
             let runs = engine.runHistory.prefix(8)
             pieces.append("Courses récentes (résumés, sans GPS ni courbes brutes) : " + runs.map { w in
@@ -209,6 +228,7 @@ extension PaceAIMeal {
             }.joined(separator:" | "))
         }
         if shareRunSummaries {
+            pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
             if let run = selectedRun(engine:engine) {
                 let date = run.startDate.formatted(.dateTime.day().month().year())
@@ -265,10 +285,14 @@ extension PaceAIMeal {
     }
 
     func generate(client:PaceChatGPTConnection,engine:HealthSyncEngine,library:PaceLibrary,
-                  journal:PaceSessionJournal? = nil) async {
+                  journal:PaceSessionJournal? = nil,profile:PaceAthleteProfileStore? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries else {
             error = "Autorise d’abord le partage des résumés sportifs pour préparer le programme."
+            return
+        }
+        guard profile?.profile != nil, profile?.shareProfile == true else {
+            error = "Confirme ton profil sportif et autorise son utilisation avant la création d’un plan personnalisé."
             return
         }
         isLoading = true
@@ -276,6 +300,17 @@ extension PaceAIMeal {
         let instructions = """
         Tu es le coach sportif personnel de PACE LAB. Réponds en français.
         Tu proposes un projet de plan ; tu n'agis jamais sur l'application directement.
+        Utilise explicitement le profil confirmé si fourni, la charge observée sur 28 jours,
+        le nombre de courses, et la difficulté ressentie lorsque disponible.
+        Si le profil n'est pas confirmé, ne suppose pas connaître ses objectifs personnels.
+        Ne fabrique pas de puissance, de zones de fréquence cardiaque, de VMA ou d'allure seuil.
+        Pour toute course : indique plannedDistanceKm (kilomètres réalistes) et effortCategory
+        parmi facile/modéré/intense ; jamais plusieurs sorties intenses d'affilée.
+        Évite de dépasser le volume et la sortie la plus longue du mois sans justification.
+        Tes références méthodologiques : individualisation FITT, majorité du travail aérobique
+        à faible intensité lorsque approprié, renforcement pour préserver le muscle.
+        Les études ne fournissent PAS de règle universelle d'augmentation hebdomadaire de 10 %.
+        Explique les mesures utilisées, limites et incertitudes, sans promettre le résultat.
         Évalue les entraînements sans inventer une donnée manquante. Ne pose pas de diagnostic médical.
         Propose sept jours consécutifs à compter de demain, avec au moins un jour de repos ou récupération.
         Préserve un programme stable et une progression prudente. Évite les hausses brusques de volume
@@ -285,20 +320,33 @@ extension PaceAIMeal {
         Renvoie UNIQUEMENT un objet JSON valide sans markdown :
         {"title":"...","summary":"...","training":[{"date":"YYYY-MM-DD",
         "type":"Course|Musculation|Récupération|Repos","title":"...",
-        "minutes":30,"objective":"...","instructions":"..."}],
+        "minutes":30,"objective":"...","instructions":"...",
+        "plannedDistanceKm":4.5,"effortCategory":"facile"}],
         "meals":[{"date":"YYYY-MM-DD","meal":"Midi|Soir","title":"...",
         "ingredients":["ingrédient : 120 g"],"preparation":"...","kcal":650,"protein":40}],
-        "cautions":["..."]}.
+        "cautions":["..."],"evidenceNotes":["mesure concrète utilisée ou information manquante"],
+        "adjustmentRationale":"Pourquoi modifier ou conserver les séances selon les données"}.
         training a 7 entrées, meals en a exactement 14 (deux pour chaque date).
         """
         let tomorrow = Calendar.current.date(byAdding:.day,value:1,to:Calendar.current.startOfDay(for:.now)) ?? .now
         let date = DateFormatter()
         date.locale = Locale(identifier:"en_US_POSIX")
         date.dateFormat = "yyyy-MM-dd"
-        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal)
+        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile)
         do {
             let text = try await client.answer(instructions:instructions,input:input)
             let draft = try PaceAICoachDraft.extract(from:text)
+            guard let notes = draft.evidenceNotes,!notes.isEmpty,
+                  let rationale = draft.adjustmentRationale,!rationale.isEmpty else {
+                throw PaceChatError.invalid("Le programme n'explique pas ses sources ni la raison des ajustements.")
+            }
+            let baseline = PaceEvidenceEngine.evaluate(engine.runHistory)
+            let concerns = PaceEvidenceEngine.review(plan:draft,baseline:baseline,profile:profile?.profile)
+            evidenceConcerns = concerns
+            if !concerns.isEmpty {
+                throw PaceChatError.invalid("Proposition non validée : " + concerns.joined(separator:" · ") +
+                    " Aucun remplacement n'a été effectué.")
+            }
             pending = draft
             if let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data,forKey:storeKey) }
             newWorkoutAwaitingReview = false
@@ -311,7 +359,8 @@ extension PaceAIMeal {
     }
 
     func chat(_ question:String,client:PaceChatGPTConnection,engine:HealthSyncEngine,
-              library:PaceLibrary,journal:PaceSessionJournal? = nil) async {
+              library:PaceLibrary,journal:PaceSessionJournal? = nil,
+              profile:PaceAthleteProfileStore? = nil) async {
         guard !isLoading else { return }
         let trimmed = String(question.prefix(800)).trimmingCharacters(in:.whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -322,13 +371,14 @@ extension PaceAIMeal {
         do {
             let reply = try await client.answer(
                 instructions:"Tu es le coach PACE LAB. Réponds en français, concrètement, sans diagnostic médical, et distingue mesure, hypothèse et conseil. N'invente jamais de données. Aucun changement de programme sans confirmation.",
-                input:contextPreview(engine:engine,library:library,journal:journal)+"\n\nConversation:\n"+history)
+                input:contextPreview(engine:engine,library:library,journal:journal,profile:profile)+"\n\nConversation:\n"+history)
             conversation.append(.init(speaker:"Coach",text:reply))
         } catch { self.error = error.localizedDescription }
         isLoading = false
     }
     func analyzeSession(client:PaceChatGPTConnection,engine:HealthSyncEngine,
-                        library:PaceLibrary,journal:PaceSessionJournal? = nil) async {
+                        library:PaceLibrary,journal:PaceSessionJournal? = nil,
+                        profile:PaceAthleteProfileStore? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries,let run = selectedRun(engine:engine) else {
             error = "Autorise les résumés sportifs et choisis une course avant l'analyse."
@@ -360,7 +410,7 @@ extension PaceAIMeal {
         """
         do {
             let response = try await client.answer(instructions:instructions,
-                 input:contextPreview(engine:engine,library:library,journal:journal))
+                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile))
             let report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
             if let data = try? JSONEncoder().encode(report) {
                 try data.write(to:reportURL,options:.atomic)
@@ -383,6 +433,7 @@ extension PaceAIMeal {
     }
 
     func dismissPending() {
+        evidenceConcerns = []
         pending = nil
         UserDefaults.standard.removeObject(forKey:storeKey)
     }

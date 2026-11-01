@@ -73,3 +73,5 @@ La version iPhone native expérimentale se trouve dans `ios/` avec le pont `asse
 Voir [le guide de synchronisation](docs/HEALTHKIT_SYNC.md). Aucune donnée personnelle n'est incluse dans GitHub.
 
 V3.1 : bilans ciblés avec partage facultatif de métriques cardiaques agrégées et de notes, comparaison de charge sur quatre semaines, proposition sans modification automatique du programme. Voir [le guide Coach V3.1](docs/V3_1_COACH_ANALYTICS.md).
+
+V3.2 — Coach : profil sportif local confirmé, ergonomie native, moteur de revue de charge avant adoption et références scientifiques. [Guide V3.2](docs/V3_2_SCIENCE_AND_UX.md).
