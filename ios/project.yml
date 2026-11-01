@@ -19,9 +19,14 @@ targets:
       - path: PaceLabCompanion/WebApp
         type: folder
         buildPhase: resources
+      - path: PaceLabCompanion/AppData
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pacelab.healthcompanion
+        INFOPLIST_KEY_CFBundleDisplayName: "PACE LAB"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSHealthShareUsageDescription: "PACE LAB lit les séances et le cardio pour ton suivi sportif local."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "PACE LAB ne modifie pas Apple Santé."
