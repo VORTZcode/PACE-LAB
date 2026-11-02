@@ -156,11 +156,9 @@ struct DayDetailScreen: View {
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
     @EnvironmentObject var strengthLinks: PaceStrengthWorkoutLinks
     let day: PaceDay
-    @State private var showVariants = false
     @State private var confirmFinish = false
     @State private var presentedExerciseID: String?
     @State private var exerciseDetailTab = 0
-    @State private var expandedExerciseID: String?
     @State private var restEnd: Date?
     @State private var restExerciseID: String?
     @State private var restSetNumber: Int?
@@ -185,19 +183,12 @@ struct DayDetailScreen: View {
         .buttonStyle(.plain)
     }
 
-    private var exerciseCompletionSignature: [Bool] {
-        exercises.map { strengthTracker.completedSets(day: day.date, exercise: $0) >= $0.sets }
-    }
-
-    private func advanceAfterCompletion(from old: [Bool], to new: [Bool]) {
-        guard let currentIndex = exercises.firstIndex(where: { $0.id == expandedExerciseID }),
-              old.indices.contains(currentIndex), new.indices.contains(currentIndex),
-              !old[currentIndex], new[currentIndex] else { return }
-        let next = exercises.indices.first { $0 > currentIndex && !new[$0] }
-        withAnimation(.easeInOut(duration: 0.22)) {
-            expandedExerciseID = next.map { exercises[$0].id }
-        }
+    private func navigateExercise(from current: PaceExercise, direction: Int) {
+        guard let index = exercises.firstIndex(where: { $0.id == current.id }),
+              exercises.indices.contains(index + direction) else { return }
         focusedStrengthInput = nil
+        exerciseDetailTab = 0
+        presentedExerciseID = exercises[index + direction].id
     }
 
     private func onStrengthSetChanged(exercise: PaceExercise, index: Int, completed: Bool) {
@@ -281,7 +272,6 @@ struct DayDetailScreen: View {
                 ForEach(exercises.indices, id: \.self) { index in
                     let ex = exercises[index]
                     let finished = strengthTracker.completedSets(day: day.date, exercise: ex)
-                    let expanded = expandedExerciseID == ex.id
                     PaceCard {
                         VStack(alignment: .leading, spacing: 0) {
                             Button {
@@ -314,89 +304,18 @@ struct DayDetailScreen: View {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundStyle(PaceColors.teal)
                                     }
-                                    Image(systemName: "chevron.down")
+                                    Image(systemName: "arrow.up.right")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
-                                        .rotationEffect(.degrees(expanded ? 180 : 0))
                                 }
                                 .frame(minHeight: 52)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(ex.name), \(finished) séries validées sur \(ex.sets)")
-                            .accessibilityHint(expanded ? "Replier l'exercice" : "Déplier l'exercice")
+                            .accessibilityHint("Ouvrir la fiche de l’exercice pour voir le mouvement et enregistrer les séries")
 
-                            if false {
-                                Divider().padding(.vertical, 12)
-                                let technique = PaceMovementGuide.forExercise(ex)
-                                Text(technique.check)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.bottom, 18)
-                                HStack {
-                                    Text("SÉRIES")
-                                        .font(.caption2.weight(.bold))
-                                        .tracking(1.4)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
-                                    Text("\(finished) sur \(ex.sets) terminées")
-                                        .font(.caption.weight(.medium))
-                                        .monospacedDigit()
-                                        .foregroundStyle(PaceColors.teal)
-                                }
-                                .padding(.bottom, 8)
-                                ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
-                                    PaceStrengthSetRow(dayDate: day.date, exercise: ex,
-                                                       setNumber: setNumber, focus: $focusedStrengthInput,
-                                                       didToggle: { completed in
-                                                           onStrengthSetChanged(exercise: ex, index: setNumber,
-                                                                               completed: completed)
-                                                       })
-                                        .padding(.bottom, 9)
-                                }
-                                if restExerciseID == ex.id, let end = restEnd {
-                                    PaceRestCountdown(end: end, seconds: Int(ex.rest),
-                                                      afterSet: restSetNumber ?? 0) {
-                                        restEnd = nil
-                                        restExerciseID = nil
-                                        restSetNumber = nil
-                                    }
-                                    .padding(.top, 12)
-                                }
-                                DisclosureGroup("Technique et démonstration") {
-                                    PaceExerciseCoaching(exercise: ex)
-                                        .padding(.top, 12)
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .tint(PaceColors.teal)
-                                .padding(.top, 16)
-                                DisclosureGroup("Consignes et intensité") {
-                                    VStack(alignment: .leading, spacing: 9) {
-                                        Text(day.instructions)
-                                        Text(day.intensity)
-                                        PaceStrengthIntensityGuide()
-                                    }
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 8)
-                                }
-                                .font(.footnote.weight(.medium))
-                                .tint(PaceColors.teal)
-                                .padding(.top, 10)
-                                DisclosureGroup("Variantes et progression") {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("Plus facile : " + ex.easier)
-                                        Text("Plus difficile : " + ex.harder)
-                                    }
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 8)
-                                }
-                                .font(.footnote.weight(.medium))
-                                .tint(PaceColors.teal)
-                                .padding(.top, 4)
-                            }
+
                         }
                     }
                 }
@@ -562,6 +481,7 @@ struct DayDetailScreen: View {
                                             onStrengthSetChanged(exercise: ex, index: setNumber,
                                                                  completed: completed)
                                         })
+                                        .id(ex.id + ":" + String(setNumber))
                                         if setNumber < max(ex.sets, 1) {
                                             Divider().padding(.leading, 32).opacity(0.35)
                                         }
@@ -637,6 +557,23 @@ struct DayDetailScreen: View {
                                 presentedExerciseID = nil
                             }
                         }
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            Button {
+                                navigateExercise(from: ex, direction: -1)
+                            } label: {
+                                Image(systemName: "chevron.left")
+                            }
+                            .disabled(exercises.first?.id == ex.id)
+                            .accessibilityLabel("Exercice précédent")
+
+                            Button {
+                                navigateExercise(from: ex, direction: 1)
+                            } label: {
+                                Image(systemName: "chevron.right")
+                            }
+                            .disabled(exercises.last?.id == ex.id)
+                            .accessibilityLabel("Exercice suivant")
+                        }
                         ToolbarItemGroup(placement: .keyboard) {
                             Spacer()
                             Button("Terminé") { focusedStrengthInput = nil }
@@ -646,16 +583,6 @@ struct DayDetailScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if expandedExerciseID == nil {
-                expandedExerciseID = exercises.first {
-                    strengthTracker.completedSets(day: day.date, exercise: $0) < $0.sets
-                }?.id
-            }
-        }
-        .onChange(of: exerciseCompletionSignature) { old, new in
-            advanceAfterCompletion(from: old, to: new)
-        }
         .background {
             Color.clear.contentShape(Rectangle())
                 .onTapGesture { focusedStrengthInput = nil }

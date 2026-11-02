@@ -44,3 +44,7 @@ ios/PaceLabCompanion.xcodeproj/project.xcworkspace/xcuserdata/
 
 .v37-build/
 .v38-build/
+
+# Generated local previews and intermediate photo assets
+.v*-build/
+.split_demo_generated.b64

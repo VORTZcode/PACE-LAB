@@ -7,7 +7,7 @@ for(const text of ['135–150','bpm','8’35–9’15','min/km','test','RPE','pa
 }
 assert.ok(running.includes('estimati'),'Heart/pace must say not measured thresholds');
 assert.ok(running.includes('Si la FC dépasse durablement'));
-for(const text of ['Canvas','Layered anatomical silhouette','width:23','LinearGradient','PaceExerciseCoaching','guide.steps']) {
+for(const text of ['Movement_','supported.contains(figure)','pose("Start"','pose("End"','PaceExerciseCoaching','guide.steps']) {
  assert.ok(figures.includes(text),'Missing upgraded guide '+text);
 }
 assert.ok(figures.includes('Le mouvement, étape par étape'));
