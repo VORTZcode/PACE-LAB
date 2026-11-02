@@ -131,6 +131,7 @@ struct PaceMovementGuide {
 
 struct PaceExerciseVisual: View {
     let figure: String
+    var imageHeight: CGFloat = 178
     private let supported: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank", "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"]
 
     var body: some View {
@@ -153,7 +154,7 @@ struct PaceExerciseVisual: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
-                .frame(height: 205)
+                .frame(height: imageHeight)
                 .background(.white, in: RoundedRectangle(cornerRadius: 16))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             Text(title)

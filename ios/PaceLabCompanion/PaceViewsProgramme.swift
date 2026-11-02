@@ -159,11 +159,31 @@ struct DayDetailScreen: View {
     @State private var showVariants = false
     @State private var confirmFinish = false
     @State private var presentedExerciseID: String?
+    @State private var exerciseDetailTab = 0
     @State private var expandedExerciseID: String?
     @State private var restEnd: Date?
     @State private var restExerciseID: String?
     @State private var restSetNumber: Int?
     @FocusState private var focusedStrengthInput: PaceStrengthInput?
+
+    @ViewBuilder
+    private func exerciseTabButton(_ title: String, tab: Int) -> some View {
+        Button {
+            focusedStrengthInput = nil
+            withAnimation(.easeInOut(duration: 0.16)) { exerciseDetailTab = tab }
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .frame(height: 37)
+                .foregroundStyle(exerciseDetailTab == tab ? .white : .secondary)
+                .background(exerciseDetailTab == tab ? PaceColors.teal : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
 
     private var exerciseCompletionSignature: [Bool] {
         exercises.map { strengthTracker.completedSets(day: day.date, exercise: $0) >= $0.sets }
@@ -267,6 +287,7 @@ struct DayDetailScreen: View {
                             Button {
                                 focusedStrengthInput = nil
                                 withAnimation(.easeInOut(duration: 0.22)) {
+                                    exerciseDetailTab = 0
                                     presentedExerciseID = ex.id
                                 }
                             } label: {
@@ -445,75 +466,115 @@ struct DayDetailScreen: View {
         )) {
             if let ex = exercises.first(where: { $0.id == presentedExerciseID }) {
                 NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 7) {
-                                    Text("MOUVEMENT · \(day.day.uppercased())")
-                                        .font(.caption2.weight(.bold)).tracking(1.5)
+                    GeometryReader { viewport in
+                        let guide = PaceMovementGuide.forExercise(ex)
+                        let artworkHeight = max(125, min(ex.sets > 4 ? 155 : 210, viewport.size.height * 0.31))
+                        VStack(alignment: .leading, spacing: 11) {
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(day.day.uppercased() + " · MUSCULATION")
+                                        .font(.caption2.weight(.semibold))
+                                        .tracking(1.3)
                                         .foregroundStyle(PaceColors.teal)
                                     Text(ex.name)
-                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    Text("\(ex.sets) séries · \(ex.reps) · Repos \(Int(ex.rest)) s")
-                                        .font(.subheadline).foregroundStyle(.secondary)
+                                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.86)
+                                    Text(guide.focus)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
                                 }
                                 Spacer(minLength: 0)
-                            }
-                            HStack {
-                                Label(PaceMovementGuide.forExercise(ex).focus, systemImage: "figure.strengthtraining.functional")
-                                    .font(.caption.weight(.medium))
+                                Image(systemName: "figure.strengthtraining.functional")
+                                    .font(.system(size: 28, weight: .ultraLight))
                                     .foregroundStyle(PaceColors.teal)
-                                Spacer()
+                                    .frame(width: 54, height: 54)
+                                    .background(PaceColors.teal.opacity(0.09),
+                                                in: RoundedRectangle(cornerRadius: 17))
                             }
-                            .padding(.vertical, 5)
-                            PaceExerciseVisual(figure: PaceMovementGuide.forExercise(ex).figure)
-                            HStack {
+                            .padding(.top, 4)
+
+                            Group {
+                                if exerciseDetailTab == 0 {
+                                    PaceExerciseVisual(figure: guide.figure, imageHeight: artworkHeight - 28)
+                                } else if exerciseDetailTab == 1 {
+                                    VStack(alignment: .leading, spacing: 9) {
+                                        ForEach(Array(guide.steps.enumerated()), id: \.offset) { step in
+                                            HStack(alignment: .top, spacing: 9) {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(PaceColors.teal)
+                                                Text(step.element)
+                                                    .font(.subheadline)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                        }
+                                    }
+                                    .padding(13)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                    .background(PaceColors.surface,
+                                                in: RoundedRectangle(cornerRadius: 18))
+                                } else {
+                                    VStack(alignment: .leading, spacing: 14) {
+                                        Label("Plus facile", systemImage: "arrow.down.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(PaceColors.teal)
+                                        Text(ex.easier).font(.subheadline)
+                                        Divider().opacity(0.45)
+                                        Label("Plus difficile", systemImage: "arrow.up.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(PaceColors.teal)
+                                        Text(ex.harder).font(.subheadline)
+                                    }
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                    .background(PaceColors.surface,
+                                                in: RoundedRectangle(cornerRadius: 18))
+                                }
+                            }
+                            .frame(height: artworkHeight)
+
+                            HStack(spacing: 3) {
+                                exerciseTabButton("Démonstration", tab: 0)
+                                exerciseTabButton("Conseils", tab: 1)
+                                exerciseTabButton("Variantes", tab: 2)
+                            }
+                            .padding(4)
+                            .background(PaceColors.surface,
+                                        in: RoundedRectangle(cornerRadius: 15))
+
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Séries")
-                                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
                                 Spacer()
-                                Text("\(strengthTracker.completedSets(day: day.date, exercise: ex))/\(ex.sets) terminées")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(PaceColors.teal)
+                                Text("\(strengthTracker.completedSets(day: day.date, exercise: ex)) / \(ex.sets) · \(ex.reps)")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
                             }
-                            VStack(alignment: .leading, spacing: 9) {
-                                ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
-                                    PaceStrengthSetRow(dayDate: day.date, exercise: ex,
-                                                       setNumber: setNumber, focus: $focusedStrengthInput,
-                                                       didToggle: { completed in
-                                        onStrengthSetChanged(exercise: ex, index: setNumber,
-                                                             completed: completed)
-                                    })
-                                    if setNumber < max(ex.sets, 1) {
-                                        Divider().opacity(0.35)
+                            .padding(.top, 3)
+
+                            ScrollView(.vertical, showsIndicators: false) {
+                                VStack(spacing: 1) {
+                                    ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
+                                        PaceStrengthSetRow(dayDate: day.date, exercise: ex,
+                                                           setNumber: setNumber, focus: $focusedStrengthInput,
+                                                           didToggle: { completed in
+                                            onStrengthSetChanged(exercise: ex, index: setNumber,
+                                                                 completed: completed)
+                                        })
+                                        if setNumber < max(ex.sets, 1) {
+                                            Divider().padding(.leading, 32).opacity(0.35)
+                                        }
                                     }
                                 }
+                                .padding(.horizontal, 8)
                             }
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 7)
-                            .background(PaceColors.surface.opacity(0.65),
-                                        in: RoundedRectangle(cornerRadius: 18))
-                            DisclosureGroup("Exécution et technique") {
-                                PaceExerciseCoaching(exercise: ex).padding(.top, 10)
-                            }
-                            .font(.subheadline.weight(.semibold))
-                            .padding(15)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 17))
-                            .tint(PaceColors.teal)
-                            DisclosureGroup("Variantes et progression") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Plus facile : " + ex.easier)
-                                    Text("Plus difficile : " + ex.harder)
-                                }
-                                .font(.subheadline).padding(.top, 8)
-                            }
-                            .font(.subheadline.weight(.semibold))
-                            .padding(15)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 17))
-                            .tint(PaceColors.teal)
+                            .background(PaceColors.surface,
+                                        in: RoundedRectangle(cornerRadius: 17))
+                            .frame(maxHeight: .infinity, alignment: .top)
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.bottom, 4)
                     }
                     .background(PaceColors.base.ignoresSafeArea())
                     .safeAreaInset(edge: .bottom, spacing: 0) {
