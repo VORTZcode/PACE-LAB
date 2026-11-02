@@ -238,7 +238,7 @@ struct DayDetailScreen: View {
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("En cours · Séance guidée")
+                            Text("Ta progression")
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
                             Text("\(done) / \(total) séries")
@@ -248,7 +248,7 @@ struct DayDetailScreen: View {
                         }
                         ProgressView(value: Double(done), total: Double(max(total, 1)))
                             .tint(PaceColors.teal)
-                        Text("Un exercice à la fois. Valide tes séries pour passer automatiquement au suivant.")
+                        Text("Avance à ton rythme. Chaque série est enregistrée dès sa validation.")
                             .font(.caption).foregroundStyle(.secondary)
                         DisclosureGroup("Comprendre RPE 6–7 et RIR 2–3") {
                             PaceStrengthIntensityGuide().padding(.top, 8)
@@ -305,7 +305,7 @@ struct DayDetailScreen: View {
                             .accessibilityHint(expanded ? "Replier l'exercice" : "Déplier l'exercice")
 
                             if expanded {
-                                Divider().padding(.vertical, 15)
+                                Divider().padding(.vertical, 12)
                                 HStack(spacing: 8) {
                                     PacePill(label: ex.isTimed ? "Temps" : "Répétitions",
                                              symbol: ex.isTimed ? "timer" : "number")
@@ -350,6 +350,18 @@ struct DayDetailScreen: View {
                                 .font(.caption.weight(.medium))
                                 .tint(PaceColors.teal)
                                 .padding(.bottom, 13)
+                                HStack {
+                                    Text("SÉRIES")
+                                        .font(.caption2.weight(.bold))
+                                        .tracking(1.4)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(finished) sur \(ex.sets) terminées")
+                                        .font(.caption.weight(.medium))
+                                        .monospacedDigit()
+                                        .foregroundStyle(PaceColors.teal)
+                                }
+                                .padding(.bottom, 8)
                                 ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
                                     PaceStrengthSetRow(dayDate: day.date, exercise: ex,
                                                        setNumber: setNumber, focus: $focusedStrengthInput,
@@ -494,19 +506,23 @@ private struct PaceStrengthSetRow: View {
     private var completed: Bool { entry.completed }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+                Text(String(format: "%02d", setNumber))
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(completed ? .white : PaceColors.teal)
+                    .frame(width: 44, height: 44)
+                    .background(completed ? PaceColors.teal : PaceColors.teal.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Série \(setNumber)")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                    if completed {
-                        Text("Enregistrée")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(PaceColors.teal)
-                    }
+                        .font(.subheadline.weight(.semibold))
+                    Text(completed ? "Terminée" : "À réaliser")
+                        .font(.caption)
+                        .foregroundStyle(completed ? PaceColors.teal : .secondary)
                 }
-                Spacer(minLength: 10)
+                Spacer(minLength: 8)
                 Button {
                     focus.wrappedValue = nil
                     let next = !completed
@@ -514,12 +530,13 @@ private struct PaceStrengthSetRow: View {
                                          exerciseID: exercise.id, set: setNumber)
                     didToggle(next)
                 } label: {
-                    Label(completed ? "Validée" : "Valider",
-                          systemImage: completed ? "checkmark.circle.fill" : "circle")
+                    Label(completed ? "Terminée" : "Terminer",
+                          systemImage: completed ? "checkmark.circle.fill" : "checkmark")
                         .font(.subheadline.weight(.semibold))
                         .frame(minHeight: 44)
+                        .padding(.horizontal, 3)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .tint(PaceColors.teal)
                 .accessibilityLabel("Série \(setNumber) : \(completed ? "validée, toucher pour annuler" : "toucher pour valider")")
             }
@@ -543,13 +560,13 @@ private struct PaceStrengthSetRow: View {
                 }
             }
         }
-        .padding(15)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(completed ? PaceColors.teal.opacity(0.08) : PaceColors.base.opacity(0.7),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(completed ? PaceColors.teal.opacity(0.06) : PaceColors.surface,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(completed ? PaceColors.teal.opacity(0.22) : PaceColors.teal.opacity(0.07),
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(completed ? PaceColors.teal.opacity(0.35) : PaceColors.teal.opacity(0.10),
                               lineWidth: 1)
         }
         .onAppear {
