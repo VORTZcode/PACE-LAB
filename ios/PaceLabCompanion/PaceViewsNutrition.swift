@@ -108,7 +108,7 @@ struct NutritionScreen: View {
                         }
                         .padding(19)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 21))
+                        .modifier(PaceGlassCardSurface(cornerRadius: 21))
                     }
                     .buttonStyle(.plain)
                 }

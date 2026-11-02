@@ -39,7 +39,7 @@ struct ProgressScreen: View {
             PaceScreen(title: "Progression") {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("UNE ANNÉE DE MOUVEMENT")
+                        Text("UNE ANNÉE DE COURSE")
                             .font(.caption2.weight(.bold)).tracking(1.25).foregroundStyle(PaceColors.teal)
                         Text("Distance et régularité")
                             .font(.title3.weight(.semibold))
@@ -57,7 +57,7 @@ struct ProgressScreen: View {
                 }
                 HStack(spacing: 10) {
                     PaceMetric(caption: "Distance totale", value: PaceFormat.distance(engine.totalDistance(year: selectedYear)), suffix: "km", symbol: "figure.run")
-                    PaceMetric(caption: "Séances", value: "\(yearRuns.count)", suffix: "", symbol: "calendar")
+                    PaceMetric(caption: "Courses", value: "\(yearRuns.count)", suffix: "", symbol: "calendar")
                 }
                 BodyMetricsSection()
                 PaceSectionTitle(title: "Volume mensuel", subtitle: String(selectedYear))
@@ -79,13 +79,15 @@ struct ProgressScreen: View {
                                 }
                             }
                         }
+                        .chartYAxisLabel("km")
+                        .chartYScale(domain: .automatic(includesZero: true))
                         .frame(height: 205)
                     }
                 }
                 PaceSectionTitle(title: "Fréquence cardiaque")
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Fréquence moyenne des dernières courses de l’année sélectionnée")
+                        Text("FC moyenne · \(cardio.count) dernières courses mesurées en \(selectedYear)")
                             .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
                         if cardio.count > 1 {
                             Chart(cardio) { item in
@@ -96,6 +98,7 @@ struct ProgressScreen: View {
                                     .symbolSize(18)
                                     .foregroundStyle(PaceColors.teal)
                             }
+                            .chartYAxisLabel("bpm")
                             .frame(height: 195)
                         } else {
                             ContentUnavailableView("Données insuffisantes", systemImage: "heart")

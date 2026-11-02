@@ -8,7 +8,7 @@ struct PaceCard<Content: View>: View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding)
-            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .modifier(PaceGlassCardSurface(cornerRadius: 22))
     }
 }
 struct PaceSectionTitle: View {
@@ -41,7 +41,7 @@ struct PaceMetric: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .modifier(PaceGlassCardSurface(cornerRadius: 20))
     }
 }
 struct PacePill: View {
@@ -95,6 +95,21 @@ struct PaceScreen<Content: View>: View {
         .background(PaceColors.base)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+/// Quiet Liquid Glass for reading surfaces. It intentionally has no interactive
+/// glass response: only buttons and controls should react to touch.
+struct PaceGlassCardSurface: ViewModifier {
+    var cornerRadius: CGFloat = 22
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+        } else {
+            content.background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
     }
 }
 
@@ -194,7 +209,7 @@ struct TodayScreen: View {
                         .padding(.top, 2)
                     }
                     .padding(20)
-                    .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .modifier(PaceGlassCardSurface(cornerRadius: 24))
                 } else {
                     PaceCard {
                         VStack(alignment: .leading, spacing: 8) {
@@ -226,7 +241,7 @@ struct TodayScreen: View {
                             .font(.caption.weight(.semibold)).foregroundStyle(PaceColors.teal)
                     }
                     .padding(15)
-                    .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:19))
+                    .modifier(PaceGlassCardSurface(cornerRadius: 19))
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Ouvrir le suivi sportif personnalisé")
@@ -319,7 +334,7 @@ struct TodayScreen: View {
                                 .foregroundStyle(PaceColors.teal)
                         }
                         .padding(18)
-                        .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 20))
+                        .modifier(PaceGlassCardSurface(cornerRadius: 20))
                     }
                     .buttonStyle(.plain)
                 }

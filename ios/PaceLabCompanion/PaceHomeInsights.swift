@@ -111,7 +111,7 @@ struct PaceInsightScreen: View {
                                 .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(17)
-                                .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 18))
+                                .modifier(PaceGlassCardSurface(cornerRadius: 18))
                         }
                         .tint(PaceColors.teal)
                         .buttonStyle(.plain)
@@ -171,7 +171,7 @@ struct PaceInsightScreen: View {
                     }
                 }
                 .padding(.horizontal, 15)
-                .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22))
+                .modifier(PaceGlassCardSurface(cornerRadius: 22))
                 if selectedRuns.count > recent.count {
                     Button("Afficher plus de courses") { showAll = true }
                         .font(.subheadline.weight(.semibold))
