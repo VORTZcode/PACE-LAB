@@ -68,8 +68,10 @@ struct PaceAICoachDraft: Codable, Identifiable {
             guard let parsed = formatter.date(from:day.date), formatter.string(from:parsed) == day.date,
                   day.minutes >= 0, day.minutes <= 150,
                   ["Course","Musculation","Récupération","Repos"].contains(day.type),
-                  !day.title.isEmpty, !day.instructions.isEmpty,
+                  !day.title.isEmpty, !day.objective.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
                   day.instructions.count <= 1300,
+                  (day.type == "Repos" || day.type == "Récupération" ||
+                   day.instructions.trimmingCharacters(in:.whitespacesAndNewlines).count >= 80),
                   parsed >= calendar.startOfDay(for:.now) else {
                 throw PaceChatError.invalid("Une date ou une séance proposée est invalide.")
             }
@@ -94,8 +96,8 @@ struct PaceAICoachDraft: Codable, Identifiable {
                   meal.kcal >= 150 && meal.kcal <= 1600,
                   meal.protein >= 0 && meal.protein <= 140,
                   !meal.title.isEmpty, meal.title.count <= 150,
-                  !meal.ingredients.isEmpty, meal.ingredients.count <= 20,
-                  !meal.preparation.isEmpty else {
+                  meal.ingredients.count >= 3, meal.ingredients.count <= 20,
+                  meal.preparation.trimmingCharacters(in:.whitespacesAndNewlines).count >= 55 else {
                 throw PaceChatError.invalid("Un repas proposé contient des informations manquantes ou incohérentes.")
             }
         }
@@ -208,6 +210,9 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     }
     @Published var shareDynamicsTimeline = UserDefaults.standard.bool(forKey:"pace.coach.share-dynamics-timeline") {
         didSet { UserDefaults.standard.set(shareDynamicsTimeline,forKey:"pace.coach.share-dynamics-timeline") }
+    }
+    @Published var shareSleep = UserDefaults.standard.bool(forKey:"pace.coach.share-sleep") {
+        didSet { UserDefaults.standard.set(shareSleep,forKey:"pace.coach.share-sleep") }
     }
     @Published var shareSessionNotes = UserDefaults.standard.bool(forKey:"pace.coach.share-notes") {
         didSet { UserDefaults.standard.set(shareSessionNotes,forKey:"pace.coach.share-notes") }
@@ -322,7 +327,8 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     func contextPreview(engine: HealthSyncEngine, library: PaceLibrary,
                         journal: PaceSessionJournal? = nil,
                         profile:PaceAthleteProfileStore? = nil,
-                        strength:PaceStrengthTracker? = nil) -> String {
+                        strength:PaceStrengthTracker? = nil,
+                        sleep:PaceSleepHealthKit? = nil) -> String {
         var pieces = [
             "Contexte actuel PACE LAB (pas d’accès automatique aux souvenirs ChatGPT).",
             "Séances prévues : " + library.currentPlan.prefix(7).map {
@@ -370,6 +376,13 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
             pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg.")
         }
+        if shareSleep {
+            if let sleep, sleep.monitoringEnabled {
+                pieces.append(sleep.summary.promptContext)
+            } else {
+                pieces.append("Sommeil : lecture Apple Santé non activée. Aucune valeur inférée.")
+            }
+        }
         if shareNutrition {
             pieces.append("Programme nutritionnel actuel : " +
                 library.currentRecipes.prefix(4).map { "\($0.day) \($0.meal) : \($0.name)" }.joined(separator:" ; "))
@@ -416,7 +429,8 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
 
     func generate(client:PaceChatGPTConnection,engine:HealthSyncEngine,library:PaceLibrary,
                   journal:PaceSessionJournal? = nil,profile:PaceAthleteProfileStore? = nil,
-                  strength:PaceStrengthTracker? = nil) async {
+                  strength:PaceStrengthTracker? = nil,
+                  sleep:PaceSleepHealthKit? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries else {
             error = "Autorise d’abord le partage des résumés sportifs pour préparer le programme."
@@ -446,12 +460,22 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         Tes références méthodologiques : individualisation FITT, majorité du travail aérobique
         à faible intensité lorsque approprié, renforcement pour préserver le muscle.
         Les études ne fournissent PAS de règle universelle d'augmentation hebdomadaire de 10 %.
+        Si les données de sommeil sont partagées, examine les durées, la régularité,
+        le nombre de journées enregistrées et les différences hebdomadaires.
+        Ne considère jamais les stades de la montre comme un diagnostic de récupération.
+        Croise sommeil, difficulté ressentie, douleur, volume et musculation, en
+        signalant chaque variable manquante. Aucune augmentation brusque.
         Explique les mesures utilisées, limites et incertitudes, sans promettre le résultat.
         Évalue les entraînements sans inventer une donnée manquante. Ne pose pas de diagnostic médical.
         Propose sept jours consécutifs à compter de demain, avec au moins un jour de repos ou récupération.
         Préserve un programme stable et une progression prudente. Évite les hausses brusques de volume
         ou plusieurs entraînements difficiles consécutifs. Prévois du renforcement musculaire.
         Nutrition : midi et soir avec repas cuisinables, protéinés, portions réalistes et grammages crus.
+        Chaque journée précise échauffement, corps de séance, récupération et conseils concrets.
+        En musculation, détaille exercices, séries, répétitions ou durées, repos et
+        charge uniquement si elle est connue ou exprimée comme variable.
+        Chaque repas contient ingrédients en grammes, préparation et valeurs nutritionnelles
+        estimées. Respecte le profil et ne propose pas de repas supplémentaires non demandés.
         Aucun régime extrême, pas de prescription de perte de poids rapide.
         Renvoie UNIQUEMENT un objet JSON valide sans markdown :
         {"title":"...","summary":"...","training":[{"date":"YYYY-MM-DD",
@@ -468,7 +492,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         let date = DateFormatter()
         date.locale = Locale(identifier:"en_US_POSIX")
         date.dateFormat = "yyyy-MM-dd"
-        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength)
+        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep)
         do {
             let text = try await client.answer(instructions:instructions,input:input)
             let draft = try PaceAICoachDraft.extract(from:text)
@@ -497,7 +521,8 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     func chat(_ question:String,client:PaceChatGPTConnection,engine:HealthSyncEngine,
               library:PaceLibrary,journal:PaceSessionJournal? = nil,
               profile:PaceAthleteProfileStore? = nil,
-                  strength:PaceStrengthTracker? = nil) async {
+                  strength:PaceStrengthTracker? = nil,
+                  sleep:PaceSleepHealthKit? = nil) async {
         guard !isLoading else { return }
         let trimmed = String(question.prefix(800)).trimmingCharacters(in:.whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -508,7 +533,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         do {
             let reply = try await client.answer(
                 instructions:"Tu es le coach PACE LAB. Réponds en français, concrètement, sans diagnostic médical, et distingue mesure, hypothèse et conseil. N'invente jamais de données. Aucun changement de programme sans confirmation.",
-                input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength)+"\n\nConversation:\n"+history)
+                input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep)+"\n\nConversation:\n"+history)
             conversation.append(.init(speaker:"Coach",text:reply))
         } catch { self.error = error.localizedDescription }
         isLoading = false
@@ -516,7 +541,8 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     func analyzeSession(client:PaceChatGPTConnection,engine:HealthSyncEngine,
                         library:PaceLibrary,journal:PaceSessionJournal? = nil,
                         profile:PaceAthleteProfileStore? = nil,
-                  strength:PaceStrengthTracker? = nil) async {
+                  strength:PaceStrengthTracker? = nil,
+                  sleep:PaceSleepHealthKit? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries,let run = selectedRun(engine:engine) else {
             error = "Autorise les résumés sportifs et choisis une course avant l'analyse."
@@ -548,7 +574,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         """
         do {
             let response = try await client.answer(instructions:instructions,
-                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength))
+                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep))
             let report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
             if let data = try? JSONEncoder().encode(report) {
                 try data.write(to:reportURL,options:.atomic)

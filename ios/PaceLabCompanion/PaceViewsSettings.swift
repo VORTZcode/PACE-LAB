@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PaceSettingsScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
+    @EnvironmentObject var sleep: PaceSleepHealthKit
     @Environment(\.dismiss) private var dismiss
     @State private var isConfirming = false
     var body: some View {
@@ -17,6 +18,11 @@ struct PaceSettingsScreen: View {
                 }
                 Button("Actualiser les activités") { engine.resync() }
                 Button("Activer les mesures supplémentaires de l’Apple Watch") { engine.requestAdvancedPermission() }
+                Button(sleep.monitoringEnabled ? "Actualiser le sommeil" : "Autoriser le sommeil") {
+                    if sleep.monitoringEnabled { sleep.refresh(force:true) }
+                    else { sleep.requestAccess() }
+                }
+                LabeledContent("Sommeil", value:sleep.status)
                     .foregroundStyle(PaceColors.teal)
                 if engine.advancedEnabled {
                     LabeledContent("Mesures détaillées", value: engine.advancedRemaining == 0 ?
@@ -35,7 +41,7 @@ struct PaceSettingsScreen: View {
             }
             Section("À propos") {
                 LabeledContent("Application", value: "PACE LAB")
-                LabeledContent("Version", value: "3.4 · Coach")
+                LabeledContent("Version", value: "5.1 · Sommeil et coach IA")
                 Label("Les mesures Santé restent sur l’iPhone. Seuls les résumés autorisés du Coach sont envoyés à OpenAI.", systemImage: "lock.shield")
                     .font(.subheadline)
             }

@@ -25,6 +25,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var athleteProfile: PaceAthleteProfileStore
     @EnvironmentObject private var strengthTracker: PaceStrengthTracker
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
+    @EnvironmentObject private var sleep: PaceSleepHealthKit
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
     @State private var showPreview = false
@@ -43,6 +44,7 @@ struct PaceCoachScreen: View {
                     if client.planUsageEnabled {
                         coachHeader
                         trainingSnapshot
+                        sleepSnapshot
                         modeSelector
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
@@ -214,6 +216,40 @@ struct PaceCoachScreen: View {
                        suffix:"km",symbol:"chart.bar")
         }
         .accessibilityElement(children:.contain)
+    }
+
+    private var sleepSnapshot: some View {
+        PaceCard {
+            VStack(alignment:.leading,spacing:10) {
+                HStack {
+                    Label("Sommeil · Apple Santé",systemImage:"moon.stars")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(sleep.summary.coverage7)/7 jours")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !sleep.monitoringEnabled {
+                    Text("Active la lecture du sommeil pour permettre au coach de comprendre ta récupération dans le temps.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Button("Autoriser le sommeil dans Apple Santé") { sleep.requestAccess() }
+                        .font(.subheadline.weight(.semibold))
+                } else {
+                    Text(sleep.summary.mostRecent7AverageMinutes.map {
+                        "Durée moyenne observée : \($0 / 60) h \($0 % 60) min"
+                    } ?? "Pas assez de nuits pour calculer une moyenne fiable.")
+                        .font(.subheadline)
+                    Text(sleep.status)
+                        .font(.caption).foregroundStyle(.secondary)
+                    if !coach.shareSleep {
+                        Text("Ces données restent sur l’iPhone : le partage avec ChatGPT est désactivé.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Button("Actualiser le sommeil") { sleep.refresh(force:true) }
+                        .font(.caption.weight(.semibold))
+                        .disabled(sleep.isLoading)
+                }
+            }
+        }
     }
 
     private var modeSelector: some View {
@@ -403,6 +439,22 @@ struct PaceCoachScreen: View {
                 .disabled(!coach.shareRunSummaries)
                 Toggle("Utiliser mon profil sportif confirmé",isOn:$athleteProfile.shareProfile)
                     .disabled(athleteProfile.profile == nil)
+                VStack(alignment:.leading,spacing:8) {
+                    Toggle(isOn:$coach.shareSleep) {
+                        VStack(alignment:.leading,spacing:3) {
+                            Text("Partager mes durées de sommeil avec ChatGPT")
+                            Text("Jusqu’à 14 journées : durées et moyennes, sans heures exactes, stades ni données brutes.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(!sleep.monitoringEnabled)
+                    if !sleep.monitoringEnabled {
+                        Button("Demander l’accès Sommeil à Apple Santé") { sleep.requestAccess() }
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("Le sommeil n’est envoyé à OpenAI que si ce partage est activé. Une autorisation Apple Santé seule ne suffit pas.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
                 Toggle(isOn:$coach.shareStrengthSets) {
                     VStack(alignment:.leading,spacing:3) {
@@ -427,7 +479,7 @@ struct PaceCoachScreen: View {
                 .font(.subheadline.weight(.semibold))
                 .tint(PaceColors.teal)
                 if showPreview {
-                    Text(coach.contextPreview(engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker))
+                    Text(coach.contextPreview(engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep))
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .frame(maxWidth:.infinity,alignment:.leading)
@@ -576,7 +628,7 @@ struct PaceCoachScreen: View {
                     Text("Analyse la fréquence cardiaque, la récupération, tes quatre dernières semaines et les informations que tu autorises.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button {
-                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
+                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
                     } label: {
                         Label("Analyser cette sortie",systemImage:"sparkles")
                             .font(.subheadline.weight(.semibold))
@@ -644,7 +696,7 @@ struct PaceCoachScreen: View {
                 Text("Le coach propose sept jours de séances et quatorze repas à partir des résumés autorisés. Rien ne sera modifié sans validation.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Button {
-                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
+                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
                 } label: {
                     Label("Analyser et proposer",systemImage:"sparkles")
                         .font(.subheadline.weight(.semibold))
@@ -769,7 +821,7 @@ struct PaceCoachScreen: View {
                         Button {
                             let text = question
                             question = ""
-                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
+                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
                         } label: {
                             Image(systemName:"arrow.up.circle.fill")
                                 .font(.system(size:32))

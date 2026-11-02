@@ -25,6 +25,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var athleteProfile = PaceAthleteProfileStore()
     @StateObject private var adaptiveMonitor = PaceAdaptiveMonitor()
     @StateObject private var living = PaceLivingCoach()
+    @StateObject private var sleep = PaceSleepHealthKit()
     @StateObject private var strengthTracker = PaceStrengthTracker()
     @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
     @State private var hasLoaded = false
@@ -52,9 +53,11 @@ struct PaceLabCompanionApp: App {
             .environmentObject(athleteProfile)
             .environmentObject(adaptiveMonitor)
             .environmentObject(living)
+            .environmentObject(sleep)
             .environmentObject(strengthTracker)
             .environmentObject(strengthLinks)
             .onReceive(engine.$revision) { _ in
+                sleep.refresh()
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.detectNewWorkout(engine:engine)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
@@ -62,7 +65,7 @@ struct PaceLabCompanionApp: App {
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
                     coach.focusWorkoutID = nil
-                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
+                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
                 }
             }
             .onReceive(strengthTracker.$records) { _ in
@@ -75,6 +78,8 @@ struct PaceLabCompanionApp: App {
             }
             .onAppear {
                 guard !hasLoaded else { return }
+                sleep.startObservers()
+                sleep.refresh(force:true)
                 hasLoaded = true
                 engine.startObservers()
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
@@ -82,6 +87,8 @@ struct PaceLabCompanionApp: App {
                 engine.resync()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                sleep.startObservers()
+                sleep.refresh(force:true)
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()

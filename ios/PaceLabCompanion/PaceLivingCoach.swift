@@ -116,6 +116,7 @@ enum PaceLivingCoachRules {
 /// Compact home signal: sources are always measured or explicitly reported,
 /// and any adjustment remains behind the review/approval flow.
 struct PaceLivingCoachCard: View {
+    @EnvironmentObject private var sleep: PaceSleepHealthKit
     @EnvironmentObject private var living: PaceLivingCoach
     let onOpenCoach: () -> Void
 
@@ -164,6 +165,17 @@ struct PaceLivingCoachCard: View {
                 if let fact = living.brief.evidence.first {
                     Label(fact, systemImage: "chart.line.uptrend.xyaxis")
                         .font(.caption).foregroundStyle(PaceColors.teal)
+                }
+                if sleep.monitoringEnabled {
+                    if let minutes = sleep.summary.mostRecent7AverageMinutes {
+                        Label("Sommeil observé : \(minutes / 60) h \(minutes % 60) min de moyenne (\(sleep.summary.coverage7)/7 jours)",
+                              systemImage:"moon.stars")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Label("Sommeil : \(sleep.summary.coverage7)/7 nuits accessibles, moyenne indisponible",
+                              systemImage:"moon.stars")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 Button(action: onOpenCoach) {
                     HStack {
