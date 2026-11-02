@@ -37,6 +37,18 @@ struct PaceExercise: Decodable, Identifiable {
     let tips: String
     let easier: String
     let harder: String
+    /// Timed exercises are logged in seconds, preserving already recorded values.
+    let measurement_unit: String?
+    let load_expected: Bool?
+    var isTimed: Bool {
+        if let measurement_unit { return measurement_unit == "seconds" }
+        return reps.lowercased().contains(" s") || tempo.lowercased().contains("isométrique")
+    }
+    var tracksLoad: Bool {
+        if let load_expected { return load_expected }
+        return !name.lowercased().contains("planche")
+    }
+    var metricLabel: String { isTimed ? "Durée (s)" : "Répétitions" }
 }
 struct PaceRecipe: Decodable, Identifiable {
     var id: String { day + "|" + meal }
