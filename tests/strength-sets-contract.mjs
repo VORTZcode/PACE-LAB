@@ -15,7 +15,7 @@ assert.match(store, /completeUntilFirstUserAuthentication/);
 assert.match(store, /func setCompleted\(/);
 assert.match(store, /func setRepetitions\(/);
 assert.match(store, /func setWeight\(/);
-assert.match(store, /\(day\)\|\\\(exerciseID\)/); // Stable day/exercise/set identity
+assert.match(store, /private func key\(day: String, exerciseID: String, set: Int\)/);
 assert.match(programme, /PaceStrengthSetRow\(dayDate: day\.date, exercise: ex, setNumber: index\)/);
 assert.match(programme, /Progression de la séance/);
 assert.match(programme, /Rép\./);
