@@ -23,6 +23,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var library: PaceLibrary
     @EnvironmentObject private var journal: PaceSessionJournal
     @EnvironmentObject private var athleteProfile: PaceAthleteProfileStore
+    @EnvironmentObject private var strengthTracker: PaceStrengthTracker
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
@@ -387,6 +388,13 @@ struct PaceCoachScreen: View {
                 Toggle("Utiliser mon profil sportif confirmé",isOn:$athleteProfile.shareProfile)
                     .disabled(athleteProfile.profile == nil)
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
+                Toggle(isOn:$coach.shareStrengthSets) {
+                    VStack(alignment:.leading,spacing:3) {
+                        Text("Mes séries de musculation")
+                        Text("Répétitions ou durées en secondes, charge si renseignée. Saisies manuelles, jamais déduites de l’Apple Watch.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Repas prévus",isOn:$coach.shareNutrition)
                 Divider()
                 Toggle(isOn:$coach.autoReview) {
@@ -403,7 +411,7 @@ struct PaceCoachScreen: View {
                 .font(.subheadline.weight(.semibold))
                 .tint(PaceColors.teal)
                 if showPreview {
-                    Text(coach.contextPreview(engine:engine,library:library,journal:journal,profile:athleteProfile))
+                    Text(coach.contextPreview(engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker))
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .frame(maxWidth:.infinity,alignment:.leading)
@@ -552,7 +560,7 @@ struct PaceCoachScreen: View {
                     Text("Analyse la fréquence cardiaque, la récupération, tes quatre dernières semaines et les informations que tu autorises.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button {
-                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
+                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
                     } label: {
                         Label("Analyser cette sortie",systemImage:"sparkles")
                             .font(.subheadline.weight(.semibold))
@@ -620,7 +628,7 @@ struct PaceCoachScreen: View {
                 Text("Le coach propose sept jours de séances et quatorze repas à partir des résumés autorisés. Rien ne sera modifié sans validation.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Button {
-                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
+                    Task { await coach.generate(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
                 } label: {
                     Label("Analyser et proposer",systemImage:"sparkles")
                         .font(.subheadline.weight(.semibold))
@@ -745,7 +753,7 @@ struct PaceCoachScreen: View {
                         Button {
                             let text = question
                             question = ""
-                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile) }
+                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
                         } label: {
                             Image(systemName:"arrow.up.circle.fill")
                                 .font(.system(size:32))
