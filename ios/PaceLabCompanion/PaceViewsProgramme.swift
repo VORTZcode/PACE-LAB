@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgrammeScreen: View {
     @EnvironmentObject var library: PaceLibrary
+    @EnvironmentObject var strengthTracker: PaceStrengthTracker
     @State private var showCoach = false
 
     var body: some View {
@@ -98,6 +99,13 @@ struct ProgrammeScreen: View {
                                     Text(day.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                                     Text("\(day.type) · \(Int(day.minutes)) min")
                                         .font(.caption).foregroundStyle(.secondary)
+                                    if day.type == "Musculation" && library.activeCoachDraft == nil {
+                                        let exercises = library.programme.force.filter { $0.day == day.day }
+                                        Text("\(strengthTracker.completedSets(day: day.date, exercises: exercises)) / \(strengthTracker.totalSets(exercises: exercises)) séries validées")
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundStyle(PaceColors.teal)
+                                            .monospacedDigit()
+                                    }
                                 }
                                 Spacer(minLength: 4)
                                 Image(systemName: library.completed.contains(day.date) ? "checkmark.circle.fill" : "chevron.right")
