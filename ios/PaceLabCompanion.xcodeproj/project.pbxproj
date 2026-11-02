@@ -23,6 +23,7 @@
 		58E678FF25CDA9B7B648A8B0 /* PaceCoachTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1235F022DC687D66B33F6C6 /* PaceCoachTelemetry.swift */; };
 		5F86AC93D7FB780E06A17241 /* PaceCoachReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDAE5360FE288A5A6A648CE5 /* PaceCoachReport.swift */; };
 		605A6F280DEE189CB398D538 /* PaceChatGPTConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB4FCF28CE5EB9432D308E2 /* PaceChatGPTConnection.swift */; };
+		F4A13B0BAAAA111188883333 /* PaceStrengthWorkoutLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A13B0BAAAA111188884444 /* PaceStrengthWorkoutLinks.swift */; };
 		6E8A9DDF66FB2F42578D5A89 /* PaceStrengthTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B453B44E51D1F2F52831372 /* PaceStrengthTracker.swift */; };
 		78C5ADB64E5D4757E8D439CC /* PaceAdaptiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F8C2D92B7BBB029B17CE25 /* PaceAdaptiveMonitor.swift */; };
 		7D750A6956D16BC2DF8DB8B3 /* PaceViewsActivities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3F1D553D6B3E1EE11098E2 /* PaceViewsActivities.swift */; };
@@ -46,6 +47,7 @@
 		22F8C2D92B7BBB029B17CE25 /* PaceAdaptiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceAdaptiveMonitor.swift; sourceTree = "<group>"; };
 		4551D3A4A34591F565C5BB68 /* PaceCoachScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceCoachScreen.swift; sourceTree = "<group>"; };
 		4698D742FD1BEE0DB0555256 /* AppData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AppData; path = PaceLabCompanion/AppData; sourceTree = SOURCE_ROOT; };
+		F4A13B0BAAAA111188884444 /* PaceStrengthWorkoutLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceStrengthWorkoutLinks.swift; sourceTree = "<group>"; };
 		4B453B44E51D1F2F52831372 /* PaceStrengthTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceStrengthTracker.swift; sourceTree = "<group>"; };
 		58DCF5DCF3CFAD121976ADEE /* PaceLabCompanion.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PaceLabCompanion.entitlements; sourceTree = "<group>"; };
 		61AA8AC5B7A17BB06B00F786 /* PaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceModels.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				B35D0A8453B17EACE0BC3430 /* PaceRunIntervals.swift */,
 				7D9140FE8C7FE4B816A9A60B /* PaceSessionJournal.swift */,
 				4B453B44E51D1F2F52831372 /* PaceStrengthTracker.swift */,
+				F4A13B0BAAAA111188884444 /* PaceStrengthWorkoutLinks.swift */,
 				6F3F1D553D6B3E1EE11098E2 /* PaceViewsActivities.swift */,
 				DC1301C594345839F7D429FC /* PaceViewsBody.swift */,
 				EB9F8BCEACF8087EBD130A81 /* PaceViewsCore.swift */,
@@ -231,6 +234,7 @@
 				A2F03B1D1ED4A0BC2CF17773 /* PaceRunIntervals.swift in Sources */,
 				137A6CB89D08CBB203C80DCB /* PaceSessionJournal.swift in Sources */,
 				6E8A9DDF66FB2F42578D5A89 /* PaceStrengthTracker.swift in Sources */,
+				F4A13B0BAAAA111188883333 /* PaceStrengthWorkoutLinks.swift in Sources */,
 				7D750A6956D16BC2DF8DB8B3 /* PaceViewsActivities.swift in Sources */,
 				9079B6B7F308D1B2B2B5D7C9 /* PaceViewsBody.swift in Sources */,
 				1BB263ADD92BEB0A1C818D3B /* PaceViewsCore.swift in Sources */,

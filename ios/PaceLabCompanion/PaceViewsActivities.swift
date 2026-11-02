@@ -57,7 +57,13 @@ struct ActivitiesScreen: View {
                 PaceSectionTitle(title: "Historique", subtitle: "\(all.count) activités")
                 LazyVStack(spacing: 0) {
                     ForEach(Array(all.prefix(shown))) { workout in
-                        NavigationLink { WorkoutDetailScreen(workout: workout) } label: {
+                        NavigationLink {
+                            if workout.activity_kind == "strength" {
+                                StrengthWorkoutDetailScreen(workout: workout)
+                            } else {
+                                WorkoutDetailScreen(workout: workout)
+                            }
+                        } label: {
                             ActivityRow(workout: workout)
                         }
                         .buttonStyle(.plain)
@@ -296,5 +302,171 @@ struct WorkoutDetailScreen: View {
             Text(PaceFormat.heart(value)).font(.title2.weight(.semibold)).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
+    }
+}
+
+// Strength has its own detail view. Apple Watch provides physiological measurements;
+// repetitions, hold seconds and dumbbell load are always explicitly user-entered data.
+struct StrengthWorkoutDetailScreen: View {
+    @EnvironmentObject private var engine: HealthSyncEngine
+    @EnvironmentObject private var library: PaceLibrary
+    @EnvironmentObject private var tracker: PaceStrengthTracker
+    @EnvironmentObject private var links: PaceStrengthWorkoutLinks
+    let workout: WorkoutPayload
+
+    private var sessionDay: PaceDay? {
+        links.associatedDay(for: workout, library: library,
+                            tracker: tracker, history: engine.snapshot)
+    }
+    private var plannedDay: PaceDay? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let date = formatter.string(from: workout.startDate)
+        return library.currentPlan.first { $0.date == date && $0.type == "Musculation" }
+    }
+    private var isConfirmed: Bool {
+        guard let day = sessionDay else { return false }
+        return links.confirmedWorkoutUUID(for: day.date) == workout.source_uuid
+    }
+    private func exercises(for day: PaceDay) -> [PaceExercise] {
+        library.programme.force.filter { $0.day == day.day }
+    }
+    private func setDescription(_ set: PaceStrengthSet, exercise: PaceExercise) -> String {
+        let amount = set.repetitions.isEmpty ? "Non renseigné" :
+            "\(set.repetitions) \(exercise.isTimed ? "s" : "rép.")"
+        let load = exercise.tracksLoad && !set.weightKg.isEmpty
+            ? " · \(set.weightKg) kg" : ""
+        return amount + load
+    }
+
+    var body: some View {
+        PaceScreen(title: "Renforcement") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("APPLE WATCH · RENFORCEMENT")
+                    .font(.caption2.weight(.bold)).tracking(1.1)
+                    .foregroundStyle(PaceColors.teal)
+                Text(PaceFormat.fullDate(workout.startDate).capitalized)
+                    .font(.title2.weight(.semibold))
+                Text("Durée : \(PaceFormat.duration(workout.duration_seconds))")
+                    .font(.headline).monospacedDigit()
+            }
+            PaceSectionTitle(title: "Mesures Apple Watch")
+            PaceCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Label("Enregistrement Santé", systemImage: "applewatch")
+                        .foregroundStyle(PaceColors.teal)
+                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("FC moyenne").font(.caption).foregroundStyle(.secondary)
+                            Text(PaceFormat.heart(workout.hr_average_bpm))
+                                .font(.title3.weight(.semibold)).monospacedDigit()
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("FC maximale").font(.caption).foregroundStyle(.secondary)
+                            Text(PaceFormat.heart(workout.hr_max_bpm))
+                                .font(.title3.weight(.semibold)).monospacedDigit()
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Énergie active").font(.caption).foregroundStyle(.secondary)
+                            Text(workout.active_energy_kcal.map { "\(Int($0.rounded())) kcal" } ?? "—")
+                                .font(.title3.weight(.semibold)).monospacedDigit()
+                        }
+                    }
+                    if !workout.heart_rate_series.isEmpty {
+                        Divider()
+                        Text("Fréquence cardiaque pendant la séance")
+                            .font(.caption.weight(.medium))
+                        Chart {
+                            ForEach(Array(workout.heart_rate_series.enumerated()), id: \.offset) { sample in
+                                LineMark(x: .value("Mesure", sample.offset),
+                                         y: .value("Fréquence cardiaque", sample.element.bpm))
+                                    .foregroundStyle(PaceColors.teal)
+                            }
+                        }
+                        .frame(height: 140)
+                        .accessibilityLabel("Évolution de la fréquence cardiaque mesurée par l'Apple Watch")
+                    }
+                }
+            }
+
+            PaceSectionTitle(title: "Exercices et charges",
+                             subtitle: "Saisie manuelle dans PACE LAB")
+            if let day = sessionDay {
+                let plannedExercises = exercises(for: day)
+                let done = tracker.completedSets(day: day.date, exercises: plannedExercises)
+                let total = tracker.totalSets(exercises: plannedExercises)
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(isConfirmed ? "Séance associée" : "Séance retrouvée par date",
+                              systemImage: isConfirmed ? "checkmark.link" : "link")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PaceColors.teal)
+                        Text("\(done) / \(total) séries validées")
+                            .font(.subheadline).monospacedDigit()
+                        ProgressView(value: Double(done), total: Double(max(total, 1)))
+                            .tint(PaceColors.teal)
+                        if !isConfirmed {
+                            Text("Une seule activité de renforcement a été trouvée ce jour-là. Confirme l'association pour la conserver explicitement.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button("Confirmer cette association") {
+                                links.confirm(day: day.date, workoutUUID: workout.source_uuid)
+                            }
+                            .font(.subheadline.weight(.medium)).tint(PaceColors.teal)
+                        }
+                    }
+                }
+                ForEach(plannedExercises) { exercise in
+                    PaceCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(exercise.name)
+                                .font(.subheadline.weight(.semibold))
+                            ForEach(1...max(exercise.sets, 1), id: \.self) { number in
+                                let recorded = tracker.entry(day: day.date,
+                                                             exerciseID: exercise.id, set: number)
+                                HStack(spacing: 10) {
+                                    Image(systemName: recorded.completed
+                                          ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(recorded.completed
+                                                         ? PaceColors.teal : Color.secondary)
+                                    Text("Série \(number)").font(.subheadline)
+                                    Spacer()
+                                    Text(setDescription(recorded, exercise: exercise))
+                                        .font(.subheadline.weight(.medium))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                Text("Les répétitions, durées et charges proviennent de tes saisies. Elles ne sont pas mesurées automatiquement par l'Apple Watch.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 3)
+            } else {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Aucun programme associé", systemImage: "link.badge.plus")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Les mesures Apple Watch sont conservées. Les séries et charges n'apparaîtront ici qu'après association avec une séance du programme.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        if let day = plannedDay {
+                            Button("Associer au programme du \(day.day.lowercased())") {
+                                links.confirm(day: day.date, workoutUUID: workout.source_uuid)
+                            }
+                            .tint(PaceColors.teal)
+                        }
+                    }
+                }
+            }
+            if let error = links.error {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

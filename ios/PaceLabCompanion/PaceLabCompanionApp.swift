@@ -25,6 +25,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var athleteProfile = PaceAthleteProfileStore()
     @StateObject private var adaptiveMonitor = PaceAdaptiveMonitor()
     @StateObject private var strengthTracker = PaceStrengthTracker()
+    @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
     @State private var hasLoaded = false
 
     var body: some Scene {
@@ -50,6 +51,7 @@ struct PaceLabCompanionApp: App {
             .environmentObject(athleteProfile)
             .environmentObject(adaptiveMonitor)
             .environmentObject(strengthTracker)
+            .environmentObject(strengthLinks)
             .onReceive(engine.$revision) { _ in
                 coach.detectNewWorkout(engine:engine)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
