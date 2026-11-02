@@ -65,32 +65,51 @@
     "modified": "Resized and placed on a dark, softly blurred background"
   },
   "calf": {
-    "source": "OpenAI generated exercise sheet, cropped and enlarged",
+    "source": "OpenAI original AI-generated photorealistic studio exercise diptych",
     "license": "Original AI composition",
     "equipment_verified": true,
     "technical_review_required": true,
-    "quality": "preview; low source resolution",
-    "detail": "Démonstration de montée sur pointes, sans charge"
+    "quality": "HD source pair 1536 × 1024, each phase cropped and composed to 1200 × 800",
+    "detail": "No dumbbell; heel raise against wall",
+    "source_resolution": [
+      1536,
+      1024
+    ],
+    "production_image_resolution": [
+      1200,
+      800
+    ]
   },
   "hinge": {
-    "source": "OpenAI generated exercise sheet, cropped and enlarged",
-    "license": "Original AI composition",
-    "equipment_verified": false,
-    "technical_review_required": true,
-    "quality": "preview; low source resolution",
-    "detail": "Charnière de hanches : l’image finale semble représenter deux haltères ; à reprendre"
-  },
-  "carry": {
-    "source": "OpenAI generated exercise sheet, cropped and enlarged",
+    "source": "OpenAI original AI-generated photorealistic studio exercise diptych",
     "license": "Original AI composition",
     "equipment_verified": true,
     "technical_review_required": true,
-    "quality": "preview; low source resolution",
-    "detail": "Marche unilatérale avec un haltère"
+    "quality": "HD source pair 1536 × 1024, each phase cropped and composed to 1200 × 800",
+    "detail": "Exactly one dumbbell held by both hands; spinal alignment should be reviewed",
+    "source_resolution": [
+      1536,
+      1024
+    ],
+    "production_image_resolution": [
+      1200,
+      800
+    ]
   },
-  "_technicalReview": {
-    "calf": "Source initiale 94-149 pixels de large ; remplacer par une illustration plus nette",
-    "hinge": "La prise et le nombre de charges représentés demandent correction. Ne pas utiliser comme référence de technique",
-    "carry": "Source initiale 213 pixels de large ; valider la marche et améliorer la définition"
+  "carry": {
+    "source": "OpenAI original AI-generated photorealistic studio exercise diptych",
+    "license": "Original AI composition",
+    "equipment_verified": true,
+    "technical_review_required": true,
+    "quality": "HD source pair 1536 × 1024, each phase cropped and composed to 1200 × 800",
+    "detail": "Exactly one dumbbell in right hand, walking upright",
+    "source_resolution": [
+      1536,
+      1024
+    ],
+    "production_image_resolution": [
+      1200,
+      800
+    ]
   }
 }
