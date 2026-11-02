@@ -10,6 +10,11 @@ struct PaceAutopilotLog: Codable, Identifiable {
     let explanation: String
     let sessionDate: String?
     var followUp: String? = nil
+    // Optional for backwards compatibility with decisions saved by V5.2/V5.3.
+    var evidenceDetails: [String]? = nil
+    var alternativeConsidered: String? = nil
+    var expectedEffect: String? = nil
+    var uncertainty: String? = nil
 }
 
 private struct PaceAutopilotAI: Decodable {
@@ -91,6 +96,9 @@ private struct PaceAutopilotAI: Decodable {
               !library.completed.contains(target.date) else { return }
         let sleepInfo=sleep.summary
         let note=journal.notes[lastRun.source_uuid]
+        // Privacy and safety are separate: a serious pain report can veto an
+        // unattended change *locally* even if notes cannot be sent to OpenAI.
+        let localSignificantPain=(note?.pain ?? -1) >= 4
         let lastNoteDate=coach.shareSessionNotes
             ? (note?.updatedAt.timeIntervalSince1970 ?? 0) : 0
         let latestNight=sleepInfo.nights.first
@@ -102,7 +110,7 @@ private struct PaceAutopilotAI: Decodable {
         let strengthCount=coach.shareStrengthSets
             ? strength.completedSets(since:now.addingTimeInterval(-7*86400),until:now) : 0
         let measurement=String(format:"%.0f",lastRun.hr_average_bpm ?? -1)
-        let fingerprint="\(lastRun.source_uuid)|\(lastNoteDate)|\(sleepStamp)|\(strengthCount)|\(measurement)|\(lastRun.recovery_state)|\(target.date)"
+        let fingerprint="\(lastRun.source_uuid)|\(lastNoteDate)|\(sleepStamp)|\(strengthCount)|\(measurement)|\(lastRun.recovery_state)|\(target.date)|local-veto:\(localSignificantPain)"
         let consents=(coach.shareSessionNotes,coach.shareSleep,coach.shareStrengthSets)
         let sharedNote=coach.shareSessionNotes ? note : nil
         let trend=PaceLongitudinalRules.calculate(runs:engine.runHistory,
@@ -193,7 +201,8 @@ private struct PaceAutopilotAI: Decodable {
             let grounded=PaceAutopilotSignificance.reconcile(
                 action:decision.action,claimedEvidenceIDs:decision.evidenceIDs,
                 supported:sources)
-            let seriousPain=(sharedNote?.pain ?? -1) >= 4
+            let seriousPain=localSignificantPain ||
+                (journal.notes[lastRun.source_uuid]?.pain ?? -1) >= 4
             var applied=false
             if !seriousPain, decision.action == "easier", safety.allowed,
                grounded, let minutes=safety.minutes {
@@ -210,7 +219,10 @@ private struct PaceAutopilotAI: Decodable {
                 ? " · Modification refusée : " + (grounded ? safety.explanation :
                                                   "sources citées insuffisantes ou non vérifiées.")
                 : ""
-            let reason=decision.reason +
+            let reason=(seriousPain && !coach.shareSessionNotes
+                ? "Signal de gêne détecté localement : aucune modification automatique. " +
+                  "Ce signal n'a pas été transmis à ChatGPT. · " : "") +
+                decision.reason +
                 " · Alternative examinée : " + decision.alternativeConsidered +
                 " · Effet attendu : " + decision.expectedEffect +
                 " · Incertitude : " + decision.uncertainty +
@@ -219,7 +231,11 @@ private struct PaceAutopilotAI: Decodable {
                          "Séance du \(target.date) allégée automatiquement" :
                          (needsReview ? "Situation à examiner · programme conservé" :
                                         "Plan conservé · aucune modification justifiée"),
-                         explanation:reason,sessionDate:applied ? target.date : nil))
+                         explanation:reason,sessionDate:applied ? target.date : nil,
+                         evidenceDetails:sources.map(\.statement),
+                         alternativeConsidered:decision.alternativeConsidered,
+                         expectedEffect:decision.expectedEffect,
+                         uncertainty:decision.uncertainty))
             status=applied ? "Séance du \(target.date) ajustée automatiquement" :
                              "Analyse effectuée · programme conservé"
             if applied { notify("PACE LAB · séance adaptée",body:reason) }

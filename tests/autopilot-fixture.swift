@@ -3,7 +3,12 @@ import Foundation
 struct PaceDay { let date:String; let type:String; let minutes:Double }
 struct WorkoutPayload { let isRun:Bool; let endDate:Date }
 struct PaceSessionNote { let effort:Int?; let pain:Int? }
-struct PaceLongitudinalSnapshot { let comparisonPercent:Double? }
+struct PaceLongitudinalSnapshot {
+    let comparisonPercent:Double?
+    let weeklyRunsNewestFirst:[Int]
+    let recent28Runs:Int
+    let recent28Km:Double
+}
 struct PaceSleepSummary {
     let coverage7:Int
     let coverage14:Int
@@ -23,8 +28,10 @@ struct PaceSleepSummary {
         let tomorrow=Calendar.current.date(byAdding:.day,value:1,to:Calendar.current.startOfDay(for:now))!
         let day=PaceDay(date:formatter.string(from:tomorrow),type:"Course",minutes:45)
         let run=WorkoutPayload(isRun:true,endDate:now.addingTimeInterval(-3600))
-        let calm=PaceLongitudinalSnapshot(comparisonPercent:nil)
-        let highTrend=PaceLongitudinalSnapshot(comparisonPercent:55)
+        let calm=PaceLongitudinalSnapshot(comparisonPercent:nil,
+                                            weeklyRunsNewestFirst:[0,0,0,0],recent28Runs:0,recent28Km:0)
+        let highTrend=PaceLongitudinalSnapshot(comparisonPercent:55,
+                                            weeklyRunsNewestFirst:[2,2,2,2],recent28Runs:8,recent28Km:30)
         let noSleep=PaceSleepSummary(coverage7:0,coverage14:0,
                                      mostRecent7AverageMinutes:nil,previous7AverageMinutes:nil)
         let shortSleep=PaceSleepSummary(coverage7:5,coverage14:12,
@@ -74,6 +81,13 @@ struct PaceSleepSummary {
 
         let observed=PaceAutopilotSignificance.evidence(
             note:PaceSessionNote(effort:9,pain:2),trend:highTrend,sleep:noSleep)
+        let sparseHigh=PaceLongitudinalSnapshot(comparisonPercent:80,
+                                            weeklyRunsNewestFirst:[5,0,0,0],recent28Runs:5,recent28Km:45)
+        require(!evaluate("easier",PaceSessionNote(effort:9,pain:0),sparseHigh).allowed,
+                "no training trend decision from one week of activity")
+        require(!PaceAutopilotSignificance.evidence(
+                    note:nil,trend:sparseHigh,sleep:noSleep).contains(where:{$0.id=="training"}),
+                "sparse history not treated as longitudinal signal")
         require(observed.count==2 && observed.map(\.id)==["subjective","training"],
                 "subjective and training are distinct domains")
         require(PaceAutopilotSignificance.reconcile(action:"easier",

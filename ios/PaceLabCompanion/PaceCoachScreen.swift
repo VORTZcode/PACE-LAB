@@ -425,16 +425,101 @@ struct PaceCoachScreen: View {
                     .font(.caption).foregroundStyle(PaceColors.teal)
                 Text("Aucune garantie d'analyse immédiate si iOS suspend l'app. Les changements sont réversibles dans Programme.")
                     .font(.caption2).foregroundStyle(.secondary)
-                ForEach(autopilot.entries.prefix(3)) { item in
-                    VStack(alignment:.leading,spacing:3) {
-                        Text(item.headline).font(.caption.weight(.semibold))
-                        Text(item.explanation).font(.caption2).foregroundStyle(.secondary)
-                        if let followUp=item.followUp {
-                            Text(followUp).font(.caption2).foregroundStyle(PaceColors.teal)
+                if let recent=autopilot.entries.first {
+                    Divider()
+                    HStack(alignment:.top,spacing:9) {
+                        Image(systemName:recent.action == "allègement" ? "calendar.badge.clock" :
+                              recent.action == "à examiner" ? "exclamationmark.circle" : "checkmark.circle")
+                            .foregroundStyle(PaceColors.teal)
+                        VStack(alignment:.leading,spacing:4) {
+                            Text(recent.headline).font(.caption.weight(.semibold))
+                            Text(recent.date.formatted(date:.abbreviated,time:.shortened))
+                                .font(.caption2).foregroundStyle(.secondary)
+                            Text(recent.action == "maintien"
+                                 ? "Aucun changement nécessaire selon les données disponibles."
+                                 : String(recent.explanation.prefix(165)))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    .frame(maxWidth:.infinity,alignment:.leading)
                 }
+                NavigationLink {
+                    ScrollView {
+                        LazyVStack(alignment:.leading,spacing:13) {
+                            if autopilot.entries.isEmpty {
+                                ContentUnavailableView("Aucune décision encore",
+                                    systemImage:"clock.arrow.circlepath",
+                                    description:Text("Le coach analysera les nouvelles données après activation et synchronisation."))
+                            }
+                            ForEach(autopilot.entries) { item in
+                                PaceCard {
+                                    VStack(alignment:.leading,spacing:9) {
+                                        HStack(alignment:.top) {
+                                            Label(item.action == "allègement" ? "Séance adaptée" :
+                                                  item.action == "à examiner" ? "À examiner" :
+                                                  "Programme conservé",
+                                                  systemImage:item.action == "allègement" ?
+                                                      "calendar.badge.checkmark" : "checkmark.shield")
+                                                .font(.subheadline.weight(.semibold))
+                                            Spacer()
+                                            Text(item.date.formatted(date:.abbreviated,time:.shortened))
+                                                .font(.caption2).foregroundStyle(.secondary)
+                                        }
+                                        Text(item.headline).font(.subheadline.weight(.medium))
+                                        Text(item.explanation)
+                                            .font(.footnote).foregroundStyle(.secondary)
+                                            .fixedSize(horizontal:false,vertical:true)
+                                        if let evidence=item.evidenceDetails, !evidence.isEmpty {
+                                            DisclosureGroup("Données qui étayent la décision") {
+                                                ForEach(evidence,id:\.self) { fact in
+                                                    Label(fact,systemImage:"checkmark.shield")
+                                                        .font(.caption).foregroundStyle(.secondary)
+                                                }
+                                            }.font(.caption.weight(.semibold)).tint(PaceColors.teal)
+                                        }
+                                        if let alternative=item.alternativeConsidered {
+                                            Group {
+                                                Text("Alternative examinée").font(.caption.weight(.semibold))
+                                                Text(alternative).font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        if let expected=item.expectedEffect {
+                                            Group {
+                                                Text("Effet attendu").font(.caption.weight(.semibold))
+                                                Text(expected).font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        if let uncertainty=item.uncertainty {
+                                            Group {
+                                                Text("Limites de l'analyse").font(.caption.weight(.semibold))
+                                                Text(uncertainty).font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        if let followUp=item.followUp {
+                                            Divider().opacity(0.35)
+                                            Label("Observation après la décision",systemImage:"chart.line.uptrend.xyaxis")
+                                                .font(.caption.weight(.semibold))
+                                            Text(followUp).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        if let date=item.sessionDate,
+                                           library.approvedAdjustments[date] != nil {
+                                            Text("Adaptation du \(date) en vigueur. Tu peux l'annuler dans Programme.")
+                                                .font(.caption2).foregroundStyle(PaceColors.teal)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .background(PaceColors.base)
+                    .navigationTitle("Décisions du coach")
+                    .navigationBarTitleDisplayMode(.inline)
+                } label: {
+                    Label("Voir toutes les décisions et leurs résultats",
+                          systemImage:"clock.arrow.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .tint(PaceColors.teal)
             }
         }
     }

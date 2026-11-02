@@ -22,7 +22,11 @@ enum PaceAutopilotSignificance {
         // The 40% threshold is a conservative *review* convention, not a
         // clinical injury-risk predictor. ComparisonPercent is nil when
         // there is insufficient history across the previous 56 days.
-        if let percent = trend.comparisonPercent, percent > 40 {
+        // Suppress false trends from sparse volume or a single large week.
+        // Counts and floors are product heuristics, not clinical thresholds.
+        let spread=trend.weeklyRunsNewestFirst.prefix(4).filter { $0 > 0 }.count
+        if let percent = trend.comparisonPercent, percent > 40,
+           trend.recent28Runs >= 6, spread >= 3, trend.recent28Km >= 15 {
             result.append(.init(id:"training",
                 statement:String(format:"Volume des 28 derniers jours supérieur de %.0f %% aux 28 précédents.",percent)))
         }
