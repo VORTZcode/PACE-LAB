@@ -26,6 +26,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var adaptiveMonitor = PaceAdaptiveMonitor()
     @StateObject private var living = PaceLivingCoach()
     @StateObject private var sleep = PaceSleepHealthKit()
+    @StateObject private var autopilot = PaceAutopilot()
     @StateObject private var strengthTracker = PaceStrengthTracker()
     @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
     @State private var hasLoaded = false
@@ -54,6 +55,7 @@ struct PaceLabCompanionApp: App {
             .environmentObject(adaptiveMonitor)
             .environmentObject(living)
             .environmentObject(sleep)
+            .environmentObject(autopilot)
             .environmentObject(strengthTracker)
             .environmentObject(strengthLinks)
             .onReceive(engine.$revision) { _ in
@@ -62,7 +64,8 @@ struct PaceLabCompanionApp: App {
                 coach.detectNewWorkout(engine:engine)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
-                if chatGPT.planUsageEnabled && !coach.isLoading &&
+                launchAutopilot()
+                if !autopilot.enabled && chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
                     coach.focusWorkoutID = nil
                     Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
@@ -70,12 +73,16 @@ struct PaceLabCompanionApp: App {
             }
             .onReceive(strengthTracker.$records) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
+                launchAutopilot()
             }
             .onReceive(journal.$notes) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
+                launchAutopilot()
             }
+            .onReceive(sleep.$summary) { _ in launchAutopilot() }
+            .onReceive(autopilot.$enabled) { _ in launchAutopilot() }
             .onAppear {
                 guard !hasLoaded else { return }
                 sleep.startObservers()
@@ -85,6 +92,7 @@ struct PaceLabCompanionApp: App {
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
+                launchAutopilot()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 sleep.startObservers()
@@ -92,7 +100,17 @@ struct PaceLabCompanionApp: App {
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
+                launchAutopilot()
             }
+        }
+    }
+
+    private func launchAutopilot() {
+        guard autopilot.enabled else { return }
+        Task { @MainActor in
+            await autopilot.evaluateIfNeeded(client:chatGPT,coach:coach,engine:engine,
+                sleep:sleep,journal:journal,profile:athleteProfile,
+                strength:strengthTracker,library:library)
         }
     }
 }

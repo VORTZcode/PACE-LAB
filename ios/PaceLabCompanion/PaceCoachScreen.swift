@@ -26,6 +26,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var strengthTracker: PaceStrengthTracker
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject private var sleep: PaceSleepHealthKit
+    @EnvironmentObject private var autopilot: PaceAutopilot
     @Environment(\.dismiss) private var dismiss
     @State private var question = ""
     @State private var showPreview = false
@@ -121,6 +122,7 @@ struct PaceCoachScreen: View {
                     ScrollView {
                         VStack(alignment:.leading,spacing:16) {
                             connectionCard
+                            autopilotControls
                             consentCard
                             Text("Données partagées uniquement après autorisation. Consulte ton compte ChatGPT pour gérer les limites de l'application.")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -395,6 +397,41 @@ struct PaceCoachScreen: View {
                 }
                 .font(.caption.weight(.medium))
                 .tint(PaceColors.teal)
+            }
+        }
+    }
+
+    private var autopilotControls: some View {
+        PaceCard {
+            VStack(alignment:.leading,spacing:12) {
+                Label("Coach autonome",systemImage:"brain.head.profile")
+                    .font(.headline)
+                Text("Après une nouvelle séance ou nuit synchronisée, ChatGPT vérifie le plan. Les allègements prudents peuvent être appliqués sans validation répétée. Pas de hausse de charge ni de changements de nutrition automatiques.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Toggle(isOn:Binding(get:{ autopilot.enabled },
+                                    set:{ autopilot.setEnabled($0) })) {
+                    Text("Autoriser les adaptations automatiques")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .tint(PaceColors.teal)
+                .disabled(!client.planUsageEnabled || !coach.shareRunSummaries ||
+                          athleteProfile.profile == nil || !athleteProfile.shareProfile)
+                if !client.planUsageEnabled || !coach.shareRunSummaries ||
+                    athleteProfile.profile == nil || !athleteProfile.shareProfile {
+                    Text("Pour activer : connecter ChatGPT, confirmer le profil sportif et autoriser le résumé des courses.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(autopilot.status)
+                    .font(.caption).foregroundStyle(PaceColors.teal)
+                Text("Aucune garantie d'analyse immédiate si iOS suspend l'app. Les changements sont réversibles dans Programme.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                ForEach(autopilot.entries.prefix(3)) { item in
+                    VStack(alignment:.leading,spacing:3) {
+                        Text(item.headline).font(.caption.weight(.semibold))
+                        Text(item.explanation).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth:.infinity,alignment:.leading)
+                }
             }
         }
     }

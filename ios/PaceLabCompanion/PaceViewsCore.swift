@@ -150,6 +150,7 @@ struct PaceHomeGlassSurface: ViewModifier {
 struct TodayScreen: View {
     @EnvironmentObject var living: PaceLivingCoach
     @EnvironmentObject var adaptiveMonitor: PaceAdaptiveMonitor
+    @EnvironmentObject var autopilot: PaceAutopilot
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
@@ -235,6 +236,10 @@ struct TodayScreen: View {
                     }
                 }
 
+                if autopilot.enabled {
+                    Label(autopilot.status,systemImage:"brain.head.profile")
+                        .font(.caption).foregroundStyle(PaceColors.teal)
+                }
                 PaceLivingCoachCard { showCoach = true }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {

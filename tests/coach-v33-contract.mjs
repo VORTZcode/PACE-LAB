@@ -37,6 +37,6 @@ assert.match(ui,/Accepter pour cette séance uniquement/);
 assert.match(ui,/Conserver le programme actuel/);
 assert.match(program,/Annuler l'adaptation/);
 assert.match(today,/Une recommandation vous attend/);
-assert.match(settings,/5\.1 · Sommeil et coach IA/);
+assert.match(settings,/5\.2 · Coach autonome/);
 assert.match(settings,/résumés autorisés du Coach sont envoyés à OpenAI/);
 console.log('V3.3: larger athlete inputs, 3+2 preferred rhythm, post-run adaptive rules, single-session approval, undo and protected storage verified.');

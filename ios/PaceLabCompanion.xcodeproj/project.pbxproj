@@ -46,6 +46,8 @@
 		F51C28121111111111111111 /* PaceLongitudinalRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51C28122222222222222222 /* PaceLongitudinalRules.swift */; };
 		FFBB20202020202020202020 /* PaceSleepRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA10101010101010101010 /* PaceSleepRules.swift */; };
 		FFBB40404040404040404040 /* PaceSleepHealthKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA30303030303030303030 /* PaceSleepHealthKit.swift */; };
+		A14114141414141414141414 /* PaceAutopilot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15115151515151515151515 /* PaceAutopilot.swift */; };
+		A17117171717171717171717 /* PaceAutopilotGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18118181818181818181818 /* PaceAutopilotGuard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,6 +93,8 @@
 		F51C28122222222222222222 /* PaceLongitudinalRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceLongitudinalRules.swift; sourceTree = "<group>"; };
 		FFAA10101010101010101010 /* PaceSleepRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceSleepRules.swift; sourceTree = "<group>"; };
 		FFAA30303030303030303030 /* PaceSleepHealthKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceSleepHealthKit.swift; sourceTree = "<group>"; };
+		A15115151515151515151515 /* PaceAutopilot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceAutopilot.swift; sourceTree = "<group>"; };
+		A18118181818181818181818 /* PaceAutopilotGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceAutopilotGuard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -107,6 +111,8 @@
 				D6C68161A3D76F80F775E3CF /* PaceCoachEngine.swift */,
 				A38AB1F030DD4F96B1E11E01 /* PaceLivingCoach.swift */,
 				F51C28122222222222222222 /* PaceLongitudinalRules.swift */,
+				A15115151515151515151515 /* PaceAutopilot.swift */,
+				A18118181818181818181818 /* PaceAutopilotGuard.swift */,
 				FFAA30303030303030303030 /* PaceSleepHealthKit.swift */,
 				FFAA10101010101010101010 /* PaceSleepRules.swift */,
 				BDAE5360FE288A5A6A648CE5 /* PaceCoachReport.swift */,
@@ -247,6 +253,8 @@
 				D3BF632C05D707A558869C87 /* PaceCoachEngine.swift in Sources */,
 				C35CE1CBA3DE456BBA8F1110 /* PaceLivingCoach.swift in Sources */,
 				F51C28121111111111111111 /* PaceLongitudinalRules.swift in Sources */,
+				A14114141414141414141414 /* PaceAutopilot.swift in Sources */,
+				A17117171717171717171717 /* PaceAutopilotGuard.swift in Sources */,
 				FFBB40404040404040404040 /* PaceSleepHealthKit.swift in Sources */,
 				FFBB20202020202020202020 /* PaceSleepRules.swift in Sources */,
 				5F86AC93D7FB780E06A17241 /* PaceCoachReport.swift in Sources */,
