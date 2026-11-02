@@ -36,8 +36,8 @@ struct PaceStrengthSet: Codable, Equatable {
 
     func completedSets(day: String, exercises: [PaceExercise]) -> Int {
         exercises.reduce(0) { subtotal, exercise in
-            subtotal + (1...max(0, exercise.sets)).filter {
-                entry(day: day, exerciseID: exercise.id, set: $0).completed
+            subtotal + (0..<max(0, exercise.sets)).filter {
+                entry(day: day, exerciseID: exercise.id, set: $0 + 1).completed
             }.count
         }
     }
@@ -47,8 +47,8 @@ struct PaceStrengthSet: Codable, Equatable {
     }
 
     func completedSets(day: String, exercise: PaceExercise) -> Int {
-        (1...max(0, exercise.sets)).filter {
-            entry(day: day, exerciseID: exercise.id, set: $0).completed
+        (0..<max(0, exercise.sets)).filter {
+            entry(day: day, exerciseID: exercise.id, set: $0 + 1).completed
         }.count
     }
 
