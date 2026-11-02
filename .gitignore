@@ -48,3 +48,6 @@ ios/PaceLabCompanion.xcodeproj/project.xcworkspace/xcuserdata/
 # Generated local previews and intermediate photo assets
 .v*-build/
 .split_demo_generated.b64
+
+.generated-exercise-photo-staging/
+.generated-exercise-photo-backup/

@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+
+const generated = readFileSync('scripts/generate_photoreal_exercise_pack.py', 'utf8');
+const install = readFileSync('scripts/install_approved_exercise_photos.py', 'utf8');
+assert.ok(generated.includes('"gpt-image-2.5-sunburst"'));
+assert.ok(generated.includes('"model": MODEL'));
+assert.ok(generated.includes('if not args.generate:'));
+assert.ok(generated.includes('OPENAI_API_KEY'));
+assert.ok(generated.includes('No text') || generated.includes('no text'));
+assert.ok(generated.includes('one dumbbell'));
+assert.ok(install.includes('if w < 1024 or h < 768'));
+assert.ok(install.includes('record.get("approved") is not True'));
+assert.ok(install.includes('if errors:'));
+assert.ok(install.includes('BLOCKED: Xcode resources are unchanged.'));
+const python = spawnSync('python3', ['scripts/generate_photoreal_exercise_pack.py'], { encoding: 'utf8' });
+assert.equal(python.status, 0, python.stderr);
+assert.match(python.stdout, /Proposed images: 28/);
+assert.match(python.stdout, /NO billable API calls/);
+const check = spawnSync('python3', ['scripts/install_approved_exercise_photos.py'], { encoding: 'utf8' });
+assert.equal(check.status, 0, check.stderr);
+assert.match(check.stdout, /BLOCKED: Xcode resources are unchanged./);
+console.log('Photo production pipeline: 14 real movements, 28 positions, no billing in dry-run, mandatory review and non-destructive deployment gate.');
