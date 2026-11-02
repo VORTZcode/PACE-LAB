@@ -11,7 +11,7 @@ const timeline=read('PaceHeartTimeline.swift');
 for (const text of [
   'struct PaceGlassCardSurface: ViewModifier',
   'content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))',
-  '.modifier(PaceGlassCardSurface(cornerRadius: 22))',
+  '.modifier(PaceGlassCardSurface(cornerRadius: PaceDesign.cardRadius))',
   '.modifier(PaceGlassCardSurface(cornerRadius: 20))',
   'content.background(.regularMaterial,'
 ]) assert.ok(core.includes(text), 'Missing core glass: '+text);

@@ -36,7 +36,7 @@ assert.match(ui,/Noter mon ressenti/);
 assert.match(ui,/Accepter pour cette séance uniquement/);
 assert.match(ui,/Conserver le programme actuel/);
 assert.match(program,/Annuler l'adaptation/);
-assert.match(today,/Un point après séance t'attend/);
+assert.match(today,/Une recommandation vous attend/);
 assert.match(settings,/3\.4 · Coach/);
 assert.match(settings,/résumés autorisés du Coach sont envoyés à OpenAI/);
 console.log('V3.3: larger athlete inputs, 3+3 baseline, post-run adaptive rules, single-session approval, undo and protected storage verified.');

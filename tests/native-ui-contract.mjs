@@ -63,7 +63,7 @@ assert.doesNotMatch(intervalCode,/private var intervals: \[PaceInterval\] \{/);
 assert.match(dynamics,/RunChartCalculator\.build/);
 assert.match(dynamics,/@State private var prepared: \[RunChartMetric: \[RunChartPoint\]\]/);
 assert.match(core,/LazyVStack/);
-assert.match(core,/Voir les statistiques/);
+assert.match(core,/Dernière activité/);
 assert.match(core,/PaceHomeGlassSurface/);
 assert.match(activities,/ScrollViewReader/);
 assert.match(activities,/navigator\.scrollTo/);

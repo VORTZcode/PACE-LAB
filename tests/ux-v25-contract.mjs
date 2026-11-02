@@ -13,9 +13,11 @@ assert.doesNotMatch(chart,/chartData = \[\]/);
 assert.match(chart,/Double\(full\.count\)\/160/);
 assert.match(chart,/chosen\.insert\(low\)/);
 assert.match(chart,/chosen\.insert\(high\)/);
-for (const metric of ['year','month','heart','week']) {
+for (const metric of ['month','week']) {
   assert.ok(core.includes('PaceInsightScreen(kind: .' + metric + ')'));
 }
+assert.ok(core.includes('StrengthWorkoutDetailScreen(workout: latest)'));
+assert.ok(core.includes('Ouvrir ma séance'));
 assert.match(core,/glassEffect\(\.regular\.interactive\(\), in: \.rect\(cornerRadius: cornerRadius\)\)/);
 assert.match(insights,/Chart\(volumeBars\)/);
 assert.match(insights,/WorkoutDetailScreen\(workout: workout\)/);
