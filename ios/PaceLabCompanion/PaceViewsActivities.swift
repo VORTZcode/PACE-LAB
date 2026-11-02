@@ -71,7 +71,7 @@ struct ActivitiesScreen: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22))
+                .modifier(PaceGlassCardSurface(cornerRadius: 22))
                 if shown < all.count {
                     Button("Afficher plus de séances") { shown += 25 }
                         .font(.subheadline.weight(.medium)).tint(PaceColors.teal)
@@ -162,7 +162,7 @@ struct WorkoutDetailScreen: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 18))
+                    .modifier(PaceGlassCardSurface(cornerRadius: 18))
                 }
                 .buttonStyle(.plain)
                 if showIntervals {
@@ -220,7 +220,7 @@ struct WorkoutDetailScreen: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 18))
+                    .modifier(PaceGlassCardSurface(cornerRadius: 18))
                 }
                 .buttonStyle(.plain)
                 if showComparison {
@@ -376,19 +376,70 @@ struct StrengthWorkoutDetailScreen: View {
                                 .font(.title3.weight(.semibold)).monospacedDigit()
                         }
                     }
-                    if !workout.heart_rate_series.isEmpty {
+                    let timeline = PaceHeartTimeline.prepare(
+                        start: workout.started_at, end: workout.ended_at,
+                        samples: workout.heart_rate_series.map {
+                            (timestamp: $0.timestamp, bpm: $0.bpm)
+                        })
+                    if let timeline {
                         Divider()
-                        Text("Fréquence cardiaque pendant la séance")
-                            .font(.caption.weight(.medium))
-                        Chart {
-                            ForEach(Array(workout.heart_rate_series.enumerated()), id: \.offset) { sample in
-                                LineMark(x: .value("Mesure", sample.offset),
-                                         y: .value("Fréquence cardiaque", sample.element.bpm))
-                                    .foregroundStyle(PaceColors.teal)
-                            }
+                        HStack {
+                            Text("Fréquence cardiaque")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("bpm")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(height: 140)
-                        .accessibilityLabel("Évolution de la fréquence cardiaque mesurée par l'Apple Watch")
+                        if timeline.points.count >= 2 {
+                            Chart {
+                                ForEach(timeline.points) { point in
+                                    LineMark(
+                                        x: .value("Minute écoulée", point.minute),
+                                        y: .value("Battements/minute", point.bpm),
+                                        series: .value("Segment mesuré", point.segment)
+                                    )
+                                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                                    .interpolationMethod(.linear)
+                                    .foregroundStyle(PaceColors.teal)
+                                }
+                            }
+                            .chartXScale(domain: 0...max(1, timeline.lastMinute))
+                            .chartYScale(domain: timeline.yLower...timeline.yUpper)
+                            .chartXAxis {
+                                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                        .foregroundStyle(.tertiary)
+                                    AxisTick()
+                                    AxisValueLabel {
+                                        if let minute = value.as(Double.self) {
+                                            Text("\(Int(minute.rounded())) min")
+                                        }
+                                    }
+                                }
+                            }
+                            .chartYAxis {
+                                AxisMarks(position: .leading, values: .automatic(desiredCount: 4))
+                            }
+                            .frame(height: 196)
+                            .accessibilityLabel("Fréquence cardiaque en bpm sur les minutes réellement mesurées")
+                        } else {
+                            Text("Une seule mesure cardiaque valide : courbe indisponible.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Text("Mesures de \(Int(timeline.firstMinute.rounded())) à \(Int(timeline.lastMinute.rounded())) min, pour \(Int(timeline.durationMinutes.rounded())) min de séance.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if timeline.hasMissingTail {
+                            Label("Les \(Int(timeline.unmeasuredTailMinutes.rounded())) dernières minutes ne contiennent pas de mesures cardiaques ; la courbe s’arrête à la dernière valeur connue.", systemImage:"info.circle")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        if timeline.gapCount > 0 {
+                            Text("\(timeline.gapCount) interruption(s) de mesures : la courbe ne relie pas ces intervalles.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Aucune série de fréquence cardiaque exploitable pour cette séance.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }

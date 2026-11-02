@@ -72,7 +72,7 @@ struct PaceCoachScreen: View {
                             .font(.subheadline).foregroundStyle(.orange)
                             .padding(14)
                             .frame(maxWidth:.infinity,alignment:.leading)
-                            .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:16))
+                            .modifier(PaceGlassCardSurface(cornerRadius: 16))
                     }
                     if coach.isLoading {
                         HStack(spacing:11) {
@@ -199,7 +199,7 @@ struct PaceCoachScreen: View {
         }
         .padding(21)
         .frame(maxWidth:.infinity,alignment:.leading)
-        .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:24))
+        .modifier(PaceGlassCardSurface(cornerRadius: 24))
     }
 
     private var trainingSnapshot: some View {

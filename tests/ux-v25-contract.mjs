@@ -10,7 +10,9 @@ assert.match(chart,/preparedKey == preparationKey/);
 assert.match(chart,/\.frame\(height: 238\)/);
 assert.match(chart,/transaction\.animation = nil/);
 assert.doesNotMatch(chart,/chartData = \[\]/);
-assert.match(chart,/Double\(selected\.count\) \/ 320/);
+assert.match(chart,/Double\(full\.count\)\/160/);
+assert.match(chart,/chosen\.insert\(low\)/);
+assert.match(chart,/chosen\.insert\(high\)/);
 for (const metric of ['year','month','heart','week']) {
   assert.ok(core.includes('PaceInsightScreen(kind: .' + metric + ')'));
 }

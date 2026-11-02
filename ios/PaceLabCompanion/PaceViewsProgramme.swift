@@ -112,7 +112,7 @@ struct ProgrammeScreen: View {
                                     .foregroundStyle(library.completed.contains(day.date) ? PaceColors.teal : Color.secondary)
                             }
                             .padding(16)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 19))
+                            .modifier(PaceGlassCardSurface(cornerRadius: 19))
                         }
                         .buttonStyle(.plain)
                     }

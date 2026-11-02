@@ -30,7 +30,8 @@ private enum PaceIntervalCalculator {
         guard let start = clock.date(from: workout.started_at) else { return [] }
 
         for p in workout.heart_rate_series {
-            guard let date = clock.date(from: p.timestamp) else { continue }
+            guard p.bpm.isFinite, (25...245).contains(p.bpm),
+                  let date = clock.date(from: p.timestamp) else { continue }
             let elapsed = date.timeIntervalSince(start)
             guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }
             let index = min(count - 1, Int(elapsed / 300))
@@ -38,7 +39,7 @@ private enum PaceIntervalCalculator {
             buckets[index].heartCount += 1
         }
         for p in workout.speed_series ?? [] {
-            guard p.value.isFinite, p.value > 0,
+            guard p.value.isFinite, (0.7...12).contains(p.value),
                   let date = clock.date(from: p.timestamp) else { continue }
             let elapsed = date.timeIntervalSince(start)
             guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }
@@ -47,7 +48,7 @@ private enum PaceIntervalCalculator {
             buckets[index].speedCount += 1
         }
         for p in workout.power_series ?? [] {
-            guard p.value.isFinite, p.value > 0,
+            guard p.value.isFinite, (1...1800).contains(p.value),
                   let date = clock.date(from: p.timestamp) else { continue }
             let elapsed = date.timeIntervalSince(start)
             guard elapsed >= 0, elapsed < workout.duration_seconds else { continue }

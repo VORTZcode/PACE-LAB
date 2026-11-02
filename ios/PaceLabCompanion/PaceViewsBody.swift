@@ -35,6 +35,7 @@ struct BodyMetricsSection: View {
                                     .foregroundStyle(PaceColors.teal)
                             }
                         }
+                        .chartYAxisLabel("kg")
                         .frame(height: 160)
                     }
                 }

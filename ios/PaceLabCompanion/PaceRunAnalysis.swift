@@ -5,6 +5,7 @@ private struct RunChartPoint: Identifiable, Sendable {
     let id: Int
     let minute: Double
     let value: Double
+    let segment: Int
 }
 
 private enum RunChartMetric: String, CaseIterable, Identifiable, Sendable {
@@ -71,15 +72,11 @@ private enum RunChartCalculator {
         case .contact: selected = workout.ground_contact_series ?? []
         case .vertical: selected = workout.vertical_series ?? []
         }
-        let clock = ISO8601DateFormatter()
-        guard let start = clock.date(from: workout.started_at),
-              let finish = clock.date(from: workout.ended_at) else { return [] }
-        let step = max(1, Int(ceil(Double(selected.count) / 320)))
-        return selected.enumerated().compactMap { i, point in
-            guard i % step == 0,
-                  let date = clock.date(from: point.timestamp),
-                  date >= start, date <= finish,
-                  point.value.isFinite else { return nil }
+        guard let start = PaceHeartTimeline.decodeDate(workout.started_at),
+              let finish = PaceHeartTimeline.decodeDate(workout.ended_at) else { return [] }
+        let sorted: [(source:Int,minute:Double,value:Double)] = selected.enumerated().compactMap { index, point in
+            guard let date = PaceHeartTimeline.decodeDate(point.timestamp),
+                  date >= start, date <= finish, point.value.isFinite else { return nil }
             let value: Double
             switch metric {
             case .speed:
@@ -89,12 +86,48 @@ private enum RunChartCalculator {
             case .heart:
                 guard (25...245).contains(point.value) else { return nil }
                 value = point.value
-            default:
-                guard point.value > 0 else { return nil }
+            case .power:
+                guard (1...1800).contains(point.value) else { return nil }
+                value = point.value
+            case .stride:
+                guard (0.2...3.5).contains(point.value) else { return nil }
+                value = point.value
+            case .contact:
+                guard (70...1000).contains(point.value) else { return nil }
+                value = point.value
+            case .vertical:
+                guard (1...40).contains(point.value) else { return nil }
                 value = point.value
             }
-            return RunChartPoint(id: i, minute: date.timeIntervalSince(start)/60, value: value)
+            return (source:index,minute:date.timeIntervalSince(start)/60,value:value)
+        }.sorted { $0.minute < $1.minute }
+        guard !sorted.isEmpty else { return [] }
+
+        var segment = 0
+        var full: [RunChartPoint] = []
+        for (index,item) in sorted.enumerated() {
+            // A break in the underlying measurements must remain a break after reduction.
+            if index > 0, item.minute - sorted[index-1].minute > 2 {
+                segment += 1
+            }
+            full.append(.init(id:item.source,minute:item.minute,value:item.value,segment:segment))
         }
+        guard full.count > 320 else { return full }
+
+        // Retain both extrema of each time-ordered bucket rather than every Nth raw
+        // point. This preserves short-lived HR/power peaks and lows on long workouts.
+        let window = max(2,Int(ceil(Double(full.count)/160)))
+        var chosen = Set([0,full.count-1])
+        for lower in stride(from:0,to:full.count,by:window) {
+            let upper = min(full.count,lower+window)
+            let slice = lower..<upper
+            if let low = slice.min(by:{ full[$0].value < full[$1].value }),
+               let high = slice.max(by:{ full[$0].value < full[$1].value }) {
+                chosen.insert(low)
+                chosen.insert(high)
+            }
+        }
+        return chosen.sorted().map { full[$0] }
     }
 }
 
@@ -196,7 +229,8 @@ struct RunDynamicsSection: View {
                                 Chart {
                                     ForEach(points) { point in
                                         LineMark(x: .value("Minute", point.minute),
-                                                 y: .value(metric.unit, point.value))
+                                                 y: .value(metric.unit, point.value),
+                                                 series: .value("Segment de mesure", point.segment))
                                             .foregroundStyle(PaceColors.teal)
                                             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
                                             .interpolationMethod(.linear)
@@ -212,7 +246,8 @@ struct RunDynamicsSection: View {
                                     }
                                 }
                                 .chartXSelection(value: $selectedMinute)
-                                .chartXAxisLabel("Minutes d’effort")
+                                .chartXAxisLabel("Minutes écoulées")
+                                .chartYAxisLabel(metric.unit)
                                 .transaction { transaction in transaction.animation = nil }
                                 .accessibilityLabel("\(metric.rawValue) — \(points.count) mesures enregistrées")
                             } else {
@@ -232,11 +267,21 @@ struct RunDynamicsSection: View {
                             .font(.caption2).foregroundStyle(.secondary)
                         Spacer(minLength: 3)
                         if let selectedPoint {
-                            Text("\(selectedPoint.value.formatted(.number.precision(.fractionLength(1)))) \(metric.unit)")
+                            Text(metric == .speed
+                                 ? "\(PaceFormat.pace(selectedPoint.value)) /km"
+                                 : "\(selectedPoint.value.formatted(.number.precision(.fractionLength(1)))) \(metric.unit)")
                                 .font(.caption.weight(.semibold)).monospacedDigit()
                         }
                     }
                     .frame(height: 21, alignment: .top)
+                    if metric == .speed {
+                        Text("Allure : une valeur plus faible correspond à une vitesse plus élevée.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    if Set(points.map(\.segment)).count > 1 {
+                        Text("Courbe interrompue lorsque l’Apple Watch ne dispose plus de mesures.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
             }
             if w.isRun {
