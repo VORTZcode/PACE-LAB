@@ -480,14 +480,6 @@ struct DayDetailScreen: View {
                             }
                             .padding(16)
                             .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22))
-                            if restExerciseID == ex.id, let end = restEnd {
-                                PaceRestCountdown(end: end, seconds: Int(ex.rest),
-                                                  afterSet: restSetNumber ?? 0) {
-                                    restEnd = nil
-                                    restExerciseID = nil
-                                    restSetNumber = nil
-                                }
-                            }
                             DisclosureGroup("Exécution et technique") {
                                 PaceExerciseCoaching(exercise: ex).padding(.top, 10)
                             }
@@ -504,6 +496,59 @@ struct DayDetailScreen: View {
                         .padding(20)
                     }
                     .background(PaceColors.base.ignoresSafeArea())
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "timer")
+                                .font(.title2)
+                                .foregroundStyle(PaceColors.teal)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("RÉCUPÉRATION")
+                                    .font(.caption2.weight(.bold))
+                                    .tracking(1.1)
+                                    .foregroundStyle(.secondary)
+                                if restExerciseID == ex.id, let end = restEnd {
+                                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                                        let remaining = max(0, Int(ceil(end.timeIntervalSince(context.date))))
+                                        Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
+                                            .font(.system(size: 27, weight: .bold, design: .rounded))
+                                            .monospacedDigit()
+                                    }
+                                } else {
+                                    Text(String(format: "%02d:%02d", Int(ex.rest) / 60, Int(ex.rest) % 60))
+                                        .font(.system(size: 27, weight: .bold, design: .rounded))
+                                        .monospacedDigit()
+                                }
+                            }
+                            Spacer()
+                            Button {
+                                if restExerciseID == ex.id, restEnd != nil {
+                                    restEnd = nil
+                                    restExerciseID = nil
+                                    restSetNumber = nil
+                                } else {
+                                    restExerciseID = ex.id
+                                    restSetNumber = nil
+                                    restEnd = Date().addingTimeInterval(max(1, ex.rest))
+                                }
+                            } label: {
+                                Image(systemName: restExerciseID == ex.id && restEnd != nil
+                                      ? "stop.fill" : "play.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                    .frame(width: 54, height: 48)
+                                    .background(PaceColors.teal,
+                                                in: RoundedRectangle(cornerRadius: 15))
+                            }
+                            .accessibilityLabel(restExerciseID == ex.id && restEnd != nil
+                                                ? "Arrêter le minuteur" : "Démarrer la récupération")
+                        }
+                        .padding(15)
+                        .background(PaceColors.surface,
+                                    in: RoundedRectangle(cornerRadius: 22))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial)
+                    }
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button("Fermer", systemImage: "xmark") {
