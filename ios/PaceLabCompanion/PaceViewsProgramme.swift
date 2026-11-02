@@ -127,8 +127,10 @@ struct ProgrammeScreen: View {
 struct DayDetailScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
+    @EnvironmentObject var strengthTracker: PaceStrengthTracker
     let day: PaceDay
     @State private var showVariants = false
+    @State private var confirmFinish = false
 
     private var exercises: [PaceExercise] {
         guard library.activeCoachDraft == nil else { return [] }
@@ -174,6 +176,26 @@ struct DayDetailScreen: View {
             }
 
             if !exercises.isEmpty {
+                let done = strengthTracker.completedSets(day: day.date, exercises: exercises)
+                let total = strengthTracker.totalSets(exercises: exercises)
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Progression de la séance")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(done) / \(total) séries")
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(PaceColors.teal)
+                        }
+                        ProgressView(value: Double(done), total: Double(max(total, 1)))
+                            .tint(PaceColors.teal)
+                        Text("Coche chaque série juste après l'avoir réalisée. Les répétitions et la charge sont facultatives ; tes saisies sont enregistrées sur l'iPhone.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 PaceSectionTitle(title: "Exercices", subtitle: "\(exercises.count) mouvements")
                 ForEach(exercises) { ex in
                     PaceCard {
@@ -184,6 +206,19 @@ struct DayDetailScreen: View {
                                 PacePill(label: ex.reps + " reps", symbol: "number")
                             }
                             Text(ex.tips).font(.subheadline).foregroundStyle(.secondary)
+                            HStack {
+                                Label("\(strengthTracker.completedSets(day: day.date, exercise: ex)) / \(ex.sets) séries", systemImage: "checkmark.circle")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(PaceColors.teal)
+                                Spacer()
+                                Text("Repos : \(Int(ex.rest)) s")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 2)
+                            ForEach(1...max(ex.sets, 1), id: \.self) { index in
+                                PaceStrengthSetRow(dayDate: day.date, exercise: ex, setNumber: index)
+                            }
                             DisclosureGroup("Variantes & progression") {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Plus facile : " + ex.easier)
@@ -219,10 +254,21 @@ struct DayDetailScreen: View {
                 }
             }
 
+            if let error = strengthTracker.saveError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
             Button {
-                library.toggleDay(day.date)
+                if day.type == "Musculation", !library.completed.contains(day.date),
+                   strengthTracker.totalSets(exercises: exercises) >
+                   strengthTracker.completedSets(day: day.date, exercises: exercises) {
+                    confirmFinish = true
+                } else {
+                    library.toggleDay(day.date)
+                }
             } label: {
-                Label(library.completed.contains(day.date) ? "Journée validée" : "Marquer comme terminé",
+                Label(library.completed.contains(day.date) ? "Journée validée" : "Terminer la séance",
                       systemImage: library.completed.contains(day.date) ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
             }
@@ -230,5 +276,86 @@ struct DayDetailScreen: View {
             .tint(PaceColors.teal)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Toutes les séries ne sont pas cochées.",
+                            isPresented: $confirmFinish, titleVisibility: .visible) {
+            Button("Terminer la séance malgré tout") {
+                library.toggleDay(day.date)
+            }
+            Button("Continuer la séance", role: .cancel) {}
+        } message: {
+            Text("Tu peux continuer à noter tes séries ou terminer la séance. Les séries déjà enregistrées resteront conservées.")
+        }
+    }
+}
+
+private struct PaceStrengthSetRow: View {
+    @EnvironmentObject private var tracker: PaceStrengthTracker
+    let dayDate: String
+    let exercise: PaceExercise
+    let setNumber: Int
+
+    private var entry: PaceStrengthSet {
+        tracker.entry(day: dayDate, exerciseID: exercise.id, set: setNumber)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                tracker.setCompleted(!entry.completed, day: dayDate,
+                                     exerciseID: exercise.id, set: setNumber)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: entry.completed ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundStyle(entry.completed ? PaceColors.teal : .secondary)
+                    Text("Série \(setNumber)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(entry.completed ? PaceColors.teal : .primary)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Série \(setNumber), \(entry.completed ? "validée" : "à réaliser")")
+            .accessibilityHint("Appuyer pour changer l'état de la série")
+
+            Spacer(minLength: 2)
+            VStack(spacing: 3) {
+                Text("Rép.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                TextField(exercise.reps, text: Binding(
+                    get: { entry.repetitions },
+                    set: { tracker.setRepetitions($0, day: dayDate,
+                                                   exerciseID: exercise.id, set: setNumber) }
+                ))
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.center)
+                .font(.subheadline.monospacedDigit())
+                .frame(width: 54, height: 35)
+                .background(PaceColors.base, in: RoundedRectangle(cornerRadius: 9))
+                .accessibilityLabel("Répétitions réalisées, série \(setNumber)")
+            }
+            VStack(spacing: 3) {
+                Text("Charge (kg)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                TextField("—", text: Binding(
+                    get: { entry.weightKg },
+                    set: { tracker.setWeight($0, day: dayDate,
+                                              exerciseID: exercise.id, set: setNumber) }
+                ))
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.center)
+                .font(.subheadline.monospacedDigit())
+                .frame(width: 66, height: 35)
+                .background(PaceColors.base, in: RoundedRectangle(cornerRadius: 9))
+                .accessibilityLabel("Charge utilisée en kilogrammes, série \(setNumber)")
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(entry.completed ? PaceColors.teal.opacity(0.08) : PaceColors.base.opacity(0.52),
+                    in: RoundedRectangle(cornerRadius: 13))
     }
 }
