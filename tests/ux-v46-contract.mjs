@@ -17,6 +17,7 @@ assert.ok(guide.includes('poseButton("02 · Arrivée"'));
 assert.ok(guide.includes('.sheet(isPresented: $showingEnlargedPose)'));
 assert.ok(guide.includes('Agrandir la position initiale'));
 assert.ok(screen.includes('PaceExerciseVisual(figure: guide.figure, imageHeight: artworkHeight - 45)'));
+assert.ok(screen.includes('.id(ex.id)'), 'Exercise switches must reset the pose choice');
 for(const figure of figures){
   for(const suffix of ['Start','End']) {
     const name='Movement_'+figure+'_'+suffix;
