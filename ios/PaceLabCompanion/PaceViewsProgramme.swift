@@ -139,7 +139,23 @@ struct DayDetailScreen: View {
     let day: PaceDay
     @State private var showVariants = false
     @State private var confirmFinish = false
+    @State private var expandedExerciseID: String?
     @FocusState private var focusedStrengthInput: PaceStrengthInput?
+
+    private var exerciseCompletionSignature: [Bool] {
+        exercises.map { strengthTracker.completedSets(day: day.date, exercise: $0) >= $0.sets }
+    }
+
+    private func advanceAfterCompletion(from old: [Bool], to new: [Bool]) {
+        guard let currentIndex = exercises.firstIndex(where: { $0.id == expandedExerciseID }),
+              old.indices.contains(currentIndex), new.indices.contains(currentIndex),
+              !old[currentIndex], new[currentIndex] else { return }
+        let next = exercises.indices.first { $0 > currentIndex && !new[$0] }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            expandedExerciseID = next.map { exercises[$0].id }
+        }
+        focusedStrengthInput = nil
+    }
 
     private var exercises: [PaceExercise] {
         guard library.activeCoachDraft == nil else { return [] }
@@ -206,38 +222,83 @@ struct DayDetailScreen: View {
                     }
                 }
                 PaceSectionTitle(title: "Exercices", subtitle: "\(exercises.count) mouvements")
-                ForEach(exercises) { ex in
+                ForEach(exercises.indices, id: \.self) { index in
+                    let ex = exercises[index]
+                    let finished = strengthTracker.completedSets(day: day.date, exercise: ex)
+                    let expanded = expandedExerciseID == ex.id
                     PaceCard {
-                        VStack(alignment: .leading, spacing: 11) {
-                            Text(ex.name).font(.headline)
-                            HStack(spacing: 9) {
-                                PacePill(label: "\(ex.sets) séries", symbol: "repeat")
-                                PacePill(label: ex.reps + " reps", symbol: "number")
-                            }
-                            Text(ex.tips).font(.subheadline).foregroundStyle(.secondary)
-                            HStack {
-                                Label("\(strengthTracker.completedSets(day: day.date, exercise: ex)) / \(ex.sets) séries", systemImage: "checkmark.circle")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(PaceColors.teal)
-                                Spacer()
-                                Text("Repos : \(Int(ex.rest)) s")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.top, 2)
-                            ForEach(1...max(ex.sets, 1), id: \.self) { index in
-                                PaceStrengthSetRow(dayDate: day.date, exercise: ex,
-                                                   setNumber: index, focus: $focusedStrengthInput)
-                            }
-                            DisclosureGroup("Variantes & progression") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Plus facile : " + ex.easier)
-                                    Text("Plus difficile : " + ex.harder)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button {
+                                focusedStrengthInput = nil
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    expandedExerciseID = expanded ? nil : ex.id
                                 }
-                                .font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+                            } label: {
+                                HStack(spacing: 13) {
+                                    Text("\(index + 1)")
+                                        .font(.subheadline.weight(.bold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(finished == ex.sets ? .white : PaceColors.teal)
+                                        .frame(width: 36, height: 36)
+                                        .background(finished == ex.sets ? PaceColors.teal :
+                                            PaceColors.teal.opacity(0.10), in: Circle())
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(ex.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .multilineTextAlignment(.leading)
+                                        Text("\(ex.reps) · \(finished)/\(ex.sets) séries")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .monospacedDigit()
+                                    }
+                                    Spacer(minLength: 4)
+                                    if finished == ex.sets {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(PaceColors.teal)
+                                    }
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                                }
+                                .frame(minHeight: 52)
+                                .contentShape(Rectangle())
                             }
-                            .tint(PaceColors.teal)
-                            .font(.subheadline.weight(.medium))
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(ex.name), \(finished) séries validées sur \(ex.sets)")
+                            .accessibilityHint(expanded ? "Replier l'exercice" : "Déplier l'exercice")
+
+                            if expanded {
+                                Divider().padding(.vertical, 15)
+                                HStack(spacing: 8) {
+                                    PacePill(label: ex.isTimed ? "Temps" : "Répétitions",
+                                             symbol: ex.isTimed ? "timer" : "number")
+                                    PacePill(label: "Repos \(Int(ex.rest)) s", symbol: "clock")
+                                }
+                                .padding(.bottom, 12)
+                                Text(ex.tips)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.bottom, 13)
+                                ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
+                                    PaceStrengthSetRow(dayDate: day.date, exercise: ex,
+                                                       setNumber: setNumber, focus: $focusedStrengthInput)
+                                        .padding(.bottom, 9)
+                                }
+                                DisclosureGroup("Variantes et progression") {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Plus facile : " + ex.easier)
+                                        Text("Plus difficile : " + ex.harder)
+                                    }
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                }
+                                .font(.footnote.weight(.medium))
+                                .tint(PaceColors.teal)
+                                .padding(.top, 4)
+                            }
                         }
                     }
                 }
@@ -286,6 +347,16 @@ struct DayDetailScreen: View {
             .tint(PaceColors.teal)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if expandedExerciseID == nil {
+                expandedExerciseID = exercises.first {
+                    strengthTracker.completedSets(day: day.date, exercise: $0) < $0.sets
+                }?.id
+            }
+        }
+        .onChange(of: exerciseCompletionSignature) { old, new in
+            advanceAfterCompletion(from: old, to: new)
+        }
         .background {
             Color.clear.contentShape(Rectangle())
                 .onTapGesture { focusedStrengthInput = nil }
