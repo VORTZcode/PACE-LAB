@@ -306,50 +306,12 @@ struct DayDetailScreen: View {
 
                             if expanded {
                                 Divider().padding(.vertical, 12)
-                                HStack(spacing: 8) {
-                                    PacePill(label: ex.isTimed ? "Temps" : "Répétitions",
-                                             symbol: ex.isTimed ? "timer" : "number")
-                                    PacePill(label: "Repos \(Int(ex.rest)) s", symbol: "clock")
-                                }
-                                .padding(.bottom, 12)
                                 let technique = PaceMovementGuide.forExercise(ex)
-                                HStack(alignment: .top, spacing: 10) {
-                                    Image(systemName: "checkmark.seal")
-                                        .foregroundStyle(PaceColors.teal)
-                                    Text(technique.check)
-                                        .font(.subheadline)
-                                        .fixedSize(horizontal:false,vertical:true)
-                                }
-                                .padding(.bottom, 10)
-                                DisclosureGroup("Voir le mouvement et les erreurs à éviter") {
-                                    PaceExerciseCoaching(exercise: ex)
-                                        .padding(.top, 12)
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .tint(PaceColors.teal)
-                                .padding(.bottom, 14)
-                                if restExerciseID == ex.id, let end = restEnd {
-                                    PaceRestCountdown(end: end, seconds: Int(ex.rest),
-                                                      afterSet: restSetNumber ?? 0) {
-                                        restEnd = nil
-                                        restExerciseID = nil
-                                        restSetNumber = nil
-                                    }
-                                    .padding(.bottom,12)
-                                }
-                                DisclosureGroup("Consignes de la séance") {
-                                    VStack(alignment: .leading, spacing: 9) {
-                                        Text(day.instructions)
-                                        Text(day.intensity)
-                                            .foregroundStyle(PaceColors.teal)
-                                    }
-                                    .font(.footnote)
+                                Text(technique.check)
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                                    .padding(.top, 7)
-                                }
-                                .font(.caption.weight(.medium))
-                                .tint(PaceColors.teal)
-                                .padding(.bottom, 13)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.bottom, 18)
                                 HStack {
                                     Text("SÉRIES")
                                         .font(.caption2.weight(.bold))
@@ -371,6 +333,35 @@ struct DayDetailScreen: View {
                                                        })
                                         .padding(.bottom, 9)
                                 }
+                                if restExerciseID == ex.id, let end = restEnd {
+                                    PaceRestCountdown(end: end, seconds: Int(ex.rest),
+                                                      afterSet: restSetNumber ?? 0) {
+                                        restEnd = nil
+                                        restExerciseID = nil
+                                        restSetNumber = nil
+                                    }
+                                    .padding(.top, 12)
+                                }
+                                DisclosureGroup("Technique et démonstration") {
+                                    PaceExerciseCoaching(exercise: ex)
+                                        .padding(.top, 12)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .tint(PaceColors.teal)
+                                .padding(.top, 16)
+                                DisclosureGroup("Consignes et intensité") {
+                                    VStack(alignment: .leading, spacing: 9) {
+                                        Text(day.instructions)
+                                        Text(day.intensity)
+                                        PaceStrengthIntensityGuide()
+                                    }
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                }
+                                .font(.footnote.weight(.medium))
+                                .tint(PaceColors.teal)
+                                .padding(.top, 10)
                                 DisclosureGroup("Variantes et progression") {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text("Plus facile : " + ex.easier)
@@ -506,69 +497,49 @@ private struct PaceStrengthSetRow: View {
     private var completed: Bool { entry.completed }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 12) {
-                Text(String(format: "%02d", setNumber))
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(completed ? .white : PaceColors.teal)
-                    .frame(width: 44, height: 44)
-                    .background(completed ? PaceColors.teal : PaceColors.teal.opacity(0.10),
-                                in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Série \(setNumber)")
-                        .font(.subheadline.weight(.semibold))
-                    Text(completed ? "Terminée" : "À réaliser")
-                        .font(.caption)
-                        .foregroundStyle(completed ? PaceColors.teal : .secondary)
-                }
-                Spacer(minLength: 8)
-                Button {
-                    focus.wrappedValue = nil
-                    let next = !completed
-                    tracker.setCompleted(next, day: dayDate,
-                                         exerciseID: exercise.id, set: setNumber)
-                    didToggle(next)
-                } label: {
-                    Label(completed ? "Terminée" : "Terminer",
-                          systemImage: completed ? "checkmark.circle.fill" : "checkmark")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 44)
-                        .padding(.horizontal, 3)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(PaceColors.teal)
-                .accessibilityLabel("Série \(setNumber) : \(completed ? "validée, toucher pour annuler" : "toucher pour valider")")
-            }
+        HStack(alignment: .center, spacing: 10) {
+            Text(String(format: "%02d", setNumber))
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(completed ? PaceColors.teal : .secondary)
+                .frame(width: 30)
 
-            HStack(alignment: .top, spacing: 12) {
-                inputField(title: exercise.metricLabel,
-                           placeholder: exercise.reps,
-                           text: $repetitionsText,
-                           kind: .repetitions(exercise.id, setNumber),
-                           keyboard: .numberPad,
-                           accessibility: exercise.isTimed
-                               ? "Durée réalisée en secondes, série \(setNumber)"
-                               : "Répétitions réalisées, série \(setNumber)")
-                if exercise.tracksLoad {
-                    inputField(title: "Charge (kg)",
-                               placeholder: "—",
-                               text: $loadText,
-                               kind: .load(exercise.id, setNumber),
-                               keyboard: .decimalPad,
-                               accessibility: "Charge utilisée en kilogrammes, série \(setNumber)")
-                }
+            inputField(title: exercise.isTimed ? "SECONDES" : "RÉPÉTITIONS",
+                       placeholder: exercise.reps,
+                       text: $repetitionsText,
+                       kind: .repetitions(exercise.id, setNumber),
+                       keyboard: .numberPad,
+                       accessibility: exercise.isTimed
+                           ? "Durée en secondes, série \(setNumber)"
+                           : "Répétitions, série \(setNumber)")
+            if exercise.tracksLoad {
+                inputField(title: "KG",
+                           placeholder: "—",
+                           text: $loadText,
+                           kind: .load(exercise.id, setNumber),
+                           keyboard: .decimalPad,
+                           accessibility: "Charge en kilogrammes, série \(setNumber)")
             }
+            Button {
+                focus.wrappedValue = nil
+                let next = !completed
+                tracker.setCompleted(next, day: dayDate,
+                                     exerciseID: exercise.id, set: setNumber)
+                didToggle(next)
+            } label: {
+                Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 29, weight: .light))
+                    .foregroundStyle(completed ? PaceColors.teal : .secondary)
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Série \(setNumber) : \(completed ? "validée, toucher pour annuler" : "toucher pour valider")")
         }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(completed ? PaceColors.teal.opacity(0.06) : PaceColors.surface,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(completed ? PaceColors.teal.opacity(0.35) : PaceColors.teal.opacity(0.10),
-                              lineWidth: 1)
-        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 5)
+        .background(completed ? PaceColors.teal.opacity(0.045) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 12))
         .onAppear {
             repetitionsText = entry.repetitions
             loadText = entry.weightKg
@@ -588,7 +559,8 @@ private struct PaceStrengthSetRow: View {
                             keyboard: UIKeyboardType, accessibility: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title)
-                .font(.caption.weight(.medium))
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.5)
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: text)
                 .keyboardType(keyboard)
@@ -596,9 +568,9 @@ private struct PaceStrengthSetRow: View {
                 .autocorrectionDisabled()
                 .font(.system(.title3, design: .rounded, weight: .semibold))
                 .monospacedDigit()
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .padding(.horizontal, 12)
-                .background(PaceColors.surface,
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .padding(.horizontal, 9)
+                .background(PaceColors.base.opacity(0.65),
                             in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
