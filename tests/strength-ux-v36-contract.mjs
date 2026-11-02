@@ -12,7 +12,7 @@ for (const token of [
   '@State private var loadText = ""',
   '.frame(maxWidth: .infinity, minHeight: 52)',
   'VStack(alignment: .leading, spacing: 13)',
-  'title: "Répétitions"',
+  'title: exercise.metricLabel',
   'title: "Charge (kg)"',
   '.onChange(of: repetitionsText)',
   '.onChange(of: loadText)',
