@@ -70,6 +70,34 @@ struct PaceStrengthSet: Codable, Equatable {
         update(day: day, exerciseID: exerciseID, set: set) { $0.weightKg = filtered }
     }
 
+    /// Optional, user-authorized coach context. No inferred Apple Watch repetitions.
+    func coachSummary(library: PaceLibrary) -> String {
+        var items: [String] = []
+        for day in library.currentPlan.filter({ $0.type == "Musculation" }).suffix(7) {
+            for exercise in library.programme.force.filter({ $0.day == day.day }) {
+                for index in 0..<max(0, exercise.sets) {
+                    let number = index + 1
+                    let value = entry(day: day.date, exerciseID: exercise.id, set: number)
+                    guard value.completed || !value.repetitions.isEmpty ||
+                          !value.weightKg.isEmpty else { continue }
+                    let unit = exercise.isTimed ? "secondes" : "répétitions"
+                    let measure = value.repetitions.isEmpty
+                        ? "valeur non renseignée" : "\(value.repetitions) \(unit)"
+                    let load = exercise.tracksLoad && !value.weightKg.isEmpty
+                        ? ", charge \(value.weightKg) kg" : ""
+                    let status = value.completed ? "validée" : "non validée"
+                    items.append("\(day.date), \(exercise.name), série \(number) : \(measure)\(load) (\(status))")
+                    if items.count >= 60 { break }
+                }
+                if items.count >= 60 { break }
+            }
+            if items.count >= 60 { break }
+        }
+        guard !items.isEmpty else { return "Aucune série de musculation saisie manuellement dans le programme actuel." }
+        return (["HISTORIQUE DE MUSCULATION SAISI PAR L'UTILISATEUR (pas mesuré par l'Apple Watch).",
+                 "Les exercices chronométrés sont exprimés en secondes, jamais en répétitions ; ne pas inventer de charge absente."] + items).joined(separator: "\n")
+    }
+
     private func key(day: String, exerciseID: String, set: Int) -> String {
         "\(day)|\(exerciseID)|\(set)"
     }
