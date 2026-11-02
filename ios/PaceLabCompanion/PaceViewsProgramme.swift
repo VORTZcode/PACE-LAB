@@ -139,6 +139,7 @@ struct DayDetailScreen: View {
     let day: PaceDay
     @State private var showVariants = false
     @State private var confirmFinish = false
+    @FocusState private var focusedStrengthInput: PaceStrengthInput?
 
     private var exercises: [PaceExercise] {
         guard library.activeCoachDraft == nil else { return [] }
@@ -225,7 +226,8 @@ struct DayDetailScreen: View {
                             }
                             .padding(.top, 2)
                             ForEach(1...max(ex.sets, 1), id: \.self) { index in
-                                PaceStrengthSetRow(dayDate: day.date, exercise: ex, setNumber: index)
+                                PaceStrengthSetRow(dayDate: day.date, exercise: ex,
+                                                   setNumber: index, focus: $focusedStrengthInput)
                             }
                             DisclosureGroup("Variantes & progression") {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -284,6 +286,19 @@ struct DayDetailScreen: View {
             .tint(PaceColors.teal)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .background {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { focusedStrengthInput = nil }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Terminé") { focusedStrengthInput = nil }
+                    .font(.body.weight(.semibold))
+                    .tint(PaceColors.teal)
+            }
+        }
         .confirmationDialog("Toutes les séries ne sont pas cochées.",
                             isPresented: $confirmFinish, titleVisibility: .visible) {
             Button("Terminer la séance malgré tout") {
@@ -296,74 +311,120 @@ struct DayDetailScreen: View {
     }
 }
 
+private enum PaceStrengthInput: Hashable {
+    case repetitions(String, Int)
+    case load(String, Int)
+}
+
+/// Dedicated full-width inputs prevent accidental taps on adjacent controls.
+/// Local editing state keeps the keyboard focused while the private store saves each keystroke.
 private struct PaceStrengthSetRow: View {
     @EnvironmentObject private var tracker: PaceStrengthTracker
     let dayDate: String
     let exercise: PaceExercise
     let setNumber: Int
+    let focus: FocusState<PaceStrengthInput?>.Binding
+    @State private var repetitionsText = ""
+    @State private var loadText = ""
 
     private var entry: PaceStrengthSet {
         tracker.entry(day: dayDate, exerciseID: exercise.id, set: setNumber)
     }
+    private var completed: Bool { entry.completed }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                tracker.setCompleted(!entry.completed, day: dayDate,
-                                     exerciseID: exercise.id, set: setNumber)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: entry.completed ? "checkmark.circle.fill" : "circle")
-                        .font(.title2)
-                        .foregroundStyle(entry.completed ? PaceColors.teal : .secondary)
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Série \(setNumber)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(entry.completed ? PaceColors.teal : .primary)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                    if completed {
+                        Text("Enregistrée")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(PaceColors.teal)
+                    }
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                Spacer(minLength: 10)
+                Button {
+                    focus.wrappedValue = nil
+                    tracker.setCompleted(!completed, day: dayDate,
+                                         exerciseID: exercise.id, set: setNumber)
+                } label: {
+                    Label(completed ? "Validée" : "Valider",
+                          systemImage: completed ? "checkmark.circle.fill" : "circle")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(PaceColors.teal)
+                .accessibilityLabel("Série \(setNumber) : \(completed ? "validée, toucher pour annuler" : "toucher pour valider")")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Série \(setNumber), \(entry.completed ? "validée" : "à réaliser")")
-            .accessibilityHint("Appuyer pour changer l'état de la série")
 
-            Spacer(minLength: 2)
-            VStack(spacing: 3) {
-                Text("Rép.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                TextField(exercise.reps, text: Binding(
-                    get: { entry.repetitions },
-                    set: { tracker.setRepetitions($0, day: dayDate,
-                                                   exerciseID: exercise.id, set: setNumber) }
-                ))
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .font(.subheadline.monospacedDigit())
-                .frame(width: 54, height: 35)
-                .background(PaceColors.base, in: RoundedRectangle(cornerRadius: 9))
-                .accessibilityLabel("Répétitions réalisées, série \(setNumber)")
-            }
-            VStack(spacing: 3) {
-                Text("Charge (kg)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                TextField("—", text: Binding(
-                    get: { entry.weightKg },
-                    set: { tracker.setWeight($0, day: dayDate,
-                                              exerciseID: exercise.id, set: setNumber) }
-                ))
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.center)
-                .font(.subheadline.monospacedDigit())
-                .frame(width: 66, height: 35)
-                .background(PaceColors.base, in: RoundedRectangle(cornerRadius: 9))
-                .accessibilityLabel("Charge utilisée en kilogrammes, série \(setNumber)")
+            HStack(alignment: .top, spacing: 12) {
+                inputField(title: "Répétitions",
+                           placeholder: exercise.reps,
+                           text: $repetitionsText,
+                           kind: .repetitions(exercise.id, setNumber),
+                           keyboard: .numberPad,
+                           accessibility: "Répétitions réalisées, série \(setNumber)")
+                inputField(title: "Charge (kg)",
+                           placeholder: "—",
+                           text: $loadText,
+                           kind: .load(exercise.id, setNumber),
+                           keyboard: .decimalPad,
+                           accessibility: "Charge utilisée en kilogrammes, série \(setNumber)")
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(entry.completed ? PaceColors.teal.opacity(0.08) : PaceColors.base.opacity(0.52),
-                    in: RoundedRectangle(cornerRadius: 13))
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(completed ? PaceColors.teal.opacity(0.08) : PaceColors.base.opacity(0.7),
+                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(completed ? PaceColors.teal.opacity(0.22) : PaceColors.teal.opacity(0.07),
+                              lineWidth: 1)
+        }
+        .onAppear {
+            repetitionsText = entry.repetitions
+            loadText = entry.weightKg
+        }
+        .onChange(of: repetitionsText) { _, newValue in
+            tracker.setRepetitions(newValue, day: dayDate,
+                                   exerciseID: exercise.id, set: setNumber)
+        }
+        .onChange(of: loadText) { _, newValue in
+            tracker.setWeight(newValue, day: dayDate,
+                              exerciseID: exercise.id, set: setNumber)
+        }
+    }
+
+    private func inputField(title: String, placeholder: String,
+                            text: Binding<String>, kind: PaceStrengthInput,
+                            keyboard: UIKeyboardType, accessibility: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField(placeholder, text: text)
+                .keyboardType(keyboard)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.title3, design: .rounded, weight: .semibold))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .padding(.horizontal, 12)
+                .background(PaceColors.surface,
+                            in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .strokeBorder(focus.wrappedValue == kind ?
+                                      PaceColors.teal.opacity(0.75) : .clear, lineWidth: 1.5)
+                }
+                .focused(focus, equals: kind)
+                .accessibilityLabel(accessibility)
+                .submitLabel(.done)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
