@@ -189,37 +189,72 @@ struct PaceExerciseVisual: View {
                         hip=p(0.56,0.61);knee=p(0.63,0.74);ankle=p(0.75,0.90)
                     }
                 }
-                func segment(_ a:CGPoint,_ b:CGPoint, width:CGFloat=7, color:Color = .primary) {
+                // Layered anatomical silhouette: broad torso and tapered limbs, with
+                // rounded joints, subtle highlights and turquoise activated muscles.
+                // Keeps the vectors offline, scale-independent and consistent in light/dark.
+                let silhouette = Color(red:0.30,green:0.38,blue:0.43)
+                let muscle = PaceColors.teal
+                func bone(_ a:CGPoint,_ b:CGPoint,width:CGFloat=14, tint:Color=silhouette) {
                     var path=Path();path.move(to:a);path.addLine(to:b)
-                    context.stroke(path,with:.color(color.opacity(0.83)),style:StrokeStyle(lineWidth:width,lineCap:.round,lineJoin:.round))
+                    context.stroke(path,with:.color(tint),
+                                   style:StrokeStyle(lineWidth:width,lineCap:.round,lineJoin:.round))
+                    var accent=Path();accent.move(to:CGPoint(x:a.x-1,y:a.y-1))
+                    accent.addLine(to:CGPoint(x:b.x-1,y:b.y-1))
+                    context.stroke(accent,with:.color(.white.opacity(0.13)),
+                                   style:StrokeStyle(lineWidth:max(1,width*0.16),lineCap:.round))
                 }
-                segment(shoulder,hip,width:9)
-                segment(hip,knee);segment(knee,ankle)
-                segment(hip,farKnee,width:5,color:.secondary);segment(farKnee,farAnkle,width:5,color:.secondary)
-                segment(shoulder,elbow);segment(elbow,hand)
+                // Back leg and support arm are intentionally subdued for depth.
+                bone(hip,farKnee,width:13,tint:silhouette.opacity(0.58))
+                bone(farKnee,farAnkle,width:11,tint:silhouette.opacity(0.58))
                 if !(plank || row || ground) {
-                    segment(shoulder,p(0.36,0.47),width:5,color:.secondary)
-                    segment(p(0.36,0.47),p(0.38,0.60),width:5,color:.secondary)
+                    bone(shoulder,p(0.36,0.47),width:11,tint:silhouette.opacity(0.65))
+                    bone(p(0.36,0.47),p(0.38,0.60),width:10,tint:silhouette.opacity(0.65))
                 }
-                context.fill(Path(ellipseIn:CGRect(x:head.x-size.width*0.065,y:head.y-size.width*0.065,
-                                                     width:size.width*0.13,height:size.width*0.13)),
-                             with:.color(.primary.opacity(0.88)))
+                bone(shoulder,hip,width:23,tint:silhouette)
+                bone(hip,knee,width:17,tint:silhouette)
+                bone(knee,ankle,width:12,tint:silhouette)
+                bone(shoulder,elbow,width:14,tint:silhouette)
+                bone(elbow,hand,width:11,tint:silhouette)
+                // Principal contracted area; a visual cue, not an anatomical heat map.
+                if row || figure == "bridge" || figure == "squat" || figure == "plank" {
+                    bone(p((shoulder.x+hip.x)/(2*size.width),
+                           (shoulder.y+hip.y)/(2*size.height)),
+                         p((shoulder.x+hip.x)/(2*size.width)+0.02,
+                           (shoulder.y+hip.y)/(2*size.height)+0.09),
+                         width:11,tint:muscle.opacity(0.82))
+                }
+                let neck = p(head.x/size.width,head.y/size.height+0.055)
+                bone(neck,shoulder,width:9,tint:silhouette)
+                let headRect=CGRect(x:head.x-size.width*0.07,y:head.y-size.width*0.07,
+                                    width:size.width*0.14,height:size.width*0.17)
+                context.fill(Path(ellipseIn:headRect),with:.color(silhouette))
+                context.stroke(Path(ellipseIn:headRect.insetBy(dx:2,dy:2)),
+                               with:.color(.white.opacity(0.18)),lineWidth:1)
                 let dumbbell = ["row","press","overhead","carry","hinge","squat"].contains(figure)
                 if dumbbell {
                     let weight=p(hand.x/size.width, min(0.91,hand.y/size.height+0.02))
-                    segment(p(weight.x/size.width-0.08,weight.y/size.height),
-                            p(weight.x/size.width+0.08,weight.y/size.height),width:5,color:PaceColors.teal)
+                    bone(p(weight.x/size.width-0.08,weight.y/size.height),
+                            p(weight.x/size.width+0.08,weight.y/size.height),width:5,tint:PaceColors.teal)
                 }
                 let y = size.height*0.95
-                segment(p(0.10,y/size.height),p(0.90,y/size.height),width:1,color:.secondary)
+                bone(p(0.10,y/size.height),p(0.90,y/size.height),width:1,tint:.secondary)
             }
-            .frame(height: 116)
+            .frame(height: 165)
             .padding(.horizontal, 5)
             Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
         }
         .frame(maxWidth:.infinity)
         .padding(.vertical,9)
-        .background(PaceColors.teal.opacity(0.05),in:RoundedRectangle(cornerRadius:16))
+        .background {
+            RoundedRectangle(cornerRadius:18)
+                .fill(LinearGradient(colors:[PaceColors.teal.opacity(0.13),
+                                             PaceColors.teal.opacity(0.025)],
+                                     startPoint:.topLeading,endPoint:.bottomTrailing))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius:18)
+                .strokeBorder(PaceColors.teal.opacity(0.14),lineWidth:1)
+        }
     }
 }
 

@@ -45,6 +45,20 @@ struct PaceEffortGuide: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
+                if isRun {
+                    VStack(alignment:.leading,spacing:12) {
+                        Text("Tes repères pour cette sortie")
+                            .font(.subheadline.weight(.semibold))
+                        HStack(spacing:10) {
+                            reference("Fréquence cardiaque", value: "135–150", unit: "bpm", icon:"heart")
+                            reference("Allure de départ", value:"8’35–9’15",unit:"min/km",icon:"speedometer")
+                        }
+                        Text("Repères de départ estimatifs, pas des zones individualisées par test physiologique. Ta capacité à parler et ton confort respiratoire priment sur les chiffres.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Label("Si la FC dépasse durablement 150–155 bpm avec essoufflement : ralentis ou marche 30 à 60 s. N'accélère pas artificiellement pour atteindre la zone.",systemImage:"heart.text.square")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 Divider()
                 Text("Comment se déroule la séance")
                     .font(.subheadline.weight(.semibold))
@@ -102,6 +116,24 @@ struct PaceEffortGuide: View {
                 }
             }
         }
+    }
+
+    private func reference(_ title:String,value:String,unit:String,icon:String) -> some View {
+        VStack(alignment:.leading,spacing:8) {
+            Label(title,systemImage:icon)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Text(value)
+                .font(.system(.title3,design:.rounded,weight:.semibold))
+                .monospacedDigit()
+                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+            Text(unit).font(.caption).foregroundStyle(PaceColors.teal)
+        }
+        .frame(maxWidth:.infinity,alignment:.leading)
+        .padding(13)
+        .background(PaceColors.teal.opacity(0.075),in:RoundedRectangle(cornerRadius:15))
     }
 
     private func step(_ number:Int,_ title:String,_ detail:String) -> some View {
