@@ -118,7 +118,9 @@
       "rir": 3,
       "tips": "Pieds stables, genoux alignés, amplitudes sans douleur.",
       "easier": "Squat assis-debout depuis une chaise.",
-      "harder": "Pause 2 s en bas puis descente plus lente."
+      "harder": "Pause 2 s en bas puis descente plus lente.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Lundi",
@@ -131,7 +133,9 @@
       "rir": 2,
       "tips": "Dos neutre; main libre appuyée sur table très stable.",
       "easier": "Diminuer l'amplitude, réduire la charge si réglable.",
-      "harder": "Marquer 2 s de contraction en haut."
+      "harder": "Marquer 2 s de contraction en haut.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Lundi",
@@ -144,7 +148,9 @@
       "rir": 2,
       "tips": "Avant-bras vertical; dos posé, ne pas cambrer fort.",
       "easier": "Pompes inclinées sur plan stable.",
-      "harder": "Pause basse 2 s si charge légère."
+      "harder": "Pause basse 2 s si charge légère.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Lundi",
@@ -157,7 +163,9 @@
       "rir": 3,
       "tips": "Haltère calé sur le bassin, nuque au sol.",
       "easier": "Sans haltère.",
-      "harder": "Une jambe après maîtrise, sans douleur."
+      "harder": "Une jambe après maîtrise, sans douleur.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Lundi",
@@ -170,7 +178,9 @@
       "rir": 3,
       "tips": "Abdos gainés, respiration régulière, bassin neutre.",
       "easier": "Avant-bras sur table stable.",
-      "harder": "Allonger jusqu'à 45–60 s sans creuser."
+      "harder": "Allonger jusqu'à 45–60 s sans creuser.",
+      "measurement_unit": "seconds",
+      "load_expected": false
     },
     {
       "day": "Lundi",
@@ -183,7 +193,9 @@
       "rir": 3,
       "tips": "Sur sol plat; montée et descente contrôlées.",
       "easier": "Amplitude réduite si tendon sensible.",
-      "harder": "Rajouter l'haltère si aucune réaction sous 24 h."
+      "harder": "Rajouter l'haltère si aucune réaction sous 24 h.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Mercredi",
@@ -196,7 +208,9 @@
       "rir": 3,
       "tips": "Se tenir à un support; genou stable, amplitude tolérée.",
       "easier": "Fente statique raccourcie ou squat chaise.",
-      "harder": "Augmenter lentement amplitude puis charge."
+      "harder": "Augmenter lentement amplitude puis charge.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Mercredi",
@@ -209,7 +223,9 @@
       "rir": 2,
       "tips": "Gainage solide, ne pas forcer au-dessus de la tête si douleur.",
       "easier": "Élévation frontale légère ou pompe inclinée.",
-      "harder": "Marquer 1 s bras tendu, sans cambrer."
+      "harder": "Marquer 1 s bras tendu, sans cambrer.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Mercredi",
@@ -222,7 +238,9 @@
       "rir": 3,
       "tips": "Hanches en arrière, dos neutre, charge proche du corps.",
       "easier": "Charnière hanches à vide.",
-      "harder": "Unilatéral assisté, uniquement si stable."
+      "harder": "Unilatéral assisté, uniquement si stable.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Mercredi",
@@ -235,7 +253,9 @@
       "rir": 2,
       "tips": "Mains sur meuble SOLIDE, corps aligné.",
       "easier": "Mur, angle plus vertical.",
-      "harder": "Diminuer l'inclinaison au fil des semaines."
+      "harder": "Diminuer l'inclinaison au fil des semaines.",
+      "measurement_unit": "repetitions",
+      "load_expected": false
     },
     {
       "day": "Mercredi",
@@ -248,7 +268,9 @@
       "rir": 3,
       "tips": "Bas du dos stable, bras/jambes alternés.",
       "easier": "Bouger seulement les jambes.",
-      "harder": "Allonger levier bras-jambes."
+      "harder": "Allonger levier bras-jambes.",
+      "measurement_unit": "repetitions",
+      "load_expected": false
     },
     {
       "day": "Mercredi",
@@ -261,7 +283,9 @@
       "rir": 3,
       "tips": "Coude sous épaule et bassin aligné.",
       "easier": "Genoux au sol.",
-      "harder": "Jambes tendues, durée plus longue."
+      "harder": "Jambes tendues, durée plus longue.",
+      "measurement_unit": "seconds",
+      "load_expected": false
     },
     {
       "day": "Vendredi",
@@ -274,7 +298,9 @@
       "rir": 3,
       "tips": "Toucher la chaise sans s'écraser; dos neutre.",
       "easier": "Sans haltère, chaise plus haute.",
-      "harder": "Descendre plus bas ou ralentir."
+      "harder": "Descendre plus bas ou ralentir.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Vendredi",
@@ -287,7 +313,9 @@
       "rir": 2,
       "tips": "Traction vers la hanche, garder épaules basses.",
       "easier": "2 séries au lieu de 3 si courbatures.",
-      "harder": "Pause 2 s en haut."
+      "harder": "Pause 2 s en haut.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Vendredi",
@@ -300,7 +328,9 @@
       "rir": 2,
       "tips": "Support immobile, amplitude confortable.",
       "easier": "Pompes au mur.",
-      "harder": "Abaisser l'appui."
+      "harder": "Abaisser l'appui.",
+      "measurement_unit": "repetitions",
+      "load_expected": false
     },
     {
       "day": "Vendredi",
@@ -313,7 +343,9 @@
       "rir": 3,
       "tips": "Hanches reculent; jambes légèrement fléchies.",
       "easier": "Mouvement à vide.",
-      "harder": "Augmenter amplitude sous contrôle."
+      "harder": "Augmenter amplitude sous contrôle.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     },
     {
       "day": "Vendredi",
@@ -326,7 +358,9 @@
       "rir": 3,
       "tips": "Marcher lentement, buste vertical; espace dégagé.",
       "easier": "Tenue statique debout 20 s.",
-      "harder": "Augmenter durée à 45–60 s."
+      "harder": "Augmenter durée à 45–60 s.",
+      "measurement_unit": "seconds",
+      "load_expected": true
     },
     {
       "day": "Vendredi",
@@ -339,7 +373,9 @@
       "rir": 3,
       "tips": "Sol plat; sans ressort ni impulsion.",
       "easier": "Isométrique 20 s indolore.",
-      "harder": "Ajouter l'haltère si tendons sereins."
+      "harder": "Ajouter l'haltère si tendons sereins.",
+      "measurement_unit": "repetitions",
+      "load_expected": true
     }
   ],
   "recipes": [
