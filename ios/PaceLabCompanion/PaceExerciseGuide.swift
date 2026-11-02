@@ -135,9 +135,9 @@ struct PaceExerciseVisual: View {
 
     var body: some View {
         if supported.contains(figure) {
-            HStack(alignment: .top, spacing: 12) {
-                pose("Start", title: "Départ")
-                pose("End", title: "Fin du mouvement")
+            HStack(alignment: .top, spacing: 8) {
+                pose("Start", title: "01 · Départ")
+                pose("End", title: "02 · Arrivée")
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Photographies de démonstration : position de départ et position d’arrivée. Les consignes écrites précisent la technique.")
@@ -153,9 +153,9 @@ struct PaceExerciseVisual: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
-                .frame(height: 178)
-                .background(.white, in: RoundedRectangle(cornerRadius: 13))
-                .clipShape(RoundedRectangle(cornerRadius: 13))
+                .frame(height: 205)
+                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)

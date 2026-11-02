@@ -460,12 +460,23 @@ struct DayDetailScreen: View {
                                 }
                                 Spacer(minLength: 0)
                             }
+                            HStack {
+                                Label(PaceMovementGuide.forExercise(ex).focus, systemImage: "figure.strengthtraining.functional")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(PaceColors.teal)
+                                Spacer()
+                            }
+                            .padding(.vertical, 5)
                             PaceExerciseVisual(figure: PaceMovementGuide.forExercise(ex).figure)
-                            VStack(alignment: .leading, spacing: 9) {
+                            HStack {
                                 Text("Séries")
-                                    .font(.title2.weight(.bold))
-                                Text("Répétitions et charge réelles, puis coche pour valider.")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                                Spacer()
+                                Text("\(strengthTracker.completedSets(day: day.date, exercise: ex))/\(ex.sets) terminées")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(PaceColors.teal)
+                            }
+                            VStack(alignment: .leading, spacing: 9) {
                                 ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
                                     PaceStrengthSetRow(dayDate: day.date, exercise: ex,
                                                        setNumber: setNumber, focus: $focusedStrengthInput,
@@ -478,11 +489,16 @@ struct DayDetailScreen: View {
                                     }
                                 }
                             }
-                            .padding(16)
-                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22))
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 7)
+                            .background(PaceColors.surface.opacity(0.65),
+                                        in: RoundedRectangle(cornerRadius: 18))
                             DisclosureGroup("Exécution et technique") {
                                 PaceExerciseCoaching(exercise: ex).padding(.top, 10)
                             }
+                            .font(.subheadline.weight(.semibold))
+                            .padding(15)
+                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 17))
                             .tint(PaceColors.teal)
                             DisclosureGroup("Variantes et progression") {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -491,9 +507,13 @@ struct DayDetailScreen: View {
                                 }
                                 .font(.subheadline).padding(.top, 8)
                             }
+                            .font(.subheadline.weight(.semibold))
+                            .padding(15)
+                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 17))
                             .tint(PaceColors.teal)
                         }
-                        .padding(20)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                     .background(PaceColors.base.ignoresSafeArea())
                     .safeAreaInset(edge: .bottom, spacing: 0) {
