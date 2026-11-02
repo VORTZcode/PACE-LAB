@@ -80,12 +80,21 @@ enum PaceEvidenceEngine {
         let runs = plan.training.filter { $0.type == "Course" }
         if runs.isEmpty { concerns.append("Aucune course planifiée malgré l’objectif de course.") }
         if let profile {
-            if runs.count > profile.preferredRunsPerWeek + 1 {
-                concerns.append("Le nombre de courses dépasse fortement la fréquence souhaitée dans le profil confirmé.")
+            if runs.count > profile.preferredRunsPerWeek {
+                concerns.append("Le nombre de courses dépasse la fréquence confirmée : aucune séance supplémentaire ne doit être imposée.")
             }
-            if profile.preferredStrengthPerWeek > 0 &&
-               plan.training.filter({ $0.type == "Musculation" }).isEmpty {
-                concerns.append("Le programme a supprimé tout le renforcement malgré l’objectif de préserver le muscle.")
+            let strengthCount = plan.training.filter { $0.type == "Musculation" }.count
+            if strengthCount > profile.preferredStrengthPerWeek {
+                concerns.append("Le nombre de musculation dépasse la fréquence confirmée.")
+            }
+            if profile.preferredStrengthPerWeek > 0 && strengthCount == 0 {
+                concerns.append("Le programme a supprimé tout le renforcement malgré l'objectif de préserver le muscle.")
+            }
+            if runs.count < profile.preferredRunsPerWeek ||
+               strengthCount < profile.preferredStrengthPerWeek {
+                if (plan.adjustmentRationale ?? "").trimmingCharacters(in:.whitespacesAndNewlines).count < 55 {
+                    concerns.append("Une réduction des fréquences souhaitées doit être expliquée précisément avant adoption.")
+                }
             }
         }
         if runs.contains(where:{ $0.plannedDistanceKm == nil || ($0.plannedDistanceKm ?? 0) <= 0 }) {
@@ -112,7 +121,9 @@ enum PaceEvidenceEngine {
             }
         }
         let intenseCount = runs.filter { $0.effortCategory == "intense" }.count
-        if intenseCount > 1 && baseline.runCount28Days < 12 {
+        if intenseCount > 1 && runs.count <= 3 {
+            concerns.append("Une semaine de trois courses ou moins ne doit pas concentrer plusieurs séances très intenses.")
+        } else if intenseCount > 1 && baseline.runCount28Days < 12 {
             concerns.append("Plus d’une séance de course intense proposée avec un historique récent limité.")
         }
         if baseline.dataQuality == "Insuffisante" && intenseCount > 0 {

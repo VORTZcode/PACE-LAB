@@ -57,6 +57,7 @@ struct PaceLabCompanionApp: App {
             .onReceive(engine.$revision) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.detectNewWorkout(engine:engine)
+                coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
@@ -70,16 +71,19 @@ struct PaceLabCompanionApp: App {
             .onReceive(journal.$notes) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
+                coach.refreshAcceptedPlans(engine:engine,journal:journal)
             }
             .onAppear {
                 guard !hasLoaded else { return }
                 hasLoaded = true
                 engine.startObservers()
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
+                coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
+                coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
             }
         }

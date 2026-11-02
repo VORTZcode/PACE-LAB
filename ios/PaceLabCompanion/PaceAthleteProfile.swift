@@ -22,7 +22,7 @@ struct PaceAthleteProfile: Codable, Equatable {
             nutritionPreferences: "Deux repas principaux (midi et soir), quantités de féculents indiquées crues, éviter le poisson cuit.",
             injuryAndReadinessNotes: "",
             preferredRunsPerWeek: 3,
-            preferredStrengthPerWeek: 3,
+            preferredStrengthPerWeek: 2,
             createdAt: .now
         )
     }
@@ -150,7 +150,7 @@ struct PaceAthleteProfileScreen: View {
                             value:$draft.preferredRunsPerWeek,in:1...6)
                     Stepper("Musculation : \(draft.preferredStrengthPerWeek) / semaine",
                             value:$draft.preferredStrengthPerWeek,in:0...5)
-                    Text("Le programme initial prévoit 3 courses, 3 séances de musculation et une journée de récupération. Ces chiffres sont des préférences modifiables, pas un engagement.")
+                    Text("Rythme suggéré : 3 courses, 2 séances de musculation et des journées de récupération. Modifier les fréquences ici ne remplace jamais un programme déjà accepté.")
                         .font(.footnote).foregroundStyle(.secondary)
                     expandedField("Matériel et contraintes",text:$draft.trainingConstraints,
                                   placeholder:"Matériel, horaires, séances possibles",

@@ -145,11 +145,44 @@ extension PaceAIMeal {
     }
 }
 
+/// Persists user-approved coach plans for a measured review after their seven days.
+struct PaceAcceptedPlanRecord: Codable, Identifiable {
+    let id: UUID
+    let acceptedAt: Date
+    let start: Date
+    let endExclusive: Date
+    let plannedRuns: Int
+    let plannedStrength: Int
+    let plannedKm: Double
+    let baseline28Km: Double
+    var observedRuns: Int?
+    var observedKm: Double?
+    var observedFeedback: Int?
+    var reviewedAt: Date?
+
+    var summary: String {
+        if let observedRuns, let observedKm {
+            return "\(observedRuns)/\(plannedRuns) courses enregistrées · " +
+                "\(String(format: "%.1f", observedKm))/\(String(format: "%.1f", plannedKm)) km prévus."
+        }
+        return "Semaine acceptée : bilan à compléter après les sept jours."
+    }
+
+    var promptContext: String {
+        "PLAN VALIDÉ PAR L'ATHLÈTE LE \(acceptedAt.formatted(date:.numeric,time:.omitted)) : " +
+        "volume prévu \(String(format: "%.1f", plannedKm)) km sur \(plannedRuns) courses, " +
+        "\(plannedStrength) séances de renforcement, référence 28j " +
+        "\(String(format: "%.1f", baseline28Km)) km. Observation après la semaine : \(summary) " +
+        "Ne pas déduire une performance ou un diagnostic d'une différence entre prévu et observé."
+    }
+}
+
 @MainActor final class PaceCoachEngine: ObservableObject {
     @Published var conversation: [PaceCoachMessage] = [] {
         didSet { saveConversation() }
     }
     @Published private(set) var evidenceConcerns: [String] = []
+    @Published private(set) var acceptedPlans: [PaceAcceptedPlanRecord] = []
     @Published var pending: PaceAICoachDraft?
     @Published private(set) var latestReport: PaceCoachSessionReport?
     @Published var focusWorkoutID: String?
@@ -188,6 +221,10 @@ extension PaceAIMeal {
         let directory = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
         return directory.appendingPathComponent("pace-coach-latest-report.json")
     }()
+    private let acceptedPlansURL: URL = {
+        FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
+            .appendingPathComponent("pace-coach-accepted-history.json")
+    }()
     private let storeKey = "pace.coach.pending"
     private let historyURL: URL = {
         let directory = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
@@ -209,6 +246,73 @@ extension PaceAIMeal {
         if let data = UserDefaults.standard.data(forKey:storeKey) {
             pending = try? JSONDecoder().decode(PaceAICoachDraft.self,from:data)
         }
+        if let data = try? Data(contentsOf:acceptedPlansURL) {
+            acceptedPlans = (try? JSONDecoder().decode([PaceAcceptedPlanRecord].self,from:data)) ?? []
+        }
+    }
+
+    /// No proposed plan becomes historical until explicitly accepted in the UI.
+    func recordAcceptedPlan(_ draft:PaceAICoachDraft,baseline:PaceTrainingEvidence) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier:"en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        let sorted = draft.training.sorted { $0.date < $1.date }
+        guard let first = sorted.first, let last = sorted.last,
+              let start = formatter.date(from:first.date),
+              let lastDay = formatter.date(from:last.date),
+              let end = Calendar.current.date(byAdding:.day,value:1,to:lastDay) else { return }
+        let runDays = sorted.filter { $0.type == "Course" }
+        let record = PaceAcceptedPlanRecord(
+            id:UUID(),acceptedAt:.now,start:start,endExclusive:end,
+            plannedRuns:runDays.count,
+            plannedStrength:sorted.filter { $0.type == "Musculation" }.count,
+            plannedKm:runDays.compactMap(\.plannedDistanceKm).reduce(0,+),
+            baseline28Km:baseline.distance28Days,
+            observedRuns:nil,observedKm:nil,observedFeedback:nil,reviewedAt:nil)
+        acceptedPlans.insert(record,at:0)
+        acceptedPlans = Array(acceptedPlans.prefix(12))
+        persistAcceptedPlans()
+    }
+
+    /// Observe, never rewrite: HealthKit entries can arrive after a plan finishes.
+    func refreshAcceptedPlans(engine:HealthSyncEngine,journal:PaceSessionJournal,now:Date = .now) {
+        guard !acceptedPlans.isEmpty else { return }
+        var changed = false
+        for index in acceptedPlans.indices {
+            let record = acceptedPlans[index]
+            guard now >= record.endExclusive,
+                  record.reviewedAt == nil || now.timeIntervalSince(record.reviewedAt!) >= 86400 else { continue }
+            let matching = engine.runHistory.filter {
+                $0.isRun && $0.startDate >= record.start && $0.startDate < record.endExclusive &&
+                $0.endDate <= now && $0.kilometers.isFinite && $0.kilometers > 0
+            }
+            // Without authorized HealthKit observations, absence is unknown, not zero effort.
+            guard !engine.runHistory.isEmpty else { continue }
+            let distinct = Dictionary(matching.map { ($0.source_uuid,$0) },
+                                      uniquingKeysWith:{ first,_ in first }).values
+            acceptedPlans[index].observedRuns = distinct.count
+            acceptedPlans[index].observedKm = distinct.reduce(0) { $0 + $1.kilometers }
+            acceptedPlans[index].observedFeedback = distinct.filter {
+                let note = journal.notes[$0.source_uuid]
+                return note?.effort != nil && note?.pain != nil
+            }.count
+            acceptedPlans[index].reviewedAt = now
+            changed = true
+        }
+        if changed { persistAcceptedPlans() }
+    }
+
+    private func persistAcceptedPlans() {
+        do {
+            let data = try JSONEncoder().encode(acceptedPlans)
+            try FileManager.default.createDirectory(at:acceptedPlansURL.deletingLastPathComponent(),
+                                                     withIntermediateDirectories:true)
+            try data.write(to:acceptedPlansURL,options:.atomic)
+            try FileManager.default.setAttributes(
+                [.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath:acceptedPlansURL.path)
+        } catch { self.error = "Impossible de sauvegarder l'historique local des plans." }
     }
 
     func selectedRun(engine:HealthSyncEngine) -> WorkoutPayload? {
@@ -239,6 +343,11 @@ extension PaceAIMeal {
         if shareRunSummaries {
             let sharedNotes = shareSessionNotes ? (journal?.notes ?? [:]) : [:]
             pieces.append(PaceLivingCoachRules.calculate(runs:engine.runHistory,notes:sharedNotes).promptContext)
+            pieces.append(PaceLongitudinalRules.calculate(runs:engine.runHistory,
+                notes:sharedNotes).promptContext)
+            if let historical = acceptedPlans.first {
+                pieces.append(historical.promptContext)
+            }
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
             if let run = selectedRun(engine:engine) {
@@ -322,9 +431,14 @@ extension PaceAIMeal {
         let instructions = """
         Tu es le coach sportif personnel de PACE LAB. Réponds en français.
         Tu proposes un projet de plan ; tu n'agis jamais sur l'application directement.
-        Utilise explicitement le profil confirmé si fourni, la charge observée sur 28 jours,
-        le nombre de courses, et la difficulté ressentie lorsque disponible.
+        Utilise explicitement le profil confirmé, le volume sur 28 jours, la tendance sur
+        56 jours uniquement si elle est exploitable, le nombre de courses et la difficulté
+        ressentie lorsqu'elle est effectivement renseignée. Ne déduis jamais un effort
+        facile uniquement à partir d'une allure ou d'une fréquence cardiaque isolée.
         Si le profil n'est pas confirmé, ne suppose pas connaître ses objectifs personnels.
+        Respecte les fréquences du profil confirmé (normalement 3 courses et 2 musculation
+        hebdomadaires). Ne propose pas davantage de séances que demandé ; si une gêne
+        justifie d'en proposer moins, explicite cette exception dans adjustmentRationale.
         Ne fabrique pas de puissance, de zones de fréquence cardiaque, de VMA ou d'allure seuil.
         Pour toute course : indique plannedDistanceKm (kilomètres réalistes) et effortCategory
         parmi facile/modéré/intense ; jamais plusieurs sorties intenses d'affilée.

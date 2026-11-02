@@ -153,6 +153,7 @@ struct PaceCoachScreen: View {
                     }
                     do {
                         try library.acceptCoachDraft(pending)
+                        coach.recordAcceptedPlan(pending,baseline:evidence)
                         coach.dismissPending()
                     } catch { coach.error = error.localizedDescription }
                 }
@@ -244,6 +245,21 @@ struct PaceCoachScreen: View {
                 Text(evidence.analysis)
                     .font(.footnote).foregroundStyle(.secondary)
                     .fixedSize(horizontal:false,vertical:true)
+                if let last = coach.acceptedPlans.first {
+                    Divider().opacity(0.35)
+                    Label("Suivi du dernier plan accepté", systemImage: "calendar.badge.clock")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
+                    Text(last.summary)
+                        .font(.subheadline)
+                    if last.reviewedAt != nil {
+                        Text("Bilan descriptif des courses trouvées dans Santé. Les écarts ne prouvent ni progression, ni échec du programme.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("PACE-LAB comparera le plan aux sorties enregistrées après sa semaine, sans modifier les séances.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 DisclosureGroup("Méthode et références") {
                     VStack(alignment:.leading,spacing:10) {
                         Text("Les propositions utilisent la fréquence, l'intensité, le volume récent, les objectifs confirmés et les limites des mesures. Aucun modèle ne peut garantir un résultat.")

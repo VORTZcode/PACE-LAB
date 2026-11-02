@@ -34,15 +34,11 @@ enum PaceLivingCoachRules {
                          evidence: [], uncertainty: "Aucune course exploitable reçue.",
                          sourceWorkoutID: nil)
         }
+        let longitudinal = PaceLongitudinalRules.calculate(runs: runs, notes: notes, now: now)
         let lastSeven = valid.filter { $0.startDate >= now.addingTimeInterval(-7 * 86400) }
         let lastTwentyEight = valid.filter { $0.startDate >= now.addingTimeInterval(-28 * 86400) }
-        let previousTwentyOne = valid.filter {
-            $0.startDate < now.addingTimeInterval(-7 * 86400) &&
-            $0.startDate >= now.addingTimeInterval(-28 * 86400)
-        }
         let weeklyKm = lastSeven.reduce(0.0) { $0 + $1.kilometers }
         let monthKm = lastTwentyEight.reduce(0.0) { $0 + $1.kilometers }
-        let baselineWeekly = previousTwentyOne.reduce(0.0) { $0 + $1.kilometers } / 3.0
         let format = { (value: Double) -> String in
             String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
         }
@@ -54,6 +50,7 @@ enum PaceLivingCoachRules {
         if completedStrengthSets > 0 {
             facts.append("\(completedStrengthSets) séries de renforcement validées sur les 7 derniers jours.")
         }
+        facts.append(contentsOf: longitudinal.evidence)
         let note = notes[last.source_uuid]
         let effort = note?.effort
         let pain = note?.pain
@@ -61,9 +58,9 @@ enum PaceLivingCoachRules {
         if let pain { facts.append("Gêne déclarée : \(pain)/10.") }
 
         let uncertainty = "RPE et gêne sont auto-déclarés. La montre ne mesure ni la douleur, ni la disponibilité à l'entraînement ; le volume ne suffit pas à estimer le risque de blessure."
-        if let pain, pain >= 4 {
+        if (longitudinal.recent7MaximumDiscomfort ?? -1) >= 4 {
             return .init(priority: .discomfort, headline: "Récupération à réévaluer",
-                         detail: "Une gêne significative a été déclarée. N'augmente pas la charge ; examine la prochaine séance et demande un avis médical si la douleur persiste ou est importante.",
+                         detail: "Une gêne significative a été déclarée au cours des 7 derniers jours. Ne force pas la progression ; réévalue la prochaine séance et demande un avis médical si la douleur persiste ou est importante.",
                          evidence: facts, uncertainty: uncertainty, sourceWorkoutID: last.source_uuid)
         }
         if effort == nil || pain == nil {
@@ -71,18 +68,20 @@ enum PaceLivingCoachRules {
                          detail: "Ajoute ton effort perçu et une éventuelle gêne après la dernière course. Ces informations changent l'interprétation des données de ta montre.",
                          evidence: facts, uncertainty: uncertainty, sourceWorkoutID: last.source_uuid)
         }
+        if longitudinal.recent7HighEffort >= 2 {
+            return .init(priority: .review, headline: "Plusieurs séances exigeantes",
+                         detail: "Au moins deux courses ont été déclarées très difficiles sur les 7 derniers jours. Vérifie la récupération et conserve la charge actuelle avant toute progression.",
+                         evidence: facts, uncertainty: uncertainty, sourceWorkoutID: last.source_uuid)
+        }
         if effort! >= 8 {
             return .init(priority: .review, headline: "Séance exigeante détectée",
                          detail: "Tu as déclaré un effort élevé. Le coach examinera la récupération avant toute modification ; le plan reste inchangé.",
                          evidence: facts, uncertainty: uncertainty, sourceWorkoutID: last.source_uuid)
         }
-        // The 1.4 ratio is an internal review trigger, not an evidence-based
-        // injury threshold or a reason to automatically reduce training.
-        if previousTwentyOne.count >= 3 && lastSeven.count >= 2 &&
-           baselineWeekly > 0 && weeklyKm / baselineWeekly > 1.4 {
-            facts.append("Volume sur 7 jours supérieur à 1,4 fois la moyenne hebdomadaire des 21 jours précédents (simple indicateur de variation).")
-            return .init(priority: .review, headline: "Variation de volume à examiner",
-                         detail: "Le volume récent a nettement changé. Vérifie fatigue et sensations avant d'envisager plus d'intensité.",
+        // Internal attention flag for material 28-day shifts, not an injury-risk model.
+        if let percent = longitudinal.comparisonPercent, percent >= 40 {
+            return .init(priority: .review, headline: "Progression du volume à vérifier",
+                         detail: "Le volume des 28 derniers jours a augmenté par rapport aux 28 précédents. Ce signal descriptif invite à vérifier la tolérance avant d'augmenter davantage.",
                          evidence: facts, uncertainty: uncertainty, sourceWorkoutID: last.source_uuid)
         }
         return .init(priority: .maintain, headline: "Poursuivre avec régularité",
@@ -94,15 +93,23 @@ enum PaceLivingCoachRules {
 @MainActor final class PaceLivingCoach: ObservableObject {
     @Published private(set) var brief: PaceLivingBrief = PaceLivingCoachRules.calculate(runs: [], notes: [:])
     @Published private(set) var updatedAt: Date?
+    @Published private(set) var history: PaceLongitudinalSnapshot =
+        PaceLongitudinalRules.calculate(runs: [], notes: [:])
 
     func refresh(engine: HealthSyncEngine, journal: PaceSessionJournal,
                  strength: PaceStrengthTracker) {
         let since = Date.now.addingTimeInterval(-7 * 86400)
         let completedSets = strength.completedSets(since: since)
+        let nextHistory = PaceLongitudinalRules.calculate(runs: engine.runHistory,
+                                                         notes: journal.notes)
         let next = PaceLivingCoachRules.calculate(runs: engine.runHistory,
                                                   notes: journal.notes,
                                                   completedStrengthSets: completedSets)
-        if next != brief { brief = next; updatedAt = .now }
+        if nextHistory != history || next != brief {
+            history = nextHistory
+            brief = next
+            updatedAt = .now
+        }
     }
 }
 
@@ -130,6 +137,30 @@ struct PaceLivingCoachCard: View {
                 Text(living.brief.detail)
                     .font(.subheadline).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("4 semaines de course · km par 7 jours")
+                    .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                HStack(alignment: .bottom, spacing: 10) {
+                    let km = Array(living.history.weeklyKmNewestFirst.prefix(4).reversed())
+                    let upper = max(km.max() ?? 0, 1)
+                    ForEach(0..<km.count, id: \.self) { index in
+                        VStack(spacing: 4) {
+                            Text(String(format: "%.1f", km[index]))
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                            Capsule()
+                                .fill(PaceColors.teal.opacity(0.45 + Double(index) * 0.16))
+                                .frame(height: max(5, CGFloat(km[index] / upper) * 32))
+                            Text(index == 3 ? "Actuelle" : "S-\(3-index)")
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Semaine \(index + 1), \(String(format: "%.1f", km[index])) kilomètres")
+                    }
+                }
+                Text(living.history.evidenceQuality + " · " +
+                     "\(living.history.feedbackCount28)/\(living.history.recent28Runs) ressentis complets")
+                    .font(.caption2).foregroundStyle(.secondary)
                 if let fact = living.brief.evidence.first {
                     Label(fact, systemImage: "chart.line.uptrend.xyaxis")
                         .font(.caption).foregroundStyle(PaceColors.teal)
