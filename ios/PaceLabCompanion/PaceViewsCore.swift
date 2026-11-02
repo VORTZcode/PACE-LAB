@@ -116,6 +116,7 @@ struct TodayScreen: View {
     @EnvironmentObject var library: PaceLibrary
     @State private var showSettings = false
     @State private var showCoach = false
+    @State private var trainingNavigationPath: [String] = []
 
     private var last: WorkoutPayload? { engine.runHistory.first }
     private var year: Int { Calendar.current.component(.year, from: .now) }
@@ -126,7 +127,7 @@ struct TodayScreen: View {
     private var sevenKm: Double { lastSeven.reduce(0) { $0 + $1.kilometers } }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $trainingNavigationPath) {
             PaceScreen(title: "Aujourd’hui") {
                 HStack {
                     Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "fr_FR"))))
@@ -179,8 +180,8 @@ struct TodayScreen: View {
                             Text("\(day.day) · \(Int(day.minutes)) min").font(.subheadline).foregroundStyle(.secondary)
                         }
                         Text(day.objective).font(.subheadline)
-                        NavigationLink {
-                            DayDetailScreen(day: day)
+                        Button {
+                            trainingNavigationPath.append(day.date)
                         } label: {
                             HStack {
                                 Text("Voir ma séance").fontWeight(.semibold)
@@ -345,6 +346,16 @@ struct TodayScreen: View {
             }
             .sheet(isPresented: $showCoach) {
                 PaceCoachScreen()
+            }
+            // A stable date-based route is not replaced when validating the current day
+            // causes nextDay to change to Tuesday while its detail is still visible.
+            .navigationDestination(for: String.self) { selectedDate in
+                if let selected = library.currentPlan.first(where: { $0.date == selectedDate }) {
+                    DayDetailScreen(day: selected)
+                } else {
+                    ContentUnavailableView("Séance introuvable",
+                        systemImage: "calendar.badge.exclamationmark")
+                }
             }
         }
     }

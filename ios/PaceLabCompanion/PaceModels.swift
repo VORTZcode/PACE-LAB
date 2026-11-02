@@ -109,6 +109,10 @@ struct PaceBodyLog: Identifiable, Codable {
         approvedAdjustments = (try? Data(contentsOf:adaptationURL))
             .flatMap { try? JSONDecoder().decode([String:PaceApprovedAdjustment].self,from:$0) } ?? [:]
     }
+    func markDayCompleted(_ id: String) {
+        guard completed.insert(id).inserted else { return }
+        UserDefaults.standard.set(Array(completed), forKey: "pace.v2.completed")
+    }
     func toggleDay(_ id: String) {
         if !completed.insert(id).inserted { completed.remove(id) }
         UserDefaults.standard.set(Array(completed), forKey: "pace.v2.completed")

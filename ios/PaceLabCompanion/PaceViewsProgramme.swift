@@ -136,6 +136,7 @@ struct DayDetailScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
+    @EnvironmentObject var strengthLinks: PaceStrengthWorkoutLinks
     let day: PaceDay
     @State private var showVariants = false
     @State private var confirmFinish = false
@@ -173,9 +174,11 @@ struct DayDetailScreen: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         guard let date = formatter.date(from: day.date) else { return nil }
-        return engine.snapshot.first {
+        let candidates = engine.snapshot.filter {
             $0.activity_kind == expected && Calendar.current.isDate($0.startDate, inSameDayAs: date)
         }
+        // Do not silently associate the wrong strength activity on days with multiple workouts.
+        return expected == "strength" ? (candidates.count == 1 ? candidates.first : nil) : candidates.first
     }
 
 
@@ -304,7 +307,10 @@ struct DayDetailScreen: View {
                 }
             }
 
-            if let found = matchingActivity, !library.completed.contains(day.date) {
+            if let found = matchingActivity,
+               !library.completed.contains(day.date) ||
+                (day.type == "Musculation" &&
+                 strengthLinks.confirmedWorkoutUUID(for: day.date) != found.source_uuid) {
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Activité trouvée dans Apple Santé", systemImage: "applewatch")
@@ -315,9 +321,18 @@ struct DayDetailScreen: View {
                         Text("Est-ce bien la séance prévue ? L’application ne peut pas vérifier toutes les consignes, ni les exercices réalisés.")
                             .font(.caption).foregroundStyle(.secondary)
                         Button {
-                            library.toggleDay(day.date)
+                            if day.type == "Musculation" {
+                                strengthLinks.confirm(day: day.date, workoutUUID: found.source_uuid)
+                                if strengthLinks.confirmedWorkoutUUID(for: day.date) == found.source_uuid {
+                                    library.markDayCompleted(day.date)
+                                }
+                            } else {
+                                library.markDayCompleted(day.date)
+                            }
                         } label: {
-                            Label("Oui, valider cette séance", systemImage: "checkmark.circle")
+                            Label(day.type == "Musculation"
+                                  ? "Associer à ma séance et valider"
+                                  : "Oui, valider cette séance", systemImage: "checkmark.circle")
                         }
                         .font(.subheadline.weight(.semibold))
                         .tint(PaceColors.teal)
@@ -325,6 +340,10 @@ struct DayDetailScreen: View {
                 }
             }
 
+            if let error = strengthLinks.error {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
             if let error = strengthTracker.saveError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.footnote)
