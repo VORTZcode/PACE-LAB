@@ -164,6 +164,9 @@ extension PaceAIMeal {
     @Published var shareNutrition = UserDefaults.standard.bool(forKey:"pace.coach.share-nutrition") {
         didSet { UserDefaults.standard.set(shareNutrition,forKey:"pace.coach.share-nutrition") }
     }
+    @Published var shareStrengthSets = UserDefaults.standard.bool(forKey:"pace.coach.share-strength-sets") {
+        didSet { UserDefaults.standard.set(shareStrengthSets,forKey:"pace.coach.share-strength-sets") }
+    }
     @Published var shareHeartProfile = UserDefaults.standard.bool(forKey:"pace.coach.share-heart-profile") {
         didSet { UserDefaults.standard.set(shareHeartProfile,forKey:"pace.coach.share-heart-profile") }
     }
@@ -212,7 +215,8 @@ extension PaceAIMeal {
     }
     func contextPreview(engine: HealthSyncEngine, library: PaceLibrary,
                         journal: PaceSessionJournal? = nil,
-                        profile:PaceAthleteProfileStore? = nil) -> String {
+                        profile:PaceAthleteProfileStore? = nil,
+                        strength:PaceStrengthTracker? = nil) -> String {
         var pieces = [
             "Contexte actuel PACE LAB (pas d’accès automatique aux souvenirs ChatGPT).",
             "Séances prévues : " + library.currentPlan.prefix(7).map {
@@ -246,6 +250,9 @@ extension PaceAIMeal {
                     pieces.append(PaceCoachTelemetry.noteContext(run,journal:journal))
                 }
             }
+        }
+        if shareStrengthSets, let strength {
+            pieces.append(strength.coachSummary(library:library))
         }
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
             pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg.")
@@ -292,7 +299,8 @@ extension PaceAIMeal {
     }
 
     func generate(client:PaceChatGPTConnection,engine:HealthSyncEngine,library:PaceLibrary,
-                  journal:PaceSessionJournal? = nil,profile:PaceAthleteProfileStore? = nil) async {
+                  journal:PaceSessionJournal? = nil,profile:PaceAthleteProfileStore? = nil,
+                  strength:PaceStrengthTracker? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries else {
             error = "Autorise d’abord le partage des résumés sportifs pour préparer le programme."
@@ -339,7 +347,7 @@ extension PaceAIMeal {
         let date = DateFormatter()
         date.locale = Locale(identifier:"en_US_POSIX")
         date.dateFormat = "yyyy-MM-dd"
-        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile)
+        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength)
         do {
             let text = try await client.answer(instructions:instructions,input:input)
             let draft = try PaceAICoachDraft.extract(from:text)
@@ -367,7 +375,8 @@ extension PaceAIMeal {
 
     func chat(_ question:String,client:PaceChatGPTConnection,engine:HealthSyncEngine,
               library:PaceLibrary,journal:PaceSessionJournal? = nil,
-              profile:PaceAthleteProfileStore? = nil) async {
+              profile:PaceAthleteProfileStore? = nil,
+                  strength:PaceStrengthTracker? = nil) async {
         guard !isLoading else { return }
         let trimmed = String(question.prefix(800)).trimmingCharacters(in:.whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -378,14 +387,15 @@ extension PaceAIMeal {
         do {
             let reply = try await client.answer(
                 instructions:"Tu es le coach PACE LAB. Réponds en français, concrètement, sans diagnostic médical, et distingue mesure, hypothèse et conseil. N'invente jamais de données. Aucun changement de programme sans confirmation.",
-                input:contextPreview(engine:engine,library:library,journal:journal,profile:profile)+"\n\nConversation:\n"+history)
+                input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength)+"\n\nConversation:\n"+history)
             conversation.append(.init(speaker:"Coach",text:reply))
         } catch { self.error = error.localizedDescription }
         isLoading = false
     }
     func analyzeSession(client:PaceChatGPTConnection,engine:HealthSyncEngine,
                         library:PaceLibrary,journal:PaceSessionJournal? = nil,
-                        profile:PaceAthleteProfileStore? = nil) async {
+                        profile:PaceAthleteProfileStore? = nil,
+                  strength:PaceStrengthTracker? = nil) async {
         guard !isLoading else { return }
         guard shareRunSummaries,let run = selectedRun(engine:engine) else {
             error = "Autorise les résumés sportifs et choisis une course avant l'analyse."
@@ -417,7 +427,7 @@ extension PaceAIMeal {
         """
         do {
             let response = try await client.answer(instructions:instructions,
-                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile))
+                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength))
             let report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
             if let data = try? JSONEncoder().encode(report) {
                 try data.write(to:reportURL,options:.atomic)
