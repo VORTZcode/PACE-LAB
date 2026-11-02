@@ -148,6 +148,7 @@ struct PaceHomeGlassSurface: ViewModifier {
 }
 
 struct TodayScreen: View {
+    @EnvironmentObject var living: PaceLivingCoach
     @EnvironmentObject var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
@@ -234,6 +235,7 @@ struct TodayScreen: View {
                     }
                 }
 
+                PaceLivingCoachCard { showCoach = true }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {
                     NavigationLink {

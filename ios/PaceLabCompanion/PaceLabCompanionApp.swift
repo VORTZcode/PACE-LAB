@@ -24,6 +24,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var coach = PaceCoachEngine()
     @StateObject private var athleteProfile = PaceAthleteProfileStore()
     @StateObject private var adaptiveMonitor = PaceAdaptiveMonitor()
+    @StateObject private var living = PaceLivingCoach()
     @StateObject private var strengthTracker = PaceStrengthTracker()
     @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
     @State private var hasLoaded = false
@@ -50,9 +51,11 @@ struct PaceLabCompanionApp: App {
             .environmentObject(coach)
             .environmentObject(athleteProfile)
             .environmentObject(adaptiveMonitor)
+            .environmentObject(living)
             .environmentObject(strengthTracker)
             .environmentObject(strengthLinks)
             .onReceive(engine.$revision) { _ in
+                living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.detectNewWorkout(engine:engine)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
@@ -61,16 +64,22 @@ struct PaceLabCompanionApp: App {
                     Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
                 }
             }
+            .onReceive(strengthTracker.$records) { _ in
+                living.refresh(engine:engine,journal:journal,strength:strengthTracker)
+            }
             .onReceive(journal.$notes) { _ in
+                living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
             }
             .onAppear {
                 guard !hasLoaded else { return }
                 hasLoaded = true
                 engine.startObservers()
+                living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 engine.resync()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 engine.resync()
             }
         }

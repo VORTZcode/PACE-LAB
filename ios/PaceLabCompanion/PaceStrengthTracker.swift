@@ -42,6 +42,10 @@ struct PaceStrengthSet: Codable, Equatable {
         }
     }
 
+    func completedSets(since date: Date, until now: Date = .now) -> Int {
+        records.values.filter { $0.completed && ($0.completedAt.map { $0 >= date && $0 <= now } ?? false) }.count
+    }
+
     func totalSets(exercises: [PaceExercise]) -> Int {
         exercises.reduce(0) { $0 + max(0, $1.sets) }
     }

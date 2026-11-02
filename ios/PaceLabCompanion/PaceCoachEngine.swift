@@ -194,6 +194,8 @@ extension PaceAIMeal {
         return directory.appendingPathComponent("pace-coach-conversation.json")
     }()
     private var autoRequestedID: String? = UserDefaults.standard.string(forKey:"pace.coach.last-automatic-request")
+    private var automaticInFlightID: String?
+    private var lastAutomaticAttempt: Date?
     private var seenRunningUUID = UserDefaults.standard.string(forKey:"pace.coach.seen-run")
 
     init() {
@@ -235,6 +237,8 @@ extension PaceAIMeal {
             }.joined(separator:" | "))
         }
         if shareRunSummaries {
+            let sharedNotes = shareSessionNotes ? (journal?.notes ?? [:]) : [:]
+            pieces.append(PaceLivingCoachRules.calculate(runs:engine.runHistory,notes:sharedNotes).promptContext)
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
             if let run = selectedRun(engine:engine) {
@@ -279,9 +283,12 @@ extension PaceAIMeal {
     func beginAutomaticReview(engine:HealthSyncEngine) -> Bool {
         guard autoReview && shareRunSummaries && newWorkoutAwaitingReview,
               let uuid = engine.runHistory.first?.source_uuid,
-              autoRequestedID != uuid else { return false }
-        autoRequestedID = uuid
-        UserDefaults.standard.set(uuid,forKey:"pace.coach.last-automatic-request")
+              autoRequestedID != uuid, automaticInFlightID == nil,
+              lastAutomaticAttempt.map({ Date().timeIntervalSince($0) >= 600 }) ?? true
+        else { return false }
+        // Reserve in memory, but record success only when ChatGPT delivers a valid report.
+        automaticInFlightID = uuid
+        lastAutomaticAttempt = .now
         return true
     }
     func detectNewWorkout(engine:HealthSyncEngine) {
@@ -436,10 +443,16 @@ extension PaceAIMeal {
                     ofItemAtPath:reportURL.path)
             }
             latestReport = report
+            if automaticInFlightID == run.source_uuid {
+                autoRequestedID = run.source_uuid
+                UserDefaults.standard.set(run.source_uuid,forKey:"pace.coach.last-automatic-request")
+            }
+            automaticInFlightID = nil
             newWorkoutAwaitingReview = false
             seenRunningUUID = run.source_uuid
             UserDefaults.standard.set(run.source_uuid,forKey:"pace.coach.seen-run")
         } catch {
+            automaticInFlightID = nil
             self.error = error.localizedDescription
         }
         isLoading = false

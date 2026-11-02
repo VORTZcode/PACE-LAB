@@ -132,6 +132,8 @@ struct PaceMovementGuide {
 struct PaceExerciseVisual: View {
     let figure: String
     var imageHeight: CGFloat = 178
+    @State private var enlargedPose = "Start"
+    @State private var showingEnlargedPose = false
     private let supported: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank", "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"]
 
     var body: some View {
@@ -140,8 +142,34 @@ struct PaceExerciseVisual: View {
                 pose("Start", title: "01 · Départ")
                 pose("End", title: "02 · Arrivée")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Photographies de démonstration : position de départ et position d’arrivée. Les consignes écrites précisent la technique.")
+            .sheet(isPresented: $showingEnlargedPose) {
+                NavigationStack {
+                    VStack(spacing: 18) {
+                        Spacer()
+                        Image("Movement_\(figure)_\(enlargedPose)")
+                            .resizable()
+                            .scaledToFit()
+                            .padding(.horizontal, 12)
+                        Text(enlargedPose == "Start" ? "Position de départ" : "Position finale")
+                            .font(.headline)
+                        Text("Illustration indicative : respecte les consignes techniques et adapte l’amplitude sans douleur.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(PaceColors.base)
+                    .navigationTitle("Démonstration")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Fermer") { showingEnlargedPose = false }
+                        }
+                    }
+                }
+            }
         } else {
             Label("Consulte les étapes techniques ci-dessous", systemImage: "figure.strengthtraining.traditional")
                 .font(.footnote).foregroundStyle(.secondary)
@@ -149,6 +177,10 @@ struct PaceExerciseVisual: View {
     }
 
     private func pose(_ suffix: String, title: String) -> some View {
+        Button {
+            enlargedPose = suffix
+            showingEnlargedPose = true
+        } label: {
         VStack(spacing: 8) {
             Image("Movement_\(figure)_\(suffix)")
                 .resizable()
@@ -162,6 +194,9 @@ struct PaceExerciseVisual: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Agrandir : \(title)")
     }
 }
 
