@@ -56,7 +56,7 @@ struct PaceLabCompanionApp: App {
                 if chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
                     coach.focusWorkoutID = nil
-                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile) }
+                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker) }
                 }
             }
             .onReceive(journal.$notes) { _ in
