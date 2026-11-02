@@ -158,6 +158,7 @@ struct DayDetailScreen: View {
     let day: PaceDay
     @State private var showVariants = false
     @State private var confirmFinish = false
+    @State private var presentedExerciseID: String?
     @State private var expandedExerciseID: String?
     @State private var restEnd: Date?
     @State private var restExerciseID: String?
@@ -266,7 +267,7 @@ struct DayDetailScreen: View {
                             Button {
                                 focusedStrengthInput = nil
                                 withAnimation(.easeInOut(duration: 0.22)) {
-                                    expandedExerciseID = expanded ? nil : ex.id
+                                    presentedExerciseID = ex.id
                                 }
                             } label: {
                                 HStack(spacing: 13) {
@@ -304,7 +305,7 @@ struct DayDetailScreen: View {
                             .accessibilityLabel("\(ex.name), \(finished) séries validées sur \(ex.sets)")
                             .accessibilityHint(expanded ? "Replier l'exercice" : "Déplier l'exercice")
 
-                            if expanded {
+                            if false {
                                 Divider().padding(.vertical, 12)
                                 let technique = PaceMovementGuide.forExercise(ex)
                                 Text(technique.check)
@@ -437,6 +438,86 @@ struct DayDetailScreen: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(PaceColors.teal)
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { presentedExerciseID != nil },
+            set: { if !$0 { presentedExerciseID = nil } }
+        )) {
+            if let ex = exercises.first(where: { $0.id == presentedExerciseID }) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 7) {
+                                    Text("MOUVEMENT · \(day.day.uppercased())")
+                                        .font(.caption2.weight(.bold)).tracking(1.5)
+                                        .foregroundStyle(PaceColors.teal)
+                                    Text(ex.name)
+                                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text("\(ex.sets) séries · \(ex.reps) · Repos \(Int(ex.rest)) s")
+                                        .font(.subheadline).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            PaceExerciseVisual(figure: PaceMovementGuide.forExercise(ex).figure)
+                            VStack(alignment: .leading, spacing: 9) {
+                                Text("Séries")
+                                    .font(.title2.weight(.bold))
+                                Text("Répétitions et charge réelles, puis coche pour valider.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
+                                    PaceStrengthSetRow(dayDate: day.date, exercise: ex,
+                                                       setNumber: setNumber, focus: $focusedStrengthInput,
+                                                       didToggle: { completed in
+                                        onStrengthSetChanged(exercise: ex, index: setNumber,
+                                                             completed: completed)
+                                    })
+                                    if setNumber < max(ex.sets, 1) {
+                                        Divider().opacity(0.35)
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 22))
+                            if restExerciseID == ex.id, let end = restEnd {
+                                PaceRestCountdown(end: end, seconds: Int(ex.rest),
+                                                  afterSet: restSetNumber ?? 0) {
+                                    restEnd = nil
+                                    restExerciseID = nil
+                                    restSetNumber = nil
+                                }
+                            }
+                            DisclosureGroup("Exécution et technique") {
+                                PaceExerciseCoaching(exercise: ex).padding(.top, 10)
+                            }
+                            .tint(PaceColors.teal)
+                            DisclosureGroup("Variantes et progression") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Plus facile : " + ex.easier)
+                                    Text("Plus difficile : " + ex.harder)
+                                }
+                                .font(.subheadline).padding(.top, 8)
+                            }
+                            .tint(PaceColors.teal)
+                        }
+                        .padding(20)
+                    }
+                    .background(PaceColors.base.ignoresSafeArea())
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Fermer", systemImage: "xmark") {
+                                focusedStrengthInput = nil
+                                presentedExerciseID = nil
+                            }
+                        }
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Terminé") { focusedStrengthInput = nil }
+                        }
+                    }
+                }
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
