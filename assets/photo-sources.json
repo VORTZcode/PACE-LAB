@@ -64,9 +64,33 @@
     "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
     "modified": "Resized and placed on a dark, softly blurred background"
   },
-  "_pending": {
-    "calf": "No suitable unweighted one-dumbbell photo",
-    "hinge": "Photos found show two dumbbells, not one",
-    "carry": "Photos found show two hand weights instead of suitcase carry"
+  "calf": {
+    "source": "OpenAI generated exercise sheet, cropped and enlarged",
+    "license": "Original AI composition",
+    "equipment_verified": true,
+    "technical_review_required": true,
+    "quality": "preview; low source resolution",
+    "detail": "Démonstration de montée sur pointes, sans charge"
+  },
+  "hinge": {
+    "source": "OpenAI generated exercise sheet, cropped and enlarged",
+    "license": "Original AI composition",
+    "equipment_verified": false,
+    "technical_review_required": true,
+    "quality": "preview; low source resolution",
+    "detail": "Charnière de hanches : l’image finale semble représenter deux haltères ; à reprendre"
+  },
+  "carry": {
+    "source": "OpenAI generated exercise sheet, cropped and enlarged",
+    "license": "Original AI composition",
+    "equipment_verified": true,
+    "technical_review_required": true,
+    "quality": "preview; low source resolution",
+    "detail": "Marche unilatérale avec un haltère"
+  },
+  "_technicalReview": {
+    "calf": "Source initiale 94-149 pixels de large ; remplacer par une illustration plus nette",
+    "hinge": "La prise et le nombre de charges représentés demandent correction. Ne pas utiliser comme référence de technique",
+    "carry": "Source initiale 213 pixels de large ; valider la marche et améliorer la définition"
   }
 }

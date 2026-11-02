@@ -136,7 +136,8 @@ struct PaceExerciseVisual: View {
     @State private var showingEnlargedPose = false
 
     private let licensedPhotos: Set<String> = ["plank", "split", "overhead", "incline", "deadbug"]
-    private let generatedPhotos: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank"]
+    private let generatedPhotos: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank", "calf", "hinge", "carry"]
+    private let draftPhotos: Set<String> = ["calf", "hinge", "carry"]
 
     private let supported: Set<String> = [
         "squat", "chair", "row", "press", "bridge", "sideplank",
@@ -188,6 +189,12 @@ struct PaceExerciseVisual: View {
                     }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                } else if draftPhotos.contains(figure) {
+                    Text(figure == "hinge"
+                         ? "Visuel IA provisoire · prise de l’haltère à vérifier. Suis les consignes écrites."
+                         : "Visuel IA provisoire · qualité d’image et posture à vérifier")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 } else if generatedPhotos.contains(figure) {
                     Text("Visuel généré par IA · démonstration indicative")
                         .font(.caption2)

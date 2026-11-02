@@ -69,7 +69,15 @@ def main():
         if not backup.exists():shutil.copy2(path,backup)
         photo.save(path,"JPEG",quality=91,subsampling=0,optimize=True)
         print(name,phase,photo.size,path.stat().st_size,flush=True)
-    meta["_pending"]=SKIP
+    if OUT.exists():
+        current = json.loads(OUT.read_text(encoding="utf-8"))
+        for key in ("calf", "hinge", "carry"):
+            if key in current:
+                meta[key] = current[key]
+        if "_technicalReview" in current:
+            meta["_technicalReview"] = current["_technicalReview"]
+    else:
+        meta["_pending"] = SKIP
     OUT.write_text(json.dumps(meta,ensure_ascii=False,indent=2)+"\n")
     print("INSTALLED 22 HUMAN PHOTO ASSETS; 6 ORIGINAL VECTOR ASSETS PRESERVED",flush=True)
 if __name__=="__main__":main()
