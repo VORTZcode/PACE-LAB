@@ -214,14 +214,7 @@ struct DayDetailScreen: View {
                 .padding(.top, 5)
             }
             if exercises.isEmpty {
-                PaceSectionTitle(title: "Consignes")
-                PaceCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(day.instructions).font(.body)
-                    Text(day.intensity).font(.subheadline.weight(.medium)).foregroundStyle(PaceColors.teal)
-                }
-            }
-
+                PaceEffortGuide(day: day)
             }
             if !exercises.isEmpty {
                 let done = strengthTracker.completedSets(day: day.date, exercises: exercises)
@@ -240,8 +233,11 @@ struct DayDetailScreen: View {
                         ProgressView(value: Double(done), total: Double(max(total, 1)))
                             .tint(PaceColors.teal)
                         Text("Un exercice à la fois. Valide tes séries pour passer automatiquement au suivant.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(.secondary)
+                        DisclosureGroup("Comprendre RPE 6–7 et RIR 2–3") {
+                            PaceStrengthIntensityGuide().padding(.top, 8)
+                        }
+                        .font(.footnote.weight(.medium)).tint(PaceColors.teal)
                     }
                 }
                 PaceSectionTitle(title: "Exercices", subtitle: "\(exercises.count) mouvements")
@@ -300,9 +296,7 @@ struct DayDetailScreen: View {
                                     PacePill(label: "Repos \(Int(ex.rest)) s", symbol: "clock")
                                 }
                                 .padding(.bottom, 12)
-                                Text(ex.tips)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                PaceExerciseCoaching(exercise: ex)
                                     .padding(.bottom, 10)
                                 DisclosureGroup("Consignes de la séance") {
                                     VStack(alignment: .leading, spacing: 9) {
