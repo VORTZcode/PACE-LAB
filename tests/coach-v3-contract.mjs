@@ -37,7 +37,7 @@ assert.match(engine,/FileProtectionType\.completeUntilFirstUserAuthentication/);
 assert.match(app,/coach\.beginAutomaticReview\(engine:engine\)/);
 assert.match(app,/chatGPT\.planUsageEnabled/);
 assert.match(home,/PaceCoachScreen/);
-assert.match(home,/Text\("Mon coach"\)/);
+assert.match(home,/Text\("Votre coach"\)/);
 assert.match(plan,/currentPlan/);
 assert.match(models,/activeCoachDraft/);
 assert.match(models,/acceptCoachDraft/);

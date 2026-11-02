@@ -12,8 +12,13 @@ struct ActivitiesScreen: View {
     }
     private var all: [WorkoutPayload] {
         engine.snapshot.filter { workout in
-            let kindMatches = kind == 0 ? workout.isRun :
-                (kind == 1 ? workout.activity_kind == "walking" : true)
+            let kindMatches: Bool
+            switch kind {
+            case 0: kindMatches = workout.isRun
+            case 1: kindMatches = workout.activity_kind == "strength"
+            case 2: kindMatches = workout.activity_kind == "walking"
+            default: kindMatches = true
+            }
             return kindMatches && (selectedYear == 0 ||
                     Calendar.current.component(.year, from: workout.startDate) == selectedYear)
         }
@@ -25,8 +30,9 @@ struct ActivitiesScreen: View {
             PaceScreen(title: "Activités") {
                 Picker("Type d’activité", selection: $kind) {
                     Text("Course").tag(0)
-                    Text("Marche").tag(1)
-                    Text("Toutes").tag(2)
+                    Text("Muscu").tag(1)
+                    Text("Marche").tag(2)
+                    Text("Tout").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: kind) { _, _ in shown = 25 }

@@ -17,7 +17,7 @@ assert.match(store, /func setRepetitions\(/);
 assert.match(store, /func setWeight\(/);
 assert.match(store, /private func key\(day: String, exerciseID: String, set: Int\)/);
 assert.match(programme, /PaceStrengthSetRow\(dayDate: day\.date, exercise: ex,/);
-assert.match(programme, /Progression de la séance/);
+assert.match(programme, /En cours · Séance guidée/);
 assert.match(programme, /Répétitions/);
 assert.match(programme, /Charge \(kg\)/);
 assert.match(programme, /Terminer la séance malgré tout/);

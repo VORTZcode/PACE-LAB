@@ -107,14 +107,10 @@ struct ProgressScreen: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                PaceCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Analyse en construction", systemImage: "waveform.path.ecg")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(PaceColors.teal)
-                        Text("Les prochains indicateurs croiseront allure, puissance, fréquence cardiaque et récupération pour comparer des séances réellement comparables.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
+                Text("Les mesures sont descriptives : une fréquence cardiaque plus basse n’indique un progrès que dans des conditions d’effort comparables.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 3)
             }
         }
     }

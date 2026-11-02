@@ -39,7 +39,7 @@ assert.match(evidence,/1\.10/);
 assert.match(evidence,/1\.35/);
 assert.match(evidence,/dataQuality/);
 assert.match(evidence,/https:\/\/pubmed\.ncbi\.nlm\.nih\.gov/);
-assert.match(home,/Text\("Mon coach"\)/);
+assert.match(home,/Text\("Votre coach"\)/);
 assert.doesNotMatch(home,/Text\("Ton coach ChatGPT"\)/);
 assert.match(settings,/3\.4 · Coach/);
 console.log('Coach V3.2 UI, profile consent, deterministic data review and scientific references verified.');

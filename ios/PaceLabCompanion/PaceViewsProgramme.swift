@@ -9,12 +9,11 @@ struct ProgrammeScreen: View {
         NavigationStack {
             PaceScreen(title: "Programme") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("CYCLE 01 · FONDATIONS")
-                        .font(.caption2.weight(.bold)).tracking(1.4).foregroundStyle(PaceColors.teal)
-                    Text(library.activeCoachDraft == nil ? "Semaine 1" : "Programme coach")
-                        .font(.title2.weight(.semibold))
+                    PaceEyebrow(title: "Votre parcours")
+                    Text(library.activeCoachDraft == nil ? "Cette semaine" : "Programme coach")
+                        .font(.system(.title2, design: .rounded, weight: .semibold))
                     Text(library.activeCoachDraft == nil
-                    ? "Du 2 au 8 novembre 2026 · Course, renforcement et récupération."
+                    ? "Course, renforcement et récupération · \(library.currentPlan.count) jours"
                     : "Programme proposé par le coach et validé sur cet iPhone.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -66,7 +65,7 @@ struct ProgrammeScreen: View {
                     }
                 }
 
-                PaceSectionTitle(title: "Votre semaine")
+                PaceSectionTitle(title: "Les prochains jours", subtitle: "Choisissez une séance")
                 if let draft = library.activeCoachDraft {
                     PaceCard {
                         VStack(alignment: .leading, spacing: 9) {
@@ -81,6 +80,12 @@ struct ProgrammeScreen: View {
                 }
                 LazyVStack(spacing: 10) {
                     ForEach(library.currentPlan) { day in
+                        let isCurrent = Calendar.current.isDateInToday({
+                            let parser = DateFormatter()
+                            parser.locale = Locale(identifier: "en_US_POSIX")
+                            parser.dateFormat = "yyyy-MM-dd"
+                            return parser.date(from: day.date) ?? .distantPast
+                        }())
                         NavigationLink { DayDetailScreen(day: day) } label: {
                             HStack(spacing: 14) {
                                 VStack(spacing: 3) {
@@ -96,7 +101,13 @@ struct ProgrammeScreen: View {
                                     .frame(width: 35)
                                     .foregroundStyle(PaceColors.teal)
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(day.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                    HStack(spacing: 7) {
+                                        Text(day.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                        if isCurrent {
+                                            Text("AUJ.").font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(PaceColors.teal)
+                                        }
+                                    }
                                     Text("\(day.type) · \(Int(day.minutes)) min")
                                         .font(.caption).foregroundStyle(.secondary)
                                     if day.type == "Musculation" && library.activeCoachDraft == nil {
@@ -112,7 +123,14 @@ struct ProgrammeScreen: View {
                                     .foregroundStyle(library.completed.contains(day.date) ? PaceColors.teal : Color.secondary)
                             }
                             .padding(16)
-                            .modifier(PaceGlassCardSurface(cornerRadius: 19))
+                            .modifier(PaceGlassCardSurface(cornerRadius: isCurrent ? 23 : 19))
+                            .overlay {
+                                if isCurrent {
+                                    RoundedRectangle(cornerRadius: 23)
+                                        .strokeBorder(PaceColors.teal.opacity(0.55), lineWidth: 1.5)
+                                        .allowsHitTesting(false)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -195,21 +213,23 @@ struct DayDetailScreen: View {
                 }
                 .padding(.top, 5)
             }
-            PaceSectionTitle(title: "Consignes")
-            PaceCard {
+            if exercises.isEmpty {
+                PaceSectionTitle(title: "Consignes")
+                PaceCard {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(day.instructions).font(.body)
                     Text(day.intensity).font(.subheadline.weight(.medium)).foregroundStyle(PaceColors.teal)
                 }
             }
 
+            }
             if !exercises.isEmpty {
                 let done = strengthTracker.completedSets(day: day.date, exercises: exercises)
                 let total = strengthTracker.totalSets(exercises: exercises)
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Progression de la séance")
+                            Text("En cours · Séance guidée")
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
                             Text("\(done) / \(total) séries")
@@ -219,7 +239,7 @@ struct DayDetailScreen: View {
                         }
                         ProgressView(value: Double(done), total: Double(max(total, 1)))
                             .tint(PaceColors.teal)
-                        Text("Coche chaque série juste après l'avoir réalisée. Les répétitions et la charge sont facultatives ; tes saisies sont enregistrées sur l'iPhone.")
+                        Text("Un exercice à la fois. Valide tes séries pour passer automatiquement au suivant.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -283,7 +303,20 @@ struct DayDetailScreen: View {
                                 Text(ex.tips)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                                    .padding(.bottom, 13)
+                                    .padding(.bottom, 10)
+                                DisclosureGroup("Consignes de la séance") {
+                                    VStack(alignment: .leading, spacing: 9) {
+                                        Text(day.instructions)
+                                        Text(day.intensity)
+                                            .foregroundStyle(PaceColors.teal)
+                                    }
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 7)
+                                }
+                                .font(.caption.weight(.medium))
+                                .tint(PaceColors.teal)
+                                .padding(.bottom, 13)
                                 ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
                                     PaceStrengthSetRow(dayDate: day.date, exercise: ex,
                                                        setNumber: setNumber, focus: $focusedStrengthInput)
