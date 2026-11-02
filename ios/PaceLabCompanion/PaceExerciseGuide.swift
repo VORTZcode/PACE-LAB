@@ -24,7 +24,7 @@ struct PaceMovementGuide {
                                 "Recule les hanches, plie les genoux jusqu’à effleurer l’assise.",
                                 "Remonte en poussant dans les pieds sans te laisser tomber sur la chaise."],
                          check:"Tu contrôles toute la descente et la chaise ne bouge pas.",
-                         errors:"Éviter de s’asseoir brutalement et de laisser les genoux rentrer.",figure:"squat")
+                         errors:"Éviter de s’asseoir brutalement et de laisser les genoux rentrer.",figure:"chair")
         }
         if name.contains("rowing") {
             return .init(title:"Tirage avec un haltère, un bras",focus:"Dos, surtout grand dorsal et muscles autour de l’omoplate",
@@ -56,7 +56,7 @@ struct PaceMovementGuide {
                                 "Soulève le bassin jusqu’à former une ligne épaule-hanche-cheville.",
                                 "Respire normalement pendant la durée prévue, puis change de côté."],
                          check:"Le bassin reste haut, sans douleur à l’épaule.",
-                         errors:"Ne pas laisser le bassin s’affaisser ni bloquer la respiration.",figure:"plank")
+                         errors:"Ne pas laisser le bassin s’affaisser ni bloquer la respiration.",figure:"sideplank")
         }
         if name.contains("planche avant") {
             return .init(title:"Planche sur les avant-bras",focus:"Abdominaux et gainage global",
@@ -80,7 +80,7 @@ struct PaceMovementGuide {
                                 "Plie les deux genoux verticalement en contrôlant l’équilibre.",
                                 "Remonte sans élan et réalise le même nombre de répétitions de l’autre jambe."],
                          check:"Le genou avant suit la direction du pied ; l’amplitude reste indolore.",
-                         errors:"Éviter les mouvements brusques et une flexion douloureuse du genou.",figure:"squat")
+                         errors:"Éviter les mouvements brusques et une flexion douloureuse du genou.",figure:"split")
         }
         if name.contains("développé épaules") {
             return .init(title:"Développé au-dessus de la tête",focus:"Épaules et triceps",
@@ -104,7 +104,7 @@ struct PaceMovementGuide {
                                 "Garde le corps aligné pendant que tu rapproches la poitrine du support.",
                                 "Pousse avec les bras pour revenir, sans creuser le bas du dos."],
                          check:"Tout le corps avance et recule ensemble, sans déplacer le support.",
-                         errors:"Ne pas utiliser une table instable ou laisser les hanches tomber.",figure:"plank")
+                         errors:"Ne pas utiliser une table instable ou laisser les hanches tomber.",figure:"incline")
         }
         if name.contains("dead bug") {
             return .init(title:"Dead bug : bras et jambe opposés",focus:"Stabilité abdominale et coordination",
@@ -129,132 +129,38 @@ struct PaceMovementGuide {
     }
 }
 
-private struct PosePoint {
-    var x: CGFloat
-    var y: CGFloat
-}
-
 struct PaceExerciseVisual: View {
     let figure: String
+    private let supported: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank", "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"]
 
     var body: some View {
-        HStack(spacing: 10) {
-            stage("Départ", final: false)
-            stage("Fin du geste", final: true)
+        if supported.contains(figure) {
+            HStack(alignment: .top, spacing: 12) {
+                pose("Start", title: "Départ")
+                pose("End", title: "Fin du mouvement")
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Photographies de démonstration : position de départ et position d’arrivée. Les consignes écrites précisent la technique.")
+        } else {
+            Label("Consulte les étapes techniques ci-dessous", systemImage: "figure.strengthtraining.traditional")
+                .font(.footnote).foregroundStyle(.secondary)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Illustration schématique des deux phases du mouvement, départ puis fin du geste. Lire les instructions pour la technique exacte.")
     }
 
-    private func stage(_ title: String, final: Bool) -> some View {
-        VStack(spacing: 7) {
-            Canvas { context, size in
-                func p(_ x: CGFloat,_ y: CGFloat) -> CGPoint { CGPoint(x:x*size.width,y:y*size.height) }
-                let squat = figure == "squat"
-                let plank = figure == "plank"
-                let row = figure == "row" || figure == "hinge"
-                let ground = figure == "bridge" || figure == "press" || figure == "deadbug"
-                let forward = figure == "calf" || figure == "carry" || figure == "overhead"
-                var shoulder=p(0.49,0.35), hip=p(0.50,0.62),head=p(0.48,0.23)
-                var elbow=p(0.65,0.46),hand=p(0.66,0.61)
-                var knee=p(0.49,0.77),ankle=p(0.49,0.92)
-                var farKnee=p(0.65,0.78),farAnkle=p(0.65,0.92)
-                if squat && final {
-                    shoulder=p(0.43,0.41);head=p(0.40,0.29);hip=p(0.58,0.66)
-                    knee=p(0.38,0.77);ankle=p(0.34,0.92)
-                    farKnee=p(0.72,0.76);farAnkle=p(0.73,0.92)
-                } else if row {
-                    shoulder=p(final ? 0.54:0.63,0.45);head=p(final ? 0.43:0.52,0.33);hip=p(0.35,0.64)
-                    knee=p(0.32,0.78);ankle=p(0.30,0.93)
-                    elbow=p(final ? 0.55:0.70,final ? 0.54:0.66)
-                    hand=p(final ? 0.43:0.72,final ? 0.62:0.81)
-                } else if plank {
-                    head=p(0.17,final ? 0.52:0.50);shoulder=p(0.28,0.54)
-                    hip=p(0.56,final ? 0.57:0.75)
-                    elbow=p(0.24,0.73);hand=p(0.36,0.75)
-                    knee=p(0.75,0.70);ankle=p(0.86,0.76)
-                    farKnee=knee;farAnkle=ankle
-                } else if ground {
-                    head=p(0.17,0.75);shoulder=p(0.28,0.74)
-                    hip=p(0.52,final && figure=="bridge" ? 0.53:0.77)
-                    elbow=p(0.36,final ? 0.35:0.58);hand=p(0.44,final ? 0.23:0.56)
-                    knee=p(0.67,0.60);ankle=p(0.77,0.84)
-                    farKnee=knee;farAnkle=ankle
-                } else if forward {
-                    if figure=="overhead" {
-                        elbow=p(0.65,final ? 0.28:0.46);hand=p(0.65,final ? 0.11:0.35)
-                    } else if figure=="calf" && final {
-                        ankle=p(0.51,0.86);farAnkle=p(0.65,0.86)
-                    } else if figure=="carry" && final {
-                        hip=p(0.56,0.61);knee=p(0.63,0.74);ankle=p(0.75,0.90)
-                    }
-                }
-                // Layered anatomical silhouette: broad torso and tapered limbs, with
-                // rounded joints, subtle highlights and turquoise activated muscles.
-                // Keeps the vectors offline, scale-independent and consistent in light/dark.
-                let silhouette = Color(red:0.30,green:0.38,blue:0.43)
-                let muscle = PaceColors.teal
-                func bone(_ a:CGPoint,_ b:CGPoint,width:CGFloat=14, tint:Color=silhouette) {
-                    var path=Path();path.move(to:a);path.addLine(to:b)
-                    context.stroke(path,with:.color(tint),
-                                   style:StrokeStyle(lineWidth:width,lineCap:.round,lineJoin:.round))
-                    var accent=Path();accent.move(to:CGPoint(x:a.x-1,y:a.y-1))
-                    accent.addLine(to:CGPoint(x:b.x-1,y:b.y-1))
-                    context.stroke(accent,with:.color(.white.opacity(0.13)),
-                                   style:StrokeStyle(lineWidth:max(1,width*0.16),lineCap:.round))
-                }
-                // Back leg and support arm are intentionally subdued for depth.
-                bone(hip,farKnee,width:13,tint:silhouette.opacity(0.58))
-                bone(farKnee,farAnkle,width:11,tint:silhouette.opacity(0.58))
-                if !(plank || row || ground) {
-                    bone(shoulder,p(0.36,0.47),width:11,tint:silhouette.opacity(0.65))
-                    bone(p(0.36,0.47),p(0.38,0.60),width:10,tint:silhouette.opacity(0.65))
-                }
-                bone(shoulder,hip,width:23,tint:silhouette)
-                bone(hip,knee,width:17,tint:silhouette)
-                bone(knee,ankle,width:12,tint:silhouette)
-                bone(shoulder,elbow,width:14,tint:silhouette)
-                bone(elbow,hand,width:11,tint:silhouette)
-                // Principal contracted area; a visual cue, not an anatomical heat map.
-                if row || figure == "bridge" || figure == "squat" || figure == "plank" {
-                    bone(p((shoulder.x+hip.x)/(2*size.width),
-                           (shoulder.y+hip.y)/(2*size.height)),
-                         p((shoulder.x+hip.x)/(2*size.width)+0.02,
-                           (shoulder.y+hip.y)/(2*size.height)+0.09),
-                         width:11,tint:muscle.opacity(0.82))
-                }
-                let neck = p(head.x/size.width,head.y/size.height+0.055)
-                bone(neck,shoulder,width:9,tint:silhouette)
-                let headRect=CGRect(x:head.x-size.width*0.07,y:head.y-size.width*0.07,
-                                    width:size.width*0.14,height:size.width*0.17)
-                context.fill(Path(ellipseIn:headRect),with:.color(silhouette))
-                context.stroke(Path(ellipseIn:headRect.insetBy(dx:2,dy:2)),
-                               with:.color(.white.opacity(0.18)),lineWidth:1)
-                let dumbbell = ["row","press","overhead","carry","hinge","squat"].contains(figure)
-                if dumbbell {
-                    let weight=p(hand.x/size.width, min(0.91,hand.y/size.height+0.02))
-                    bone(p(weight.x/size.width-0.08,weight.y/size.height),
-                            p(weight.x/size.width+0.08,weight.y/size.height),width:5,tint:PaceColors.teal)
-                }
-                let y = size.height*0.95
-                bone(p(0.10,y/size.height),p(0.90,y/size.height),width:1,tint:.secondary)
-            }
-            .frame(height: 165)
-            .padding(.horizontal, 5)
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+    private func pose(_ suffix: String, title: String) -> some View {
+        VStack(spacing: 8) {
+            Image("Movement_\(figure)_\(suffix)")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(height: 178)
+                .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                .clipShape(RoundedRectangle(cornerRadius: 13))
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
-        .frame(maxWidth:.infinity)
-        .padding(.vertical,9)
-        .background {
-            RoundedRectangle(cornerRadius:18)
-                .fill(LinearGradient(colors:[PaceColors.teal.opacity(0.13),
-                                             PaceColors.teal.opacity(0.025)],
-                                     startPoint:.topLeading,endPoint:.bottomTrailing))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius:18)
-                .strokeBorder(PaceColors.teal.opacity(0.14),lineWidth:1)
-        }
+        .frame(maxWidth: .infinity)
     }
 }
 
