@@ -159,6 +159,9 @@ struct DayDetailScreen: View {
     @State private var showVariants = false
     @State private var confirmFinish = false
     @State private var expandedExerciseID: String?
+    @State private var restEnd: Date?
+    @State private var restExerciseID: String?
+    @State private var restSetNumber: Int?
     @FocusState private var focusedStrengthInput: PaceStrengthInput?
 
     private var exerciseCompletionSignature: [Bool] {
@@ -174,6 +177,19 @@ struct DayDetailScreen: View {
             expandedExerciseID = next.map { exercises[$0].id }
         }
         focusedStrengthInput = nil
+    }
+
+    private func onStrengthSetChanged(exercise: PaceExercise, index: Int, completed: Bool) {
+        focusedStrengthInput = nil
+        if completed && index < exercise.sets {
+            restExerciseID = exercise.id
+            restSetNumber = index
+            restEnd = Date().addingTimeInterval(max(0,exercise.rest))
+        } else {
+            restEnd = nil
+            restExerciseID = nil
+            restSetNumber = nil
+        }
     }
 
     private var exercises: [PaceExercise] {
@@ -296,8 +312,31 @@ struct DayDetailScreen: View {
                                     PacePill(label: "Repos \(Int(ex.rest)) s", symbol: "clock")
                                 }
                                 .padding(.bottom, 12)
-                                PaceExerciseCoaching(exercise: ex)
-                                    .padding(.bottom, 10)
+                                let technique = PaceMovementGuide.forExercise(ex)
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "checkmark.seal")
+                                        .foregroundStyle(PaceColors.teal)
+                                    Text(technique.check)
+                                        .font(.subheadline)
+                                        .fixedSize(horizontal:false,vertical:true)
+                                }
+                                .padding(.bottom, 10)
+                                DisclosureGroup("Voir le mouvement et les erreurs à éviter") {
+                                    PaceExerciseCoaching(exercise: ex)
+                                        .padding(.top, 12)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .tint(PaceColors.teal)
+                                .padding(.bottom, 14)
+                                if restExerciseID == ex.id, let end = restEnd {
+                                    PaceRestCountdown(end: end, seconds: Int(ex.rest),
+                                                      afterSet: restSetNumber ?? 0) {
+                                        restEnd = nil
+                                        restExerciseID = nil
+                                        restSetNumber = nil
+                                    }
+                                    .padding(.bottom,12)
+                                }
                                 DisclosureGroup("Consignes de la séance") {
                                     VStack(alignment: .leading, spacing: 9) {
                                         Text(day.instructions)
@@ -313,7 +352,11 @@ struct DayDetailScreen: View {
                                 .padding(.bottom, 13)
                                 ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
                                     PaceStrengthSetRow(dayDate: day.date, exercise: ex,
-                                                       setNumber: setNumber, focus: $focusedStrengthInput)
+                                                       setNumber: setNumber, focus: $focusedStrengthInput,
+                                                       didToggle: { completed in
+                                                           onStrengthSetChanged(exercise: ex, index: setNumber,
+                                                                               completed: completed)
+                                                       })
                                         .padding(.bottom, 9)
                                 }
                                 DisclosureGroup("Variantes et progression") {
@@ -441,6 +484,7 @@ private struct PaceStrengthSetRow: View {
     let exercise: PaceExercise
     let setNumber: Int
     let focus: FocusState<PaceStrengthInput?>.Binding
+    let didToggle: (Bool) -> Void
     @State private var repetitionsText = ""
     @State private var loadText = ""
 
@@ -465,8 +509,10 @@ private struct PaceStrengthSetRow: View {
                 Spacer(minLength: 10)
                 Button {
                     focus.wrappedValue = nil
-                    tracker.setCompleted(!completed, day: dayDate,
+                    let next = !completed
+                    tracker.setCompleted(next, day: dayDate,
                                          exerciseID: exercise.id, set: setNumber)
+                    didToggle(next)
                 } label: {
                     Label(completed ? "Validée" : "Valider",
                           systemImage: completed ? "checkmark.circle.fill" : "circle")
