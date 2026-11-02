@@ -132,36 +132,74 @@ struct PaceMovementGuide {
 struct PaceExerciseVisual: View {
     let figure: String
     var imageHeight: CGFloat = 178
-    @State private var enlargedPose = "Start"
+    @State private var selectedPose = "Start"
     @State private var showingEnlargedPose = false
-    private let supported: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank", "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"]
+
+    private let supported: Set<String> = [
+        "squat", "chair", "row", "press", "bridge", "sideplank",
+        "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"
+    ]
 
     var body: some View {
         if supported.contains(figure) {
-            HStack(alignment: .top, spacing: 8) {
-                pose("Start", title: "01 · Départ")
-                pose("End", title: "02 · Arrivée")
+            VStack(spacing: 7) {
+                GeometryReader { geometry in
+                    Button {
+                        showingEnlargedPose = true
+                    } label: {
+                        Image("Movement_\(figure)_\(selectedPose)")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .clipped()
+                            .overlay(alignment: .bottomTrailing) {
+                                Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 6)
+                                    .background(.black.opacity(0.6), in: Capsule())
+                                    .padding(9)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(selectedPose == "Start"
+                                        ? "Agrandir la position initiale"
+                                        : "Agrandir la position finale")
+                }
+                .frame(height: imageHeight)
+
+                HStack(spacing: 5) {
+                    poseButton("01 · Départ", pose: "Start")
+                    poseButton("02 · Arrivée", pose: "End")
+                }
+                .padding(3)
+                .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 12))
             }
             .sheet(isPresented: $showingEnlargedPose) {
                 NavigationStack {
                     VStack(spacing: 18) {
                         Spacer()
-                        Image("Movement_\(figure)_\(enlargedPose)")
+                        Image("Movement_\(figure)_\(selectedPose)")
                             .resizable()
                             .scaledToFit()
-                            .padding(.horizontal, 12)
-                        Text(enlargedPose == "Start" ? "Position de départ" : "Position finale")
-                            .font(.headline)
-                        Text("Illustration indicative : respecte les consignes techniques et adapte l’amplitude sans douleur.")
+                            .padding(.horizontal, 9)
+                        HStack(spacing: 7) {
+                            poseButton("01 · Départ", pose: "Start")
+                            poseButton("02 · Arrivée", pose: "End")
+                        }
+                        .padding(.horizontal, 18)
+                        Text("Illustration indicative. Vérifie toujours les consignes de posture et adapte l'amplitude sans douleur.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 24)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(PaceColors.base)
-                    .navigationTitle("Démonstration")
+                    .navigationTitle("Mouvement")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -171,32 +209,27 @@ struct PaceExerciseVisual: View {
                 }
             }
         } else {
-            Label("Consulte les étapes techniques ci-dessous", systemImage: "figure.strengthtraining.traditional")
-                .font(.footnote).foregroundStyle(.secondary)
+            Label("Consulte les consignes de mouvement ci-dessous",
+                  systemImage: "figure.strengthtraining.traditional")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
-    private func pose(_ suffix: String, title: String) -> some View {
+    private func poseButton(_ title: String, pose: String) -> some View {
         Button {
-            enlargedPose = suffix
-            showingEnlargedPose = true
+            withAnimation(.easeInOut(duration: 0.18)) { selectedPose = pose }
         } label: {
-        VStack(spacing: 8) {
-            Image("Movement_\(figure)_\(suffix)")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .frame(height: imageHeight)
-                .background(.white, in: RoundedRectangle(cornerRadius: 16))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
+                .foregroundStyle(selectedPose == pose ? .white : .secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 29)
+                .background(selectedPose == pose ? PaceColors.teal : .clear,
+                            in: RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Agrandir : \(title)")
+        .accessibilityAddTraits(selectedPose == pose ? .isSelected : [])
     }
 }
 

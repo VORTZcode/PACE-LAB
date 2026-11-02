@@ -416,7 +416,7 @@ struct DayDetailScreen: View {
 
                             Group {
                                 if exerciseDetailTab == 0 {
-                                    PaceExerciseVisual(figure: guide.figure, imageHeight: artworkHeight - 28)
+                                    PaceExerciseVisual(figure: guide.figure, imageHeight: artworkHeight - 45)
                                 } else if exerciseDetailTab == 1 {
                                     VStack(alignment: .leading, spacing: 9) {
                                         ForEach(Array(guide.steps.enumerated()), id: \.offset) { step in

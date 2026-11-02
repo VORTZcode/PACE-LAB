@@ -19,7 +19,7 @@ for(const figure of ['squat','chair','row','press','bridge','sideplank','plank',
   }
 }
 assert.ok(guide.includes('.sheet(isPresented: $showingEnlargedPose)'));
-assert.ok(guide.includes('.accessibilityLabel("Agrandir :'));
+assert.ok(guide.includes('Agrandir la position initiale'));
 for(const token of ['7 * 86400','28 * 86400','previousTwentyOne.count >= 3',
                     'RPE et gêne sont auto-déclarés','pain >= 4','effort! >= 8',
                     'completedStrengthSets','@Published private(set) var brief']) {
