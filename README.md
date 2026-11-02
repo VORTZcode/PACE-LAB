@@ -79,3 +79,5 @@ V3.2 — Coach : profil sportif local confirmé, ergonomie native, moteur de rev
 V3.3 — Coach adaptatif : éditeurs de profil lisibles, organisation initiale 3 courses + 3 musculation, détection locale post-séance et adaptation d’une seule future course avec validation/annulation. [Guide V3.3](docs/V3_3_ADAPTIVE_COACH.md).
 
 V3.4 — Séries avancées : le Coach peut comparer les six courbes enregistrées sur l'iPhone, après autorisation explicite, par tranches de temps sans GPS. [Documentation](docs/V3_4_FULL_SENSOR_TIMELINES.md).
+
+Musculation V3.6 : champs de séries élargis et focus/clavier améliorés. [Guide UX](docs/V3_6_STRENGTH_UX.md).
