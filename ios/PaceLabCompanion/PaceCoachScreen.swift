@@ -52,7 +52,7 @@ struct PaceCoachScreen: View {
                                 Label("Nouvelle sortie disponible pour le bilan",systemImage:"checkmark.circle")
                                     .font(.subheadline).foregroundStyle(PaceColors.teal)
                             }
-                            if let suggested = adaptiveMonitor.visible {
+                            if !autopilot.enabled, let suggested = adaptiveMonitor.visible {
                                 adaptiveReviewCard(suggested)
                             }
                             sessionAnalysisCard
@@ -429,6 +429,9 @@ struct PaceCoachScreen: View {
                     VStack(alignment:.leading,spacing:3) {
                         Text(item.headline).font(.caption.weight(.semibold))
                         Text(item.explanation).font(.caption2).foregroundStyle(.secondary)
+                        if let followUp=item.followUp {
+                            Text(followUp).font(.caption2).foregroundStyle(PaceColors.teal)
+                        }
                     }
                     .frame(maxWidth:.infinity,alignment:.leading)
                 }

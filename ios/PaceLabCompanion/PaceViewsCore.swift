@@ -306,8 +306,10 @@ struct TodayScreen: View {
                             Text("Votre coach")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.primary)
-                            Text(adaptiveMonitor.visible == nil
-                                 ? "Bilan et recommandations" : "Une recommandation vous attend")
+                            Text(autopilot.enabled
+                                 ? autopilot.status
+                                 : (adaptiveMonitor.visible == nil
+                                    ? "Bilan et recommandations" : "Une recommandation vous attend"))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()

@@ -64,6 +64,7 @@ struct PaceLabCompanionApp: App {
                 coach.detectNewWorkout(engine:engine)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
+                autopilot.reviewObservedOutcomes(engine:engine,journal:journal)
                 launchAutopilot()
                 if !autopilot.enabled && chatGPT.planUsageEnabled && !coach.isLoading &&
                    coach.beginAutomaticReview(engine:engine) {
@@ -79,6 +80,7 @@ struct PaceLabCompanionApp: App {
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
+                autopilot.reviewObservedOutcomes(engine:engine,journal:journal)
                 launchAutopilot()
             }
             .onReceive(sleep.$summary) { _ in launchAutopilot() }

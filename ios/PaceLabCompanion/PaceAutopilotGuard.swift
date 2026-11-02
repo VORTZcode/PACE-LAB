@@ -13,6 +13,7 @@ enum PaceAutopilotGuard {
                        lastRun: WorkoutPayload?, lastNote: PaceSessionNote?,
                        trend: PaceLongitudinalSnapshot, sleep: PaceSleepSummary,
                        hasPriorAdjustment: Bool,
+                       lastAutomaticChange: Date? = nil,
                        now: Date = .now) -> Decision {
         guard action == "easier" else {
             return .init(allowed:false, explanation:"Pas de modification nécessaire ou avis demandé.",minutes:nil)
@@ -20,6 +21,9 @@ enum PaceAutopilotGuard {
         guard let target, target.type == "Course", let lastRun, lastRun.isRun,
               lastRun.endDate <= now, !hasPriorAdjustment else {
             return .init(allowed:false, explanation:"Course future introuvable ou déjà adaptée.",minutes:nil)
+        }
+        if let lastAutomaticChange, now.timeIntervalSince(lastAutomaticChange) < 7 * 86400 {
+            return .init(allowed:false,explanation:"Une adaptation automatique existe déjà dans les sept derniers jours : préserver le cycle.",minutes:nil)
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier:"en_US_POSIX")
@@ -33,19 +37,14 @@ enum PaceAutopilotGuard {
         if let pain = lastNote?.pain, pain >= 4 {
             return .init(allowed:false,explanation:"Gêne importante : décision manuelle et réévaluation requises.",minutes:nil)
         }
-        var signals = 0
-        if let effort = lastNote?.effort, effort >= 8 { signals += 1 }
-        if let pain = lastNote?.pain, (1...3).contains(pain) { signals += 1 }
-        if let change = trend.comparisonPercent, change > 40 { signals += 1 }
-        if sleep.coverage7 >= 4, let mean = sleep.mostRecent7AverageMinutes,
-           mean < 360 { signals += 1 }
-        guard signals >= 2 else {
-            return .init(allowed:false,explanation:"Moins de deux signaux indépendants : programme conservé.",minutes:nil)
+        let evidence = PaceAutopilotSignificance.evidence(note:lastNote,trend:trend,sleep:sleep)
+        guard evidence.count >= 2 else {
+            return .init(allowed:false,explanation:"Moins de deux domaines indépendants et suffisamment renseignés : programme conservé.",minutes:nil)
         }
         let reduced = max(15, min(Int(target.minutes) - 1, Int((target.minutes * 0.80).rounded())))
         guard reduced < Int(target.minutes) else {
             return .init(allowed:false,explanation:"Réduction non exploitable.",minutes:nil)
         }
-        return .init(allowed:true,explanation:"Deux signaux de prudence au minimum, allègement plafonné à 20 % environ.",minutes:reduced)
+        return .init(allowed:true,explanation:"Au moins deux domaines indépendants vérifiés ; allègement plafonné à environ 20 %, suivi de la tolérance.",minutes:reduced)
     }
 }
