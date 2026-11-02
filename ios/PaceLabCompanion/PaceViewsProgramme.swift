@@ -433,18 +433,22 @@ private struct PaceStrengthSetRow: View {
             }
 
             HStack(alignment: .top, spacing: 12) {
-                inputField(title: "Répétitions",
+                inputField(title: exercise.metricLabel,
                            placeholder: exercise.reps,
                            text: $repetitionsText,
                            kind: .repetitions(exercise.id, setNumber),
                            keyboard: .numberPad,
-                           accessibility: "Répétitions réalisées, série \(setNumber)")
-                inputField(title: "Charge (kg)",
-                           placeholder: "—",
-                           text: $loadText,
-                           kind: .load(exercise.id, setNumber),
-                           keyboard: .decimalPad,
-                           accessibility: "Charge utilisée en kilogrammes, série \(setNumber)")
+                           accessibility: exercise.isTimed
+                               ? "Durée réalisée en secondes, série \(setNumber)"
+                               : "Répétitions réalisées, série \(setNumber)")
+                if exercise.tracksLoad {
+                    inputField(title: "Charge (kg)",
+                               placeholder: "—",
+                               text: $loadText,
+                               kind: .load(exercise.id, setNumber),
+                               keyboard: .decimalPad,
+                               accessibility: "Charge utilisée en kilogrammes, série \(setNumber)")
+                }
             }
         }
         .padding(15)
