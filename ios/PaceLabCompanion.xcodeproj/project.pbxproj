@@ -19,6 +19,7 @@
 		380373F3E8A105F93D73929A /* PaceExerciseGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F04ADE55C966E26237EDC6E /* PaceExerciseGuide.swift */; };
 		3E0BE985020452AA498EF9A1 /* LocalHealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84B0661D8BF866CCABA00F1 /* LocalHealthStore.swift */; };
 		464208307A3A746164552B5E /* AppData in Resources */ = {isa = PBXBuildFile; fileRef = 4698D742FD1BEE0DB0555256 /* AppData */; };
+		4C23C21033AF98A81DAAA905 /* PaceRestCountdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = F558277B78D8FE0D4A079630 /* PaceRestCountdown.swift */; };
 		4FD7EC315163D16808AD58CA /* PaceHomeInsights.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D3ED394A04E165CD90340A /* PaceHomeInsights.swift */; };
 		516ED7A07B69FC4B7FD1A1F2 /* PaceEvidenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3BDF401D370836BD1476C9 /* PaceEvidenceEngine.swift */; };
 		58E678FF25CDA9B7B648A8B0 /* PaceCoachTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1235F022DC687D66B33F6C6 /* PaceCoachTelemetry.swift */; };
@@ -80,6 +81,7 @@
 		DDB4FCF28CE5EB9432D308E2 /* PaceChatGPTConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceChatGPTConnection.swift; sourceTree = "<group>"; };
 		EB9F8BCEACF8087EBD130A81 /* PaceViewsCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceViewsCore.swift; sourceTree = "<group>"; };
 		EBF0C1F132D18AD7C1C8BB52 /* PaceAthleteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceAthleteProfile.swift; sourceTree = "<group>"; };
+		F558277B78D8FE0D4A079630 /* PaceRestCountdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceRestCountdown.swift; sourceTree = "<group>"; };
 		FFBF3FC967024B8B1B50EB3F /* PaceLabCompanion.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PaceLabCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -108,6 +110,7 @@
 				58DCF5DCF3CFAD121976ADEE /* PaceLabCompanion.entitlements */,
 				176CFF022E34A43DAC6A4B2B /* PaceLabCompanionApp.swift */,
 				61AA8AC5B7A17BB06B00F786 /* PaceModels.swift */,
+				F558277B78D8FE0D4A079630 /* PaceRestCountdown.swift */,
 				1D41DE9B28E4549F75CD4E6A /* PaceRunAnalysis.swift */,
 				B35D0A8453B17EACE0BC3430 /* PaceRunIntervals.swift */,
 				7D9140FE8C7FE4B816A9A60B /* PaceSessionJournal.swift */,
@@ -242,6 +245,7 @@
 				4FD7EC315163D16808AD58CA /* PaceHomeInsights.swift in Sources */,
 				16FA4EDDC88C03705E3CAC64 /* PaceLabCompanionApp.swift in Sources */,
 				07D86110779B92A9DC582DDF /* PaceModels.swift in Sources */,
+				4C23C21033AF98A81DAAA905 /* PaceRestCountdown.swift in Sources */,
 				BA039E680CD6F3C44B769F40 /* PaceRunAnalysis.swift in Sources */,
 				A2F03B1D1ED4A0BC2CF17773 /* PaceRunIntervals.swift in Sources */,
 				137A6CB89D08CBB203C80DCB /* PaceSessionJournal.swift in Sources */,
