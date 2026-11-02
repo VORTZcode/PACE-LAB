@@ -56,9 +56,11 @@ struct PaceMetric: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(PaceColors.teal)
             VStack(alignment: .leading, spacing: 4) {
-                Text(value).font(.system(size: 29, weight: .semibold, design: .rounded)).monospacedDigit()
+                Text(value).font(.system(.title2, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
                     + Text(" " + suffix).font(.subheadline.weight(.regular)).foregroundStyle(.secondary)
                 Text(caption).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal:false,vertical:true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -151,11 +153,11 @@ struct TodayScreen: View {
     @EnvironmentObject var living: PaceLivingCoach
     @EnvironmentObject var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject var autopilot: PaceAutopilot
+    @EnvironmentObject var tabs: PaceTabRouter
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
     @State private var showSettings = false
-    @State private var showCoach = false
     @State private var trainingNavigationPath: [String] = []
 
     private var last: WorkoutPayload? { engine.runHistory.first }
@@ -178,7 +180,7 @@ struct TodayScreen: View {
                 }
                 // One clear hero instead of competing cards: the next actionable workout.
                 if let day = library.nextDay {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 13) {
                         HStack {
                             PaceEyebrow(title: "Votre prochaine séance")
                             Spacer()
@@ -187,7 +189,7 @@ struct TodayScreen: View {
                                 .foregroundStyle(.secondary)
                         }
                         Text(day.title)
-                            .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                            .font(.system(.title, design: .rounded, weight: .semibold))
                             .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 8) {
                             PacePill(label: day.type, symbol: day.type == "Course"
@@ -227,12 +229,30 @@ struct TodayScreen: View {
                         .tint(PaceColors.teal)
                         .controlSize(.large)
                     }
-                    .padding(22)
-                    .modifier(PaceGlassCardSurface(cornerRadius: 28))
+                    .padding(19)
+                    .modifier(PaceGlassCardSurface(cornerRadius: 26))
                 } else {
                     PaceCard {
-                        Label("Programme de la semaine terminé", systemImage: "checkmark.seal.fill")
-                            .font(.headline).foregroundStyle(PaceColors.teal)
+                        VStack(alignment:.leading,spacing:12) {
+                            let allDone = !library.currentPlan.isEmpty &&
+                                library.completedCount == library.currentPlan.count
+                            Label(allDone ? "Cycle terminé" : "Programme arrivé à échéance",
+                                  systemImage:allDone ? "checkmark.seal.fill" : "calendar.badge.exclamationmark")
+                                .font(.headline)
+                                .foregroundStyle(PaceColors.teal)
+                            Text(allDone
+                                 ? "Tu as validé toutes les journées du programme. Prépare le cycle suivant avec ton coach."
+                                 : "Aucune séance future n'est encore programmée. Le coach peut préparer une nouvelle semaine à partir de tes données.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Button {
+                                tabs.selected = .coach
+                            } label: {
+                                Label("Ouvrir mon coach", systemImage:"brain.head.profile")
+                                    .fontWeight(.semibold)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(PaceColors.teal)
+                        }
                     }
                 }
 
@@ -240,7 +260,7 @@ struct TodayScreen: View {
                     Label(autopilot.status,systemImage:"brain.head.profile")
                         .font(.caption).foregroundStyle(PaceColors.teal)
                 }
-                PaceLivingCoachCard { showCoach = true }
+                PaceLivingCoachCard { tabs.selected = .coach }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {
                     NavigationLink {
@@ -298,29 +318,7 @@ struct TodayScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button { showCoach = true } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName:"sparkles")
-                            .font(.title3).foregroundStyle(PaceColors.teal)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Votre coach")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                            Text(autopilot.enabled
-                                 ? autopilot.status
-                                 : (adaptiveMonitor.visible == nil
-                                    ? "Bilan et recommandations" : "Une recommandation vous attend"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName:"arrow.up.right")
-                            .foregroundStyle(PaceColors.teal)
-                    }
-                    .padding(17)
-                    .modifier(PaceGlassCardSurface(cornerRadius: 20))
-                }
-                .buttonStyle(.plain)
-                Label("Données Apple Santé conservées uniquement sur cet iPhone",
+                Label("Les résumés Santé ne sont envoyés à ChatGPT qu'avec tes autorisations.",
                       systemImage: "lock.shield")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -328,8 +326,8 @@ struct TodayScreen: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { showCoach = true } label: {
-                        Image(systemName:"sparkles")
+                    Button { tabs.selected = .coach } label: {
+                        Image(systemName:"brain.head.profile")
                     }
                     .accessibilityLabel("Coach ChatGPT")
                     Button { showSettings = true } label: {
@@ -340,9 +338,6 @@ struct TodayScreen: View {
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack { PaceSettingsScreen() }
-            }
-            .sheet(isPresented: $showCoach) {
-                PaceCoachScreen()
             }
             // A stable date-based route is not replaced when validating the current day
             // causes nextDay to change to Tuesday while its detail is still visible.

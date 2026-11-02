@@ -2,7 +2,33 @@ import SwiftUI
 import UIKit
 import BackgroundTasks
 
-// PACE LAB V2: fully native iPhone UI. HealthKit remains on-device.
+// PACE-LAB native navigation: five clear destinations and visible coach.
+/// HealthKit stays on-device until the athlete opts into particular AI summaries.
+enum PacePrimaryTab: Hashable {
+    case today, activities, programme, coach, nutrition
+}
+@MainActor final class PaceTabRouter: ObservableObject {
+    @Published var selected: PacePrimaryTab = .today
+
+    init() {
+        // UI audit previews use a fresh simulator (no personal HealthKit history).
+        // Production builds cannot change the initial tab via launch arguments.
+        #if DEBUG && targetEnvironment(simulator)
+        if let preview=ProcessInfo.processInfo.arguments.first(where:{
+            $0.hasPrefix("--pace-audit-tab=")
+        }) {
+            switch preview.replacingOccurrences(of:"--pace-audit-tab=",with:"") {
+            case "activities": selected = .activities
+            case "programme": selected = .programme
+            case "coach": selected = .coach
+            case "nutrition": selected = .nutrition
+            default: break
+            }
+        }
+        #endif
+    }
+}
+
 final class PaceLabDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: HealthSyncEngine.refreshIdentifier, using: nil) { task in
@@ -17,6 +43,7 @@ final class PaceLabDelegate: NSObject, UIApplicationDelegate {
 @main
 struct PaceLabCompanionApp: App {
     @UIApplicationDelegateAdaptor(PaceLabDelegate.self) var delegate
+    @StateObject private var tabs = PaceTabRouter()
     @StateObject private var engine = HealthSyncEngine.shared
     @StateObject private var library = PaceLibrary()
     @StateObject private var journal = PaceSessionJournal()
@@ -33,19 +60,25 @@ struct PaceLabCompanionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection:$tabs.selected) {
                 TodayScreen()
                     .tabItem { Label("Aujourd’hui", systemImage: "house") }
+                    .tag(PacePrimaryTab.today)
                 ActivitiesScreen()
                     .tabItem { Label("Activités", systemImage: "figure.run") }
+                    .tag(PacePrimaryTab.activities)
                 ProgrammeScreen()
                     .tabItem { Label("Programme", systemImage: "calendar") }
-                ProgressScreen()
-                    .tabItem { Label("Progrès", systemImage: "chart.xyaxis.line") }
+                    .tag(PacePrimaryTab.programme)
+                PaceCoachScreen()
+                    .tabItem { Label("Coach", systemImage: "brain.head.profile") }
+                    .tag(PacePrimaryTab.coach)
                 NutritionScreen()
                     .tabItem { Label("Nutrition", systemImage: "fork.knife") }
+                    .tag(PacePrimaryTab.nutrition)
             }
             .tint(PaceColors.teal)
+            .environmentObject(tabs)
             .environmentObject(engine)
             .environmentObject(library)
             .environmentObject(journal)

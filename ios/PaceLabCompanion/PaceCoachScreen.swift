@@ -28,9 +28,11 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var sleep: PaceSleepHealthKit
     @EnvironmentObject private var autopilot: PaceAutopilot
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.isPresented) private var isPresented
     @State private var question = ""
     @State private var showPreview = false
     @State private var showDataControls = false
+    @State private var showMetrics = false
     @State private var showConsent = false
     @State private var showingConfirmation = false
     @State private var activeTab: PaceCoachTab = .session
@@ -44,9 +46,20 @@ struct PaceCoachScreen: View {
                 LazyVStack(alignment:.leading,spacing:22) {
                     if client.planUsageEnabled {
                         coachHeader
-                        trainingSnapshot
-                        sleepSnapshot
+                        coachStatusOverview
                         modeSelector
+                        DisclosureGroup(isExpanded:$showMetrics) {
+                            VStack(alignment:.leading,spacing:12) {
+                                trainingSnapshot
+                                sleepSnapshot
+                            }
+                            .padding(.top,10)
+                        } label: {
+                            Label("Données utilisées par le coach",systemImage:"chart.bar.xaxis")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .tint(PaceColors.teal)
+                        .padding(.horizontal,4)
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
                                 Label("Nouvelle sortie disponible pour le bilan",systemImage:"checkmark.circle")
@@ -109,8 +122,10 @@ struct PaceCoachScreen: View {
                         }
                         .accessibilityLabel("Compte et confidentialité")
                     }
-                    Button("Fermer") { dismiss() }
-                        .font(.subheadline.weight(.semibold))
+                    if isPresented {
+                        Button("Fermer") { dismiss() }
+                            .font(.subheadline.weight(.semibold))
+                    }
                 }
             }
             .sheet(isPresented:$showProfile) { PaceAthleteProfileScreen() }
@@ -205,6 +220,67 @@ struct PaceCoachScreen: View {
         .padding(21)
         .frame(maxWidth:.infinity,alignment:.leading)
         .modifier(PaceGlassCardSurface(cornerRadius: 24))
+    }
+
+    private var coachStatusOverview: some View {
+        PaceCard {
+            VStack(alignment:.leading,spacing:12) {
+                HStack(alignment:.top,spacing:12) {
+                    Image(systemName:autopilot.enabled ? "brain.head.profile" : "shield.lefthalf.filled")
+                        .font(.title2)
+                        .foregroundStyle(PaceColors.teal)
+                        .frame(width:44,height:44)
+                        .background(PaceColors.teal.opacity(0.09),
+                                    in:RoundedRectangle(cornerRadius:14))
+                    VStack(alignment:.leading,spacing:5) {
+                        Text(autopilot.enabled ? "Coach autonome actif" : "Ton coach est prêt")
+                            .font(.headline)
+                        Text(autopilot.enabled
+                             ? "Il analyse les nouvelles données lorsque l'application est réveillée."
+                             : "Active l'analyse autonome pour recevoir des décisions justifiées, sans demande manuelle.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal:false,vertical:true)
+                    }
+                    Spacer(minLength:0)
+                }
+                if let recent=autopilot.entries.first {
+                    Divider().opacity(0.3)
+                    Text("DERNIÈRE DÉCISION")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1)
+                        .foregroundStyle(.secondary)
+                    HStack(alignment:.top,spacing:8) {
+                        Image(systemName:recent.action == "allègement" ? "calendar.badge.clock" :
+                              recent.action == "à examiner" ? "exclamationmark.shield" : "checkmark.shield")
+                            .foregroundStyle(PaceColors.teal)
+                        VStack(alignment:.leading,spacing:3) {
+                            Text(recent.headline).font(.subheadline.weight(.semibold))
+                            Text(recent.date.formatted(date:.abbreviated,time:.shortened))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } else if autopilot.enabled {
+                    Label("Aucune décision pour le moment. Le programme reste inchangé.",
+                          systemImage:"checkmark.shield")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Button {
+                    showAccountSettings=true
+                } label: {
+                    HStack {
+                        Text(autopilot.enabled ? "Paramètres et décisions du coach" : "Configurer le coach")
+                        Spacer()
+                        Image(systemName:"arrow.up.right")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .tint(PaceColors.teal)
+                .controlSize(.regular)
+                .accessibilityHint("Ouvre les autorisations et l'historique des analyses du coach")
+            }
+        }
     }
 
     private var trainingSnapshot: some View {

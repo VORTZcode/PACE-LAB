@@ -3,7 +3,8 @@ import SwiftUI
 struct ProgrammeScreen: View {
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
-    @State private var showCoach = false
+    @EnvironmentObject var tabs: PaceTabRouter
+    @EnvironmentObject var athleteProfile: PaceAthleteProfileStore
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,32 @@ struct ProgrammeScreen: View {
                             Text("Progression hebdomadaire").font(.headline)
                             Text("\(library.completedCount) séances ou journées validées")
                                 .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let preferred=athleteProfile.profile {
+                    let plannedRuns=library.currentPlan.filter { $0.type == "Course" }.count
+                    let plannedStrength=library.currentPlan.filter { $0.type == "Musculation" }.count
+                    if plannedRuns != preferred.preferredRunsPerWeek ||
+                        plannedStrength != preferred.preferredStrengthPerWeek {
+                        PaceCard {
+                            VStack(alignment:.leading,spacing:10) {
+                                Label("Fréquence à vérifier",systemImage:"calendar.badge.exclamationmark")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(PaceColors.teal)
+                                Text("Rythme confirmé : \(preferred.preferredRunsPerWeek) courses et \(preferred.preferredStrengthPerWeek) renforcements par semaine. Ce cycle prévoit \(plannedRuns) courses et \(plannedStrength) renforcements.")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                Text("Le programme reste inchangé jusqu'à ta décision.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Button {
+                                    tabs.selected = .coach
+                                } label: {
+                                    Label("Examiner avec mon coach",systemImage:"brain.head.profile")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .tint(PaceColors.teal)
+                            }
                         }
                     }
                 }
@@ -142,11 +169,10 @@ struct ProgrammeScreen: View {
         }
         .toolbar {
             ToolbarItem(placement:.topBarTrailing) {
-                Button { showCoach = true } label: { Image(systemName:"sparkles") }
+                Button { tabs.selected = .coach } label: { Image(systemName:"brain.head.profile") }
                     .accessibilityLabel("Adapter mon programme avec ChatGPT")
             }
         }
-        .sheet(isPresented:$showCoach) { PaceCoachScreen() }
     }
 }
 

@@ -129,53 +129,37 @@ struct PaceLivingCoachCard: View {
                         .tracking(0.6)
                         .foregroundStyle(PaceColors.teal)
                     Spacer()
-                    Text("LOCAL · ACTUALISÉ")
-                        .font(.system(size: 9, weight: .semibold))
+                    Text("BILAN LOCAL")
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
                 Text(living.brief.headline)
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                 Text(living.brief.detail)
                     .font(.subheadline).foregroundStyle(.secondary)
+                    .lineLimit(living.brief.priority == .discomfort ? nil : 3)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("4 semaines de course · km par 7 jours")
-                    .font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                HStack(alignment: .bottom, spacing: 10) {
-                    let km = Array(living.history.weeklyKmNewestFirst.prefix(4).reversed())
-                    let upper = max(km.max() ?? 0, 1)
-                    ForEach(0..<km.count, id: \.self) { index in
-                        VStack(spacing: 4) {
-                            Text(String(format: "%.1f", km[index]))
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .monospacedDigit()
-                            Capsule()
-                                .fill(PaceColors.teal.opacity(0.45 + Double(index) * 0.16))
-                                .frame(height: max(5, CGFloat(km[index] / upper) * 32))
-                            Text(index == 3 ? "Actuelle" : "S-\(3-index)")
-                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Semaine \(index + 1), \(String(format: "%.1f", km[index])) kilomètres")
+                if living.history.recent28Runs > 0 {
+                    HStack(spacing:12) {
+                        Label(String(format:"%.1f km / 7 j",living.history.last7Km),
+                              systemImage:"figure.run")
+                        Text("·").foregroundStyle(.tertiary)
+                        Text("\(living.history.feedbackCount28)/\(living.history.recent28Runs) ressentis")
                     }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children:.combine)
+                } else {
+                    Label("Aucune course synchronisée pour le moment",
+                          systemImage:"waveform.path")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                Text(living.history.evidenceQuality + " · " +
-                     "\(living.history.feedbackCount28)/\(living.history.recent28Runs) ressentis complets")
-                    .font(.caption2).foregroundStyle(.secondary)
-                if let fact = living.brief.evidence.first {
-                    Label(fact, systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.caption).foregroundStyle(PaceColors.teal)
-                }
-                if sleep.monitoringEnabled {
-                    if let minutes = sleep.summary.mostRecent7AverageMinutes {
-                        Label("Sommeil observé : \(minutes / 60) h \(minutes % 60) min de moyenne (\(sleep.summary.coverage7)/7 jours)",
-                              systemImage:"moon.stars")
-                            .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Label("Sommeil : \(sleep.summary.coverage7)/7 nuits accessibles, moyenne indisponible",
-                              systemImage:"moon.stars")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                if sleep.monitoringEnabled, sleep.summary.coverage7 >= 3,
+                   let minutes=sleep.summary.mostRecent7AverageMinutes {
+                    Label("Sommeil moyen : \(minutes / 60) h \(minutes % 60) min",
+                          systemImage:"moon.stars")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Button(action: onOpenCoach) {
                     HStack {

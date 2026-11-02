@@ -5,7 +5,7 @@ const home=read('PaceViewsCore.swift');
 const plan=read('PaceViewsProgramme.swift');
 const acts=read('PaceViewsActivities.swift');
 const progress=read('PaceViewsProgress.swift');
-for(const token of ['enum PaceDesign','struct PaceEyebrow','accessibilityAddTraits(.isHeader)','PaceDesign.sectionSpacing','PaceDesign.screenInset','trainingNavigationPath.append(day.date)','Ouvrir ma séance','Dernière activité','StrengthWorkoutDetailScreen(workout: latest)','7 derniers jours','Votre coach','PaceInsightScreen(kind: .month)']) {
+for(const token of ['enum PaceDesign','struct PaceEyebrow','accessibilityAddTraits(.isHeader)','PaceDesign.sectionSpacing','PaceDesign.screenInset','trainingNavigationPath.append(day.date)','Ouvrir ma séance','Dernière activité','StrengthWorkoutDetailScreen(workout: latest)','7 derniers jours','PaceLivingCoachCard','PaceInsightScreen(kind: .month)']) {
  assert.ok(home.includes(token), 'Missing home / design: '+token);
 }
 assert.ok(home.indexOf('Ouvrir ma séance')<home.indexOf('Dernière activité'),'Hero should precede activity recap');

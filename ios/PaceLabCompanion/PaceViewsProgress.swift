@@ -35,7 +35,6 @@ struct ProgressScreen: View {
             }
     }
     var body: some View {
-        NavigationStack {
             PaceScreen(title: "Progression") {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
@@ -112,6 +111,5 @@ struct ProgressScreen: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 3)
             }
-        }
     }
 }

@@ -28,6 +28,26 @@ struct ActivitiesScreen: View {
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
+                NavigationLink {
+                    ProgressScreen()
+                } label: {
+                    HStack(spacing:13) {
+                        Image(systemName:"chart.xyaxis.line")
+                            .font(.title3).foregroundStyle(PaceColors.teal)
+                        VStack(alignment:.leading,spacing:4) {
+                            Text("Ma progression")
+                                .font(.headline).foregroundStyle(.primary)
+                            Text("Volumes, régularité, cardio et mesures corporelles")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName:"chevron.right").foregroundStyle(.secondary)
+                    }
+                    .padding(16)
+                    .modifier(PaceGlassCardSurface(cornerRadius:20))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ouvrir l’analyse complète de ma progression")
                 Picker("Type d’activité", selection: $kind) {
                     Text("Course").tag(0)
                     Text("Muscu").tag(1)

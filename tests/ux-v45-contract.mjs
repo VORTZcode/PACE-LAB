@@ -25,7 +25,7 @@ for(const token of ['7 * 86400','28 * 86400','PaceLongitudinalRules.calculate',
                     'completedStrengthSets','@Published private(set) var brief']) {
   assert.ok(brief.includes(token), 'Missing living coach safeguard: ' + token);
 }
-assert.ok(home.includes('PaceLivingCoachCard { showCoach = true }'));
+assert.ok(home.includes('PaceLivingCoachCard { tabs.selected = .coach }'));
 assert.ok(app.includes('.environmentObject(living)'));
 assert.ok(app.includes('.onReceive(engine.$revision)'));
 assert.ok(app.includes('.onReceive(strengthTracker.$records)'));

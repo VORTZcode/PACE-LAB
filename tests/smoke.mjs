@@ -22,7 +22,7 @@ assert.match(node('view').innerHTML,/Construire le moteur/);
 vm.runInContext("page='runs';render()",context);
 assert.match(node('view').innerHTML,/0 séances enregistrées/);
 vm.runInContext("page='plan';render()",context);
-assert.match(node('view').innerHTML,/Exercices/);
+assert.match(node('view').innerHTML,/Détail de la séance/);
 vm.runInContext("page='food';render()",context);
 assert.match(node('view').innerHTML,/Les 14 recettes/);
 vm.runInContext("page='progress';render()",context);
