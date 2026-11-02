@@ -1,0 +1,72 @@
+{
+  "squat": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "chair": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "row": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "press": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "bridge": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "sideplank": {
+    "source": "OpenAI generated fitness photo",
+    "license": "Original AI composition",
+    "equipment_verified": true
+  },
+  "plank": {
+    "source": "Everkinetic via yuhonas/free-exercise-db",
+    "license": "CC BY-SA 4.0",
+    "url": "https://github.com/yuhonas/free-exercise-db",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modified": "Resized and placed on a dark, softly blurred background"
+  },
+  "split": {
+    "source": "Everkinetic via yuhonas/free-exercise-db",
+    "license": "CC BY-SA 4.0",
+    "url": "https://github.com/yuhonas/free-exercise-db",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modified": "Resized and placed on a dark, softly blurred background"
+  },
+  "overhead": {
+    "source": "Everkinetic via yuhonas/free-exercise-db",
+    "license": "CC BY-SA 4.0",
+    "url": "https://github.com/yuhonas/free-exercise-db",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modified": "Resized and placed on a dark, softly blurred background"
+  },
+  "incline": {
+    "source": "Everkinetic via yuhonas/free-exercise-db",
+    "license": "CC BY-SA 4.0",
+    "url": "https://github.com/yuhonas/free-exercise-db",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modified": "Resized and placed on a dark, softly blurred background"
+  },
+  "deadbug": {
+    "source": "Everkinetic via yuhonas/free-exercise-db",
+    "license": "CC BY-SA 4.0",
+    "url": "https://github.com/yuhonas/free-exercise-db",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modified": "Resized and placed on a dark, softly blurred background"
+  },
+  "_pending": {
+    "calf": "No suitable unweighted one-dumbbell photo",
+    "hinge": "Photos found show two dumbbells, not one",
+    "carry": "Photos found show two hand weights instead of suitcase carry"
+  }
+}

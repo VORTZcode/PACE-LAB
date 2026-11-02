@@ -135,6 +135,9 @@ struct PaceExerciseVisual: View {
     @State private var selectedPose = "Start"
     @State private var showingEnlargedPose = false
 
+    private let licensedPhotos: Set<String> = ["plank", "split", "overhead", "incline", "deadbug"]
+    private let generatedPhotos: Set<String> = ["squat", "chair", "row", "press", "bridge", "sideplank"]
+
     private let supported: Set<String> = [
         "squat", "chair", "row", "press", "bridge", "sideplank",
         "plank", "calf", "split", "overhead", "hinge", "incline", "deadbug", "carry"
@@ -176,6 +179,24 @@ struct PaceExerciseVisual: View {
                 }
                 .padding(3)
                 .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 12))
+                if licensedPhotos.contains(figure) {
+                    HStack(spacing: 8) {
+                        Link("Photos : Everkinetic · CC BY-SA 4.0",
+                             destination: URL(string: "https://github.com/yuhonas/free-exercise-db")!)
+                        Link("Licence",
+                             destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!)
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                } else if generatedPhotos.contains(figure) {
+                    Text("Visuel généré par IA · démonstration indicative")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Schéma technique provisoire")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             .sheet(isPresented: $showingEnlargedPose) {
                 NavigationStack {
@@ -190,7 +211,7 @@ struct PaceExerciseVisual: View {
                             poseButton("02 · Arrivée", pose: "End")
                         }
                         .padding(.horizontal, 18)
-                        Text("Illustration indicative. Vérifie toujours les consignes de posture et adapte l'amplitude sans douleur.")
+                        Text("Démonstration indicative : suis les consignes, contrôle ta posture et n'insiste pas en cas de douleur.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
