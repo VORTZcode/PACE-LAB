@@ -98,12 +98,9 @@ struct PaceLabCompanionApp: App {
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)
                 autopilot.reviewObservedOutcomes(engine:engine,journal:journal)
-                launchAutopilot()
-                if !autopilot.enabled && chatGPT.planUsageEnabled && !coach.isLoading &&
-                   coach.beginAutomaticReview(engine:engine) {
-                    coach.focusWorkoutID = nil
-                    Task { await coach.analyzeSession(client:chatGPT,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
-                }
+                // A new run always receives a session report when the athlete
+                // authorized either auto-review or autonomous coaching.
+                if !launchAutomaticSessionReview() { launchAutopilot() }
             }
             .onReceive(strengthTracker.$records) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
@@ -117,7 +114,15 @@ struct PaceLabCompanionApp: App {
                 launchAutopilot()
             }
             .onReceive(sleep.$summary) { _ in launchAutopilot() }
-            .onReceive(autopilot.$enabled) { _ in launchAutopilot() }
+            .onReceive(autopilot.$enabled) { _ in
+                if !launchAutomaticSessionReview() { launchAutopilot() }
+            }
+            .onReceive(coach.$autoReview) { _ in
+                _ = launchAutomaticSessionReview()
+            }
+            .onReceive(chatGPT.$planUsageEnabled) { _ in
+                _ = launchAutomaticSessionReview()
+            }
             .onAppear {
                 guard !hasLoaded else { return }
                 sleep.startObservers()
@@ -127,7 +132,7 @@ struct PaceLabCompanionApp: App {
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
-                launchAutopilot()
+                if !launchAutomaticSessionReview() { launchAutopilot() }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 sleep.startObservers()
@@ -135,9 +140,25 @@ struct PaceLabCompanionApp: App {
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
-                launchAutopilot()
+                if !launchAutomaticSessionReview() { launchAutopilot() }
             }
         }
+    }
+
+    @discardableResult
+    private func launchAutomaticSessionReview() -> Bool {
+        guard chatGPT.planUsageEnabled, !coach.isLoading,
+              coach.beginAutomaticReview(engine:engine,autonomousMode:autopilot.enabled)
+        else { return false }
+        coach.focusWorkoutID = nil
+        Task { @MainActor in
+            await coach.analyzeSession(client:chatGPT,engine:engine,library:library,
+                journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep)
+            // Keep session interpretation and training adjustments sequential,
+            // so simultaneous OpenAI requests cannot conflict or discard results.
+            launchAutopilot()
+        }
+        return true
     }
 
     private func launchAutopilot() {
