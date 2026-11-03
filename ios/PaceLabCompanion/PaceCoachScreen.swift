@@ -844,8 +844,12 @@ struct PaceCoachScreen: View {
                             .accessibilityAddTraits(.updatesFrequently)
                     } else if autopilot.enabled || coach.autoReview {
                         Label(coach.latestReport?.workoutID == run.source_uuid
-                              ? "Bilan automatique disponible ci-dessous"
-                              : "Analyse automatique activée · aucune action nécessaire",
+                              ? "Bilan disponible ci-dessous"
+                              : !coach.error.isEmpty
+                                ? "Bilan incomplet · relance possible"
+                                : coach.newWorkoutAwaitingReview
+                                  ? "Nouvelle séance détectée · analyse automatique attendue"
+                                  : "Bilans automatiques activés",
                               systemImage:"brain.head.profile")
                             .font(.footnote).foregroundStyle(PaceColors.teal)
                         Button {
