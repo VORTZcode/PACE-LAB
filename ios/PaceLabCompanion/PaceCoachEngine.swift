@@ -402,8 +402,10 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     }
     func clearConversation() { conversation.removeAll() }
 
-    func beginAutomaticReview(engine:HealthSyncEngine) -> Bool {
-        guard autoReview && shareRunSummaries && newWorkoutAwaitingReview,
+    func beginAutomaticReview(engine:HealthSyncEngine, autonomousMode:Bool = false) -> Bool {
+        // Autopilot opt-in also authorizes unattended session summaries. The
+        // older auto-review switch remains available outside autonomous mode.
+        guard (autoReview || autonomousMode) && shareRunSummaries && newWorkoutAwaitingReview,
               let uuid = engine.runHistory.first?.source_uuid,
               autoRequestedID != uuid, automaticInFlightID == nil,
               lastAutomaticAttempt.map({ Date().timeIntervalSince($0) >= 600 }) ?? true
@@ -573,9 +575,29 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         Au moins une incertitude, entre 1 et 6 observations et entre 1 et 5 recommandations.
         """
         do {
-            let response = try await client.answer(instructions:instructions,
-                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep))
-            let report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
+            let context = contextPreview(engine:engine,library:library,journal:journal,
+                                         profile:profile,strength:strength,sleep:sleep)
+            let response = try await client.answer(instructions:instructions,input:context)
+            let report: PaceCoachSessionReport
+            do {
+                report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
+            } catch {
+                // One bounded repair attempt if the *format* is incomplete.
+                // Missing measurements must remain unknown, never fabricated.
+                let repairInstructions = instructions + """
+                
+                La réponse précédente ne respectait pas le contrat de validation :
+                \(error.localizedDescription)
+                Réponds avec un nouvel objet JSON complet ayant toutes les clés
+                exigées. Conserve uniquement les observations prouvées par le contexte.
+                Si une mesure facultative manque, cite son absence dans uncertainties.
+                Ne fabrique jamais une mesure, une douleur ou un changement de programme.
+                """
+                let corrected = try await client.answer(
+                    instructions:repairInstructions,input:context)
+                report = try PaceCoachSessionReport.extract(
+                    corrected,workoutID:run.source_uuid)
+            }
             if let data = try? JSONEncoder().encode(report) {
                 try data.write(to:reportURL,options:.atomic)
                 try FileManager.default.setAttributes(
