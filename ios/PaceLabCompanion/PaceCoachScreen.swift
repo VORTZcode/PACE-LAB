@@ -841,7 +841,6 @@ struct PaceCoachScreen: View {
                         Label("Analyse ChatGPT en cours…",systemImage:"clock.arrow.circlepath")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(PaceColors.teal)
-                            .accessibilityAddTraits(.updatesFrequently)
                     } else if autopilot.enabled || coach.autoReview {
                         Label(coach.latestReport?.workoutID == run.source_uuid
                               ? "Bilan disponible ci-dessous"
