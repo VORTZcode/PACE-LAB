@@ -62,7 +62,10 @@ struct PaceCoachScreen: View {
                         .padding(.horizontal,4)
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
-                                Label("Nouvelle sortie disponible pour le bilan",systemImage:"checkmark.circle")
+                                Label(autopilot.enabled || coach.autoReview
+                                      ? "Nouvelle sortie détectée · bilan automatique prévu"
+                                      : "Nouvelle sortie disponible pour le bilan",
+                                      systemImage:"checkmark.circle")
                                     .font(.subheadline).foregroundStyle(PaceColors.teal)
                             }
                             if !autopilot.enabled, let suggested = adaptiveMonitor.visible {
@@ -666,14 +669,20 @@ struct PaceCoachScreen: View {
                 }
                 Toggle("Repas prévus",isOn:$coach.shareNutrition)
                 Divider()
-                Toggle(isOn:$coach.autoReview) {
-                    VStack(alignment:.leading,spacing:4) {
-                        Text("Préparer automatiquement un bilan")
-                        Text("Prépare un bilan après récupération ; ne modifie jamais le programme sans validation.")
-                            .font(.caption).foregroundStyle(.secondary)
+                if autopilot.enabled {
+                    Label("Le Coach autonome prépare aussi les bilans de sortie automatiquement, avec les données autorisées.",
+                          systemImage:"checkmark.shield")
+                        .font(.footnote).foregroundStyle(.secondary)
+                } else {
+                    Toggle(isOn:$coach.autoReview) {
+                        VStack(alignment:.leading,spacing:4) {
+                            Text("Préparer automatiquement un bilan")
+                            Text("Prépare un bilan après récupération ; ne modifie jamais le programme sans validation.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
+                    .disabled(!coach.shareRunSummaries)
                 }
-                .disabled(!coach.shareRunSummaries)
                 Button(showPreview ? "Masquer l’aperçu partagé" : "Voir le résumé sportif partagé") {
                     showPreview.toggle()
                 }
@@ -826,17 +835,42 @@ struct PaceCoachScreen: View {
                     .buttonStyle(.plain)
                     .tint(PaceColors.teal)
                         .font(.subheadline.weight(.medium))
-                    Text("Analyse la fréquence cardiaque, la récupération, tes quatre dernières semaines et les informations que tu autorises.")
+                    Text("Le bilan compare ta course, tes quatre dernières semaines et les informations dont tu autorises le partage.")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Button {
-                        Task { await coach.analyzeSession(client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
-                    } label: {
-                        Label("Analyser cette sortie",systemImage:"sparkles")
+                    if coach.isLoading {
+                        Label("Analyse ChatGPT en cours…",systemImage:"clock.arrow.circlepath")
                             .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth:.infinity).padding(.vertical,10)
+                            .foregroundStyle(PaceColors.teal)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    } else if autopilot.enabled || coach.autoReview {
+                        Label(coach.latestReport?.workoutID == run.source_uuid
+                              ? "Bilan automatique disponible ci-dessous"
+                              : "Analyse automatique activée · aucune action nécessaire",
+                              systemImage:"brain.head.profile")
+                            .font(.footnote).foregroundStyle(PaceColors.teal)
+                        Button {
+                            Task { await coach.analyzeSession(client:client,engine:engine,
+                                library:library,journal:journal,profile:athleteProfile,
+                                strength:strengthTracker,sleep:sleep) }
+                        } label: {
+                            Label("Relancer le bilan manuellement",systemImage:"arrow.clockwise")
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .buttonStyle(.bordered).tint(PaceColors.teal)
+                        .disabled(!coach.shareRunSummaries)
+                    } else {
+                        Button {
+                            Task { await coach.analyzeSession(client:client,engine:engine,
+                                library:library,journal:journal,profile:athleteProfile,
+                                strength:strengthTracker,sleep:sleep) }
+                        } label: {
+                            Label("Analyser cette sortie",systemImage:"sparkles")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth:.infinity).padding(.vertical,10)
+                        }
+                        .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+                        .disabled(!coach.shareRunSummaries)
                     }
-                    .buttonStyle(.borderedProminent).tint(PaceColors.teal)
-                    .disabled(!coach.shareRunSummaries || coach.isLoading)
                 } else {
                     Text("Enregistre d’abord une course avec Apple Santé.")
                         .font(.subheadline).foregroundStyle(.secondary)
