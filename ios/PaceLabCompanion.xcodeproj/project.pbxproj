@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F70B00300000000000000001 /* PaceHealthSignals.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00300000000000000002 /* PaceHealthSignals.swift */; };
 		F70B00200000000000000001 /* PaceHealthCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00200000000000000002 /* PaceHealthCoverage.swift */; };
 		F70B00100000000000000001 /* PaceProgressEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00100000000000000002 /* PaceProgressEvidence.swift */; };
         D8F000A00000000000000003 /* PaceFlightMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F000A00000000000000004 /* PaceFlightMotion.swift */; };
@@ -56,6 +57,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F70B00300000000000000002 /* PaceHealthSignals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceHealthSignals.swift; sourceTree = "<group>"; };
 		F70B00200000000000000002 /* PaceHealthCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceHealthCoverage.swift; sourceTree = "<group>"; };
 		F70B00100000000000000002 /* PaceProgressEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceProgressEvidence.swift; sourceTree = "<group>"; };
         D8F000A00000000000000004 /* PaceFlightMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceFlightMotion.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				D8F000A00000000000000002 /* PaceWorkoutRoute.swift */,
 				F70B00100000000000000002 /* PaceProgressEvidence.swift */,
 				F70B00200000000000000002 /* PaceHealthCoverage.swift */,
+				F70B00300000000000000002 /* PaceHealthSignals.swift */,
 				6F3F1D553D6B3E1EE11098E2 /* PaceViewsActivities.swift */,
 				DC1301C594345839F7D429FC /* PaceViewsBody.swift */,
 				EB9F8BCEACF8087EBD130A81 /* PaceViewsCore.swift */,
@@ -295,6 +298,7 @@
 				D8F000A00000000000000001 /* PaceWorkoutRoute.swift in Sources */,
 				F70B00100000000000000001 /* PaceProgressEvidence.swift in Sources */,
 				F70B00200000000000000001 /* PaceHealthCoverage.swift in Sources */,
+				F70B00300000000000000001 /* PaceHealthSignals.swift in Sources */,
 				7D750A6956D16BC2DF8DB8B3 /* PaceViewsActivities.swift in Sources */,
 				9079B6B7F308D1B2B2B5D7C9 /* PaceViewsBody.swift in Sources */,
 				1BB263ADD92BEB0A1C818D3B /* PaceViewsCore.swift in Sources */,
