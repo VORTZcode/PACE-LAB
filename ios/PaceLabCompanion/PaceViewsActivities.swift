@@ -150,28 +150,35 @@ struct PaceSessionReportInlineCard: View {
     let onRead: () -> Void
 
     var body: some View {
-        PaceCard {
-            VStack(alignment: .leading, spacing: 11) {
-                Label(report.isLocal ? "Bilan local · IA indisponible" : "L'analyse de ton coach",
-                      systemImage: report.isLocal ? "iphone" : "brain.head.profile")
-                    .font(.headline)
-                    .foregroundStyle(report.isLocal ? .secondary : PaceColors.teal)
-                Text(report.summary)
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-                if report.isLocal {
-                    Text("Mesures uniquement. Aucune adaptation du programme n'a été déduite.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Button {
-                    onRead()
-                } label: {
-                    Label("Lire le bilan complet", systemImage: "arrow.up.right")
+        Button(action: onRead) {
+            PaceCard {
+                VStack(alignment: .leading, spacing: 11) {
+                    HStack {
+                        Label(report.isLocal ? "Bilan local · IA indisponible" :
+                              "L'analyse de ton coach",
+                              systemImage: report.isLocal ? "iphone" : "brain.head.profile")
+                            .font(.headline)
+                            .foregroundStyle(report.isLocal ? .secondary : PaceColors.teal)
+                        Spacer(minLength: 4)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(PaceColors.teal)
+                    }
+                    Text(report.summary)
+                        .font(.subheadline).foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if report.isLocal {
+                        Text("Mesures uniquement. Aucune adaptation du programme n'a été déduite.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("Lire le bilan complet")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
                 }
-                .tint(PaceColors.teal)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Ouvre le bilan détaillé de cette activité dans le Coach")
     }
 }
 
@@ -215,6 +222,28 @@ struct WorkoutDetailScreen: View {
                     coach.focusWorkoutID = workout.source_uuid
                     showCoach = true
                 }
+            } else if workout.isRun || workout.activity_kind == "strength" {
+                Button {
+                    coach.focusWorkoutID = workout.source_uuid
+                    showCoach = true
+                } label: {
+                    PaceCard {
+                        HStack(spacing: 11) {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundStyle(PaceColors.teal)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Bilan ChatGPT non confirmé")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                Text("Consulter le statut ou relancer depuis le Coach")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption.weight(.semibold)).foregroundStyle(PaceColors.teal)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
             }
             DisclosureGroup(isExpanded: $showAdvancedMetrics) {
                 RunDynamicsSection(original: workout)
