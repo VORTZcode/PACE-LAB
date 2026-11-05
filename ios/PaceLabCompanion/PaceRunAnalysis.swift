@@ -458,15 +458,12 @@ struct SimilarRunComparison: View {
     @EnvironmentObject private var journal: PaceSessionJournal
     let workout: WorkoutPayload
 
+    private var comparisonEvidence: PaceRunComparison? {
+        PaceProgressEvidence.comparison(for: workout, in: engine.runHistory)
+    }
     private var previous: WorkoutPayload? {
-        guard workout.isRun, workout.kilometers > 0.8 else { return nil }
-        return engine.runHistory
-            .filter {
-                $0.startDate < workout.startDate &&
-                $0.kilometers > 0.8 &&
-                abs($0.kilometers - workout.kilometers) / workout.kilometers <= 0.15
-            }
-            .first
+        guard let previousID = comparisonEvidence?.priorID else { return nil }
+        return engine.runHistory.first { $0.source_uuid == previousID }
     }
     var body: some View {
         if let previous {
@@ -474,7 +471,7 @@ struct SimilarRunComparison: View {
                 PaceSectionTitle(title: "Comparer cette sortie")
                 PaceCard {
                     VStack(alignment: .leading, spacing: 13) {
-                        Text("Course précédente de distance similaire (±15 %)")
+                        Text("Course de distance similaire (±10 %, espacée d’au moins 7 jours)")
                             .font(.subheadline.weight(.semibold))
                         Text(PaceFormat.fullDate(previous.startDate).capitalized)
                             .font(.caption).foregroundStyle(.secondary)
@@ -490,7 +487,10 @@ struct SimilarRunComparison: View {
                             comparison("Difficulté ressentie", current: "\(effort)/10", past: "\(other)/10")
                         }
                         Divider()
-                        Text("Comparaison descriptive : ni la pente, ni la météo, ni le profil d’effort n’ont été neutralisés. Une meilleure allure seule ne prouve pas une amélioration physiologique.")
+                        Text(comparisonEvidence?.evidenceLabel ??
+                             "Comparaison descriptive : intensité et conditions inconnues.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("Le vent, la pente, les pauses et le ressenti peuvent expliquer une différence : cette comparaison ne prouve pas, seule, un progrès physiologique.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
