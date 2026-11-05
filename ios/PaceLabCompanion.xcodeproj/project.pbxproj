@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F70B00100000000000000001 /* PaceProgressEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00100000000000000002 /* PaceProgressEvidence.swift */; };
         D8F000A00000000000000003 /* PaceFlightMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F000A00000000000000004 /* PaceFlightMotion.swift */; };
         D8F000A00000000000000001 /* PaceWorkoutRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F000A00000000000000002 /* PaceWorkoutRoute.swift */; };
 		07D86110779B92A9DC582DDF /* PaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61AA8AC5B7A17BB06B00F786 /* PaceModels.swift */; };
@@ -54,6 +55,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F70B00100000000000000002 /* PaceProgressEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceProgressEvidence.swift; sourceTree = "<group>"; };
         D8F000A00000000000000004 /* PaceFlightMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceFlightMotion.swift; sourceTree = "<group>"; };
         D8F000A00000000000000002 /* PaceWorkoutRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceWorkoutRoute.swift; sourceTree = "<group>"; };
 		0C74956E8A0A5F9CC499A428 /* HealthSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSyncEngine.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 				9A93BD68F7F26C1D1FC9F8D8 /* PaceStrengthWorkoutLinks.swift */,
 				D8F000A00000000000000004 /* PaceFlightMotion.swift */,
 				D8F000A00000000000000002 /* PaceWorkoutRoute.swift */,
+				F70B00100000000000000002 /* PaceProgressEvidence.swift */,
 				6F3F1D553D6B3E1EE11098E2 /* PaceViewsActivities.swift */,
 				DC1301C594345839F7D429FC /* PaceViewsBody.swift */,
 				EB9F8BCEACF8087EBD130A81 /* PaceViewsCore.swift */,
@@ -287,6 +290,7 @@
 				EF090470A38A052944AF0036 /* PaceStrengthWorkoutLinks.swift in Sources */,
 				D8F000A00000000000000003 /* PaceFlightMotion.swift in Sources */,
 				D8F000A00000000000000001 /* PaceWorkoutRoute.swift in Sources */,
+				F70B00100000000000000001 /* PaceProgressEvidence.swift in Sources */,
 				7D750A6956D16BC2DF8DB8B3 /* PaceViewsActivities.swift in Sources */,
 				9079B6B7F308D1B2B2B5D7C9 /* PaceViewsBody.swift in Sources */,
 				1BB263ADD92BEB0A1C818D3B /* PaceViewsCore.swift in Sources */,
