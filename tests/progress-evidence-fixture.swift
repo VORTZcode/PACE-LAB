@@ -40,6 +40,9 @@ import Foundation
         precondition(result.previous28.runCount == 1)
         precondition(result.current28.activeWeeks >= 1)
         precondition(result.hasTwoPeriods)
+        precondition(result.milestones.count == 1)
+        precondition(result.milestones.first?.targetKm == 5)
+        precondition(result.milestones.first?.sourceUUID == "latest")
         guard let compared = result.comparison else { preconditionFailure("Comparable run expected") }
         precondition(compared.currentID == "latest" && compared.priorID == "similar")
         precondition(compared.paceDifferenceSecondsPerKm < 0)
