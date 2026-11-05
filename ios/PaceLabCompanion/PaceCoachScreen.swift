@@ -26,6 +26,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var strengthTracker: PaceStrengthTracker
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject private var sleep: PaceSleepHealthKit
+    @EnvironmentObject private var healthSignals: PaceHealthSignals
     @EnvironmentObject private var autopilot: PaceAutopilot
     @EnvironmentObject private var tabs: PaceTabRouter
     @Environment(\.dismiss) private var dismiss
@@ -741,6 +742,24 @@ struct PaceCoachScreen: View {
                 }
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
                 Toggle("Tour de taille renseigné et évolution",isOn:$coach.shareWaist)
+                VStack(alignment: .leading, spacing: 7) {
+                    Toggle(isOn: $coach.shareHealthTrends) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Tendances complémentaires Apple Santé")
+                            Text("FC au repos, VFC, VO₂ max estimée et mesures corporelles réellement présentes. Résumés sur 56 jours, jamais séries brutes.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(!healthSignals.accessRequested)
+                    if !healthSignals.accessRequested {
+                        Button("Autoriser d'abord ces mesures dans Santé") {
+                            Task { await healthSignals.requestAccess() }
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                    Text("Cette autorisation pour ChatGPT est distincte de l'accès Apple Santé. Une variation isolée ne déclenche pas de modification du programme.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Toggle(isOn:$coach.shareStrengthSets) {
                     VStack(alignment:.leading,spacing:3) {
                         Text("Mes séries de musculation")
