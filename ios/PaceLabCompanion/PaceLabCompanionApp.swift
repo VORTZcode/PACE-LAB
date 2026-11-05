@@ -71,7 +71,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var healthSignals = PaceHealthSignals.shared
     @StateObject private var autopilot = PaceAutopilot()
     @StateObject private var strengthTracker = PaceStrengthTracker()
-    @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
+    @StateObject private var strengthLinks = PaceStrengthWorkoutLinks.shared
     @StateObject private var runLinks = PaceRunWorkoutLinks.shared
     @State private var hasLoaded = false
 
