@@ -156,9 +156,18 @@ struct RunDynamicsSection: View {
     private var heartBaseline: Double {
         max(25, floor(((points.map(\.value).min() ?? 70) - 12) / 10) * 10)
     }
+    private var heartCeiling: Double {
+        min(245, max(heartBaseline + 20,
+            ceil(((points.map(\.value).max() ?? 120) + 12) / 10) * 10))
+    }
     private var selectedPoint: RunChartPoint? {
-        guard let selectedMinute else { return nil }
-        return points.min { abs($0.minute - selectedMinute) < abs($1.minute - selectedMinute) }
+        guard let selectedMinute,
+              let nearest = points.min(by: {
+                  abs($0.minute - selectedMinute) < abs($1.minute - selectedMinute)
+              }),
+              abs(nearest.minute - selectedMinute) <= 0.9 else { return nil }
+        // No fabricated value while scrubbing through a real measurement gap.
+        return nearest
     }
     private var displayMean: String {
         switch metric {
@@ -208,13 +217,12 @@ struct RunDynamicsSection: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(metric.detail)
                                 .font(.subheadline.weight(.semibold))
-                                .lineLimit(2)
-                                .frame(height: 39, alignment: .topLeading)
-                            Text(metric == .heart
-                                 ? "Moyenne : \(displayMean) bpm"
-                                 : "Moyenne : \(displayMean) \(metric.unit)")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .monospacedDigit()
+                                .fixedSize(horizontal: false, vertical: true)
+                            if metric != .heart {
+                                Text("Moyenne : \(displayMean) \(metric.unit)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
                         Spacer(minLength: 4)
                         Button { showExplanation = true } label: {
@@ -225,6 +233,28 @@ struct RunDynamicsSection: View {
                                 .contentShape(Rectangle())
                         }
                         .accessibilityLabel("Comprendre \(metric.rawValue)")
+                    }
+                    if metric == .heart {
+                        HStack(alignment: .firstTextBaseline, spacing: 24) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("MOYENNE").font(.system(size: 10, weight: .bold))
+                                    .tracking(1.0).foregroundStyle(.secondary)
+                                Text("\(PaceFormat.heart(w.hr_average_bpm))")
+                                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                                + Text(" bpm").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text("MAXIMALE MESURÉE").font(.system(size: 10, weight: .bold))
+                                    .tracking(0.7).foregroundStyle(.secondary)
+                                Text("\(PaceFormat.heart(w.hr_max_bpm))")
+                                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                                + Text(" bpm").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                     ZStack {
                         if preparedKey == preparationKey {
@@ -257,12 +287,31 @@ struct RunDynamicsSection: View {
                                         PointMark(x: .value("Minute choisie", picked.minute),
                                                   y: .value(metric.unit, picked.value))
                                             .symbolSize(48)
-                                            .foregroundStyle(PaceColors.teal)
+                                            .foregroundStyle(metric == .heart ? Color.red : PaceColors.teal)
                                     }
                                 }
                                 .chartXSelection(value: $selectedMinute)
-                                .chartXAxisLabel("Minutes écoulées")
-                                .chartYAxisLabel(metric.unit)
+                                .chartXScale(domain: 0...max(1, ceil((w.duration_seconds / 60) / 5) * 5))
+                                .chartYScale(domain: metric == .heart ?
+                                    heartBaseline...heartCeiling : 0...max(1, (points.map(\.value).max() ?? 1) * 1.15))
+                                .chartXAxis {
+                                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [2, 4]))
+                                            .foregroundStyle(.quaternary)
+                                        AxisValueLabel {
+                                            if let minute = value.as(Double.self) {
+                                                Text("\(Int(minute.rounded()))′")
+                                            }
+                                        }
+                                    }
+                                }
+                                .chartYAxis {
+                                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) {
+                                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                                            .foregroundStyle(.quaternary)
+                                        AxisValueLabel()
+                                    }
+                                }
                                 .transaction { transaction in transaction.animation = nil }
                                 .accessibilityLabel("\(metric.rawValue) — \(points.count) mesures enregistrées")
                             } else {
@@ -274,21 +323,36 @@ struct RunDynamicsSection: View {
                                 .controlSize(.small)
                         }
                     }
-                    .frame(height: 238)
+                    .frame(height: 255)
+                    .padding(.top, 15)
+                    .padding(.horizontal, 2)
                     .frame(maxWidth: .infinity)
-                    .clipped()
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Touchez la courbe pour voir une valeur")
-                            .font(.caption2).foregroundStyle(.secondary)
-                        Spacer(minLength: 3)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
                         if let selectedPoint {
+                            Text("\(Int(selectedPoint.minute.rounded()))′ \(Int((selectedPoint.minute.truncatingRemainder(dividingBy: 1) * 60).rounded()))″")
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                            Spacer(minLength: 3)
                             Text(metric == .speed
                                  ? "\(PaceFormat.pace(selectedPoint.value)) /km"
-                                 : "\(selectedPoint.value.formatted(.number.precision(.fractionLength(1)))) \(metric.unit)")
+                                 : "\(selectedPoint.value.formatted(.number.precision(.fractionLength(metric == .heart ? 0 : 1)))) \(metric.unit)")
                                 .font(.caption.weight(.semibold)).monospacedDigit()
+                                .foregroundStyle(metric == .heart ? .red : .primary)
+                        } else {
+                            Label("Glisse sur une mesure pour voir sa valeur et son instant", systemImage: "hand.draw")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    .frame(height: 21, alignment: .top)
+                    .frame(minHeight: 26)
+                    if metric == .heart && points.count >= 2 {
+                        HStack(spacing: 5) {
+                            Image(systemName: "heart.fill").foregroundStyle(.red)
+                            Text("Plage affichée : \(Int((points.map(\.value).min() ?? 0).rounded()))–\(Int((points.map(\.value).max() ?? 0).rounded())) bpm")
+                            Spacer()
+                            Text("\(Int((w.duration_seconds / 60).rounded())) min")
+                        }
+                        .font(.caption2).foregroundStyle(.secondary)
+                    }
                     if metric == .speed {
                         Text("Allure : une valeur plus faible correspond à une vitesse plus élevée.")
                             .font(.caption2).foregroundStyle(.secondary)

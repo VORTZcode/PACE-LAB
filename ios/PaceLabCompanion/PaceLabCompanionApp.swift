@@ -111,6 +111,10 @@ struct PaceLabCompanionApp: App {
                 // manually checking a box cannot fabricate workout measurements.
                 if !launchAutomaticSessionReview() { launchAutopilot() }
             }
+            .onReceive(library.$missedSessions) { _ in
+                // Keep the coach aware of missed training, without making up a workout.
+                if !launchAutomaticSessionReview() { launchAutopilot() }
+            }
             .onReceive(journal.$notes) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 adaptiveMonitor.refresh(engine:engine,journal:journal,library:library)

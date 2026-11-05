@@ -1,8 +1,26 @@
 import SwiftUI
 
+/// Show every workout observed on the local calendar day, even after validation.
+/// Date coincidence does not prove that a workout fulfilled the planned session.
+enum PacePlanActivityMatch {
+    static func on(_ date: String, in workouts: [WorkoutPayload],
+                   calendar: Calendar = .current) -> [WorkoutPayload] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let plannedDate = formatter.date(from: date) else { return [] }
+        return workouts.filter {
+            calendar.isDate($0.startDate, inSameDayAs: plannedDate)
+        }.sorted { $0.startDate < $1.startDate }
+    }
+}
+
 struct ProgrammeScreen: View {
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
+    @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var tabs: PaceTabRouter
     @EnvironmentObject var athleteProfile: PaceAthleteProfileStore
 
@@ -137,6 +155,12 @@ struct ProgrammeScreen: View {
                                     }
                                     Text("\(day.type) · \(Int(day.minutes)) min")
                                         .font(.caption).foregroundStyle(.secondary)
+                                    let observed = PacePlanActivityMatch.on(day.date, in: engine.snapshot)
+                                    if !observed.isEmpty {
+                                        Label("\(observed.count) activité(s) Apple Santé", systemImage: "applewatch")
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(PaceColors.teal)
+                                    }
                                     if let missed = library.missedSessions[day.date] {
                                         Label("Non réalisée · \(missed.reason)", systemImage: "minus.circle.fill")
                                             .font(.caption.weight(.medium))
@@ -243,6 +267,9 @@ struct DayDetailScreen: View {
         guard library.activeCoachDraft == nil else { return [] }
         return library.programme.force.filter { $0.day == day.day }
     }
+    private var dayActivities: [WorkoutPayload] {
+        PacePlanActivityMatch.on(day.date, in: engine.snapshot)
+    }
     private var matchingActivity: WorkoutPayload? {
         let expected: String
         switch day.type {
@@ -251,15 +278,9 @@ struct DayDetailScreen: View {
         case "Récupération": expected = "walking"
         default: return nil
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: day.date) else { return nil }
-        let candidates = engine.snapshot.filter {
-            $0.activity_kind == expected && Calendar.current.isDate($0.startDate, inSameDayAs: date)
-        }
-        // Do not silently associate the wrong strength activity on days with multiple workouts.
-        return expected == "strength" ? (candidates.count == 1 ? candidates.first : nil) : candidates.first
+        let candidates = dayActivities.filter { $0.activity_kind == expected }
+        // Multiple activities of the same type require user selection, not a guess.
+        return candidates.count == 1 ? candidates.first : nil
     }
 
 
@@ -276,6 +297,68 @@ struct DayDetailScreen: View {
                 }
                 .padding(.top, 5)
             }
+            PaceSectionTitle(title: "Activité enregistrée",
+                             subtitle: "Apple Santé")
+            if dayActivities.isEmpty {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Aucune activité synchronisée pour cette date",
+                              systemImage: "applewatch.slash")
+                            .font(.subheadline.weight(.medium))
+                        Text("L'enregistrement peut encore être en cours de synchronisation. Une validation manuelle du programme ne crée pas de données Apple Santé.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(dayActivities) { activity in
+                            NavigationLink {
+                                if activity.activity_kind == "strength" {
+                                    StrengthWorkoutDetailScreen(workout: activity)
+                                } else {
+                                    WorkoutDetailScreen(workout: activity)
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: activity.symbol)
+                                        .foregroundStyle(PaceColors.teal)
+                                        .frame(width: 30)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(activity.cadenceLabel)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                        Text("\(activity.startDate.formatted(.dateTime.hour().minute())) · \(PaceFormat.duration(activity.duration_seconds))" +
+                                             (activity.isRun && activity.kilometers > 0 ?
+                                              " · \(PaceFormat.distance(activity.kilometers, places: 2)) km" : ""))
+                                            .font(.caption).foregroundStyle(.secondary)
+                                        if activity.isRun {
+                                            Text("Allure \(PaceFormat.pace(activity.paceMinutes))/km · FC \(PaceFormat.heart(activity.hr_average_bpm)) bpm")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        } else if let heart = activity.hr_average_bpm {
+                                            Text("FC moyenne \(PaceFormat.heart(heart)) bpm")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        if activity.source_uuid == matchingActivity?.source_uuid {
+                                            Text("Type correspondant à la séance prévue")
+                                                .font(.caption2).foregroundStyle(PaceColors.teal)
+                                        } else {
+                                            Text("Activité du jour · association au programme non confirmée")
+                                                .font(.caption2).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Ouvrir les mesures réelles de cette activité")
+                        }
+                    }
+                }
+            }
+
             if exercises.isEmpty {
                 PaceEffortGuide(day: day)
             }

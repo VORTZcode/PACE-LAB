@@ -138,6 +138,36 @@ struct ActivityRow: View {
         .contentShape(Rectangle())
     }
 }
+struct PaceSessionReportInlineCard: View {
+    let report: PaceCoachSessionReport
+    let onRead: () -> Void
+
+    var body: some View {
+        PaceCard {
+            VStack(alignment: .leading, spacing: 11) {
+                Label(report.isLocal ? "Bilan local · IA indisponible" : "L'analyse de ton coach",
+                      systemImage: report.isLocal ? "iphone" : "brain.head.profile")
+                    .font(.headline)
+                    .foregroundStyle(report.isLocal ? .secondary : PaceColors.teal)
+                Text(report.summary)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                if report.isLocal {
+                    Text("Mesures uniquement. Aucune adaptation du programme n'a été déduite.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Button {
+                    onRead()
+                } label: {
+                    Label("Lire le bilan complet", systemImage: "arrow.up.right")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .tint(PaceColors.teal)
+            }
+        }
+    }
+}
+
 struct WorkoutDetailScreen: View {
     @EnvironmentObject private var journal: PaceSessionJournal
     @EnvironmentObject private var coach: PaceCoachEngine
@@ -166,6 +196,12 @@ struct WorkoutDetailScreen: View {
                 HStack(spacing: 12) {
                     PacePill(label: PaceFormat.duration(workout.duration_seconds), symbol: "clock")
                     if workout.isRun { PacePill(label: "\(PaceFormat.pace(workout.paceMinutes)) /km", symbol: "speedometer") }
+                }
+            }
+            if let report = coach.report(for: workout.source_uuid) {
+                PaceSessionReportInlineCard(report: report) {
+                    coach.focusWorkoutID = workout.source_uuid
+                    showCoach = true
                 }
             }
             RunDynamicsSection(original: workout)
@@ -334,6 +370,8 @@ struct WorkoutDetailScreen: View {
 // Strength has its own detail view. Apple Watch provides physiological measurements;
 // repetitions, hold seconds and dumbbell load are always explicitly user-entered data.
 struct StrengthWorkoutDetailScreen: View {
+    @EnvironmentObject private var coach: PaceCoachEngine
+    @State private var showCoach = false
     @EnvironmentObject private var engine: HealthSyncEngine
     @EnvironmentObject private var library: PaceLibrary
     @EnvironmentObject private var tracker: PaceStrengthTracker
@@ -376,6 +414,12 @@ struct StrengthWorkoutDetailScreen: View {
                     .font(.title2.weight(.semibold))
                 Text("Durée : \(PaceFormat.duration(workout.duration_seconds))")
                     .font(.headline).monospacedDigit()
+            }
+            if let report = coach.report(for: workout.source_uuid) {
+                PaceSessionReportInlineCard(report: report) {
+                    coach.focusWorkoutID = workout.source_uuid
+                    showCoach = true
+                }
             }
             PaceSectionTitle(title: "Mesures Apple Watch")
             PaceCard {
@@ -545,5 +589,6 @@ struct StrengthWorkoutDetailScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showCoach) { PaceCoachScreen() }
     }
 }

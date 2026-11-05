@@ -7,7 +7,7 @@ const insights=read('PaceHomeInsights.swift');
 assert.match(chart,/var prepared: \[RunChartMetric: \[RunChartPoint\]\]/);
 assert.match(chart,/for item in RunChartMetric\.allCases/);
 assert.match(chart,/preparedKey == preparationKey/);
-assert.match(chart,/\.frame\(height: 238\)/);
+assert.match(chart,/\.frame\(height: 255\)/);
 assert.match(chart,/transaction\.animation = nil/);
 assert.doesNotMatch(chart,/chartData = \[\]/);
 assert.match(chart,/Double\(full\.count\)\/160/);

@@ -39,9 +39,9 @@ for (const text of [
   'let window = max(2,Int(ceil(Double(full.count)/160)))',
   'chosen.insert(low)',
   'chosen.insert(high)',
-  '.chartYAxisLabel(metric.unit)',
+  '.chartYAxis {',
   'PaceFormat.pace(selectedPoint.value)',
-  'Minutes écoulées'
+  '.chartXScale(domain: 0...max(1, ceil((w.duration_seconds / 60) / 5) * 5))'
 ]) assert.ok(run.includes(text), 'Missing running plot feature: '+text);
 assert.ok(intervals.includes('(25...245).contains(p.bpm)'));
 assert.ok(intervals.includes('(0.7...12).contains(p.value)'));
