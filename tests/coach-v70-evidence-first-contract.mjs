@@ -52,6 +52,24 @@ assert.match(coachUI,/Dernier bilan ChatGPT confirmé/);
 assert.match(coachUI,/État technique et données/);
 assert.match(coachUI,/iOS ne garantit pas leur achèvement en arrière-plan/);
 
+// Health-data coverage is an honest capability catalog, not a permission fake.
+const coverage = read('PaceHealthCoverage');
+const settings = read('PaceViewsSettings');
+assert.match(coverage,/enum PaceHealthCoverageCatalog/);
+assert.match(coverage,/case planned/);
+assert.match(coverage,/case partialPipeline/);
+assert.match(coverage,/case availableInCurrentPipeline/);
+assert.match(coverage,/neverShareRawByDefault/);
+assert.match(coverage,/id:"resting-heart-rate"/);
+assert.match(coverage,/id:"hrv-sdnn"/);
+assert.match(coverage,/id:"vo2max"/);
+assert.match(coverage,/id:"sleep"/);
+assert.match(coverage,/id:"workout-routes"/);
+assert.ok(!coverage.includes('requestAuthorization('));
+assert.match(settings,/PaceHealthCoverageScreen/);
+assert.match(settings,/Les données prévues ne sont ni récupérées ni analysées par l'IA/);
+assert.match(project,/PaceHealthCoverage.swift in Sources/);
+
 // Xcode must link new model before an actual iOS compilation.
 assert.match(project,/PaceProgressEvidence.swift in Sources/);
 console.log('V7 static contracts: evidence validity, real-route hero, unbiased progress UX, consent-gated Coach, honest status.');
