@@ -15,6 +15,7 @@ private struct CardioPoint: Identifiable {
 struct ProgressScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var athleteProfile: PaceAthleteProfileStore
+    @EnvironmentObject var healthSignals: PaceHealthSignals
     @State private var selectedYear = Calendar.current.component(.year, from: .now)
     private var years: [Int] {
         Array(Set(engine.runHistory.map { Calendar.current.component(.year, from: $0.startDate) }))
@@ -63,6 +64,38 @@ struct ProgressScreen: View {
                 PaceProgressEvidencePanel(snapshot: evidence,
                                           runningGoal: athleteProfile.profile?.runningGoal)
                 BodyMetricsSection()
+                if healthSignals.accessRequested {
+                    PaceCard {
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 13) {
+                                Text("Mesures récupérées depuis Apple Santé, sans diagnostic automatique.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                ForEach(PaceHealthSignalTypes.definitions, id: \.id) { signal in
+                                    if let latest = healthSignals.latest(signal.id) {
+                                        HStack(alignment: .top) {
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(signal.name).font(.subheadline.weight(.medium))
+                                                Text(latest.date.formatted(date: .abbreviated, time: .omitted))
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Text("\(String(format:"%.1f",latest.value)) \(signal.unitLabel)")
+                                                .font(.subheadline.weight(.semibold))
+                                                .monospacedDigit()
+                                        }
+                                    }
+                                }
+                                Text("L'absence de ligne ne prouve pas un refus : la donnée peut ne pas exister. Ces mesures ne sont envoyées à ChatGPT qu'avec ton accord séparé.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 9)
+                        } label: {
+                            Label("Mesures complémentaires Santé", systemImage: "heart.text.clipboard")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .tint(PaceColors.teal)
+                    }
+                }
                 PaceSectionTitle(title: "Volume mensuel", subtitle: String(selectedYear))
                 PaceCard {
                     VStack(alignment: .leading, spacing: 12) {
