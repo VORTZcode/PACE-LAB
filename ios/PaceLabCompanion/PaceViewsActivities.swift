@@ -183,6 +183,8 @@ struct PaceSessionReportInlineCard: View {
 }
 
 struct WorkoutDetailScreen: View {
+    @EnvironmentObject private var client: PaceChatGPTConnection
+    @EnvironmentObject private var autopilot: PaceAutopilot
     @EnvironmentObject private var journal: PaceSessionJournal
     @EnvironmentObject private var coach: PaceCoachEngine
     @State private var showJournal = false
@@ -232,7 +234,9 @@ struct WorkoutDetailScreen: View {
                             Image(systemName: "brain.head.profile")
                                 .foregroundStyle(PaceColors.teal)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Bilan ChatGPT non confirmé")
+                                Text(coach.reviewState(for: workout.source_uuid,
+                                    automaticEnabled: client.planUsageEnabled &&
+                                        (coach.autoReview || autopilot.enabled)).message)
                                     .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                                 Text("Consulter le statut ou relancer depuis le Coach")
                                     .font(.caption).foregroundStyle(.secondary)
