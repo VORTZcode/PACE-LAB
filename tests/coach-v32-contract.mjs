@@ -41,5 +41,5 @@ assert.match(evidence,/dataQuality/);
 assert.match(evidence,/https:\/\/pubmed\.ncbi\.nlm\.nih\.gov/);
 assert.match(home,/PaceLivingCoachCard/);
 assert.doesNotMatch(home,/Text\("Ton coach ChatGPT"\)/);
-assert.ok(settings.includes("5.9 · Coach autonome et interface épurée"));
+assert.match(settings, /LabeledContent\("Version", value: "[^"]+"\)/);
 console.log('Coach V3.2 UI, profile consent, deterministic data review and scientific references verified.');

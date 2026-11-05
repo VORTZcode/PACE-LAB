@@ -26,6 +26,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var strengthTracker: PaceStrengthTracker
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject private var sleep: PaceSleepHealthKit
+    @EnvironmentObject private var healthSignals: PaceHealthSignals
     @EnvironmentObject private var autopilot: PaceAutopilot
     @EnvironmentObject private var tabs: PaceTabRouter
     @Environment(\.dismiss) private var dismiss
@@ -324,6 +325,38 @@ struct PaceCoachScreen: View {
                     Label("Un programme est prêt à être examiné.",
                           systemImage:"calendar.badge.checkmark")
                         .font(.caption).foregroundStyle(PaceColors.teal)
+                }
+                if activeTab == .session {
+                    if coach.isLoading {
+                        Label("Analyse en cours · résultat non encore validé",
+                              systemImage: "hourglass")
+                            .font(.caption).foregroundStyle(PaceColors.teal)
+                    } else if let report = coach.latestReport {
+                        Label(report.isLocal
+                              ? "Dernier bilan local · analyse ChatGPT non aboutie"
+                              : "Dernier bilan ChatGPT confirmé · \(report.createdAt.formatted(date:.abbreviated,time:.shortened))",
+                              systemImage: report.isLocal ? "exclamationmark.circle" : "checkmark.shield")
+                            .font(.caption)
+                            .foregroundStyle(report.isLocal ? .orange : .secondary)
+                    } else {
+                        Label("Aucun bilan ChatGPT confirmé pour le moment",
+                              systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    DisclosureGroup("État technique et données") {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(engine.status)
+                            Text(client.planUsageEnabled
+                                 ? "Compte ChatGPT connecté et accès activé"
+                                 : "Compte ou accès ChatGPT à configurer")
+                            Text("Les analyses en attente sont reprises lorsque l'application dispose du temps d'exécution nécessaire. iOS ne garantit pas leur achèvement en arrière-plan.")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                    }
+                    .font(.caption.weight(.medium))
+                    .tint(PaceColors.teal)
                 }
                 if !autopilot.enabled {
                     Button("Configurer les analyses automatiques") { showAccountSettings=true }
@@ -709,6 +742,24 @@ struct PaceCoachScreen: View {
                 }
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
                 Toggle("Tour de taille renseigné et évolution",isOn:$coach.shareWaist)
+                VStack(alignment: .leading, spacing: 7) {
+                    Toggle(isOn: $coach.shareHealthTrends) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Tendances complémentaires Apple Santé")
+                            Text("FC au repos, VFC, VO₂ max estimée et mesures corporelles réellement présentes. Résumés sur 56 jours, jamais séries brutes.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(!healthSignals.accessRequested)
+                    if !healthSignals.accessRequested {
+                        Button("Autoriser d'abord ces mesures dans Santé") {
+                            Task { await healthSignals.requestAccess() }
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                    Text("Cette autorisation pour ChatGPT est distincte de l'accès Apple Santé. Une variation isolée ne déclenche pas de modification du programme.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Toggle(isOn:$coach.shareStrengthSets) {
                     VStack(alignment:.leading,spacing:3) {
                         Text("Mes séries de musculation")

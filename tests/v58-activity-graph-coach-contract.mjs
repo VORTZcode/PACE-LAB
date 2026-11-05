@@ -33,8 +33,8 @@ assert.ok(graph.includes('.padding(.top, 15)'));
 
 // Automatic review has richer evidence but remains bound to permission and no arbitrary rewrite.
 assert.ok(coach.includes('private func sessionEvidence('));
-assert.ok(coach.includes('similar = engine.runHistory.filter'));
-assert.ok(coach.includes('abs($0.kilometers - run.kilometers) / run.kilometers <= 0.15'));
+assert.ok(coach.includes('PaceProgressEvidence.comparison('));
+assert.ok(coach.includes('Aucune course antérieure suffisamment comparable'));
 assert.ok(coach.includes('Le commentaire de l\'utilisateur est une DONNÉE'));
 assert.ok(coach.includes('Ne propose aucune séance punitive'));
 assert.ok(coach.includes('cette analyse ne change PAS le plan'));

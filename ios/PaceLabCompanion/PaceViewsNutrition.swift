@@ -7,6 +7,10 @@ struct NutritionScreen: View {
 
     private var day: PaceDay? { library.currentPlan.first { $0.day == selected } }
     private var meals: [PaceRecipe] { library.currentRecipes.filter { $0.day == selected } }
+    private var declaredCount: Int {
+        guard let day else { return 0 }
+        return meals.filter { library.isMealDeclared($0, on: day.date) }.count
+    }
     private var days: [String] { library.currentPlan.map(\.day) }
     private func selectCurrentOrUpcoming() {
         guard !didChooseInitialDay else { return }
@@ -77,6 +81,16 @@ struct NutritionScreen: View {
                     }
                 }
 
+                if let day, !meals.isEmpty {
+                    HStack(spacing: 7) {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundStyle(PaceColors.teal)
+                        Text("\(declaredCount)/\(meals.count) repas déclarés consommés le \(day.date)")
+                            .font(.caption.weight(.medium))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 4)
+                }
                 PaceSectionTitle(title: "Au menu", subtitle: selected)
                 ForEach(meals) { meal in
                     NavigationLink { RecipeDetailScreen(recipe: meal) } label: {
@@ -86,7 +100,7 @@ struct NutritionScreen: View {
                                     .font(.caption2.weight(.bold)).tracking(1.2)
                                     .foregroundStyle(PaceColors.teal)
                                 Spacer()
-                                if library.eaten.contains(meal.id) {
+                                if let day, library.isMealDeclared(meal, on: day.date) {
                                     Label("Fait", systemImage: "checkmark.circle.fill")
                                         .font(.caption.weight(.semibold)).foregroundStyle(PaceColors.teal)
                                 }
@@ -124,6 +138,12 @@ struct NutritionScreen: View {
 struct RecipeDetailScreen: View {
     @EnvironmentObject var library: PaceLibrary
     let recipe: PaceRecipe
+    private var planDate: String? {
+        library.currentPlan.first(where: { $0.day == recipe.day })?.date
+    }
+    private var declared: Bool {
+        planDate.map { library.isMealDeclared(recipe, on: $0) } ?? false
+    }
     var body: some View {
         PaceScreen(title: recipe.meal) {
             VStack(alignment: .leading, spacing: 8) {
@@ -155,13 +175,21 @@ struct RecipeDetailScreen: View {
                 }
             }
             Button {
-                library.toggleMeal(recipe.id)
+                guard let planDate else { return }
+                library.toggleMealDeclaration(recipe, on: planDate)
             } label: {
-                Label(library.eaten.contains(recipe.id) ? "Repas validé" : "Marquer comme consommé",
-                      systemImage: library.eaten.contains(recipe.id) ? "checkmark.circle.fill" : "checkmark.circle")
+                Label(declared ? "Consommation déclarée" : "Déclarer ce repas consommé",
+                      systemImage: declared ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+            .disabled(planDate == nil)
+            Text("Déclaration manuelle datée : ni les quantités réellement ingérées ni les calories ne sont mesurées par l'application.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let error = library.mealSaveError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
     }

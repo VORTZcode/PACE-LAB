@@ -23,11 +23,21 @@ struct ActivitiesScreen: View {
                     Calendar.current.component(.year, from: workout.startDate) == selectedYear)
         }
     }
+    private var featuredRun: WorkoutPayload? {
+        guard kind == 0 || kind == 3 else { return nil }
+        return all.filter { $0.isRun }.max(by: { $0.startDate < $1.startDate })
+    }
+    private var remaining: [WorkoutPayload] {
+        all.filter { $0.source_uuid != featuredRun?.source_uuid }
+    }
     private var year: Int { Calendar.current.component(.year, from: .now) }
     private var statYear: Int { selectedYear == 0 ? year : selectedYear }
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
+                if let featuredRun {
+                    PaceFeaturedRunCard(workout: featuredRun)
+                }
                 NavigationLink {
                     ProgressScreen()
                 } label: {
@@ -79,7 +89,7 @@ struct ActivitiesScreen: View {
                 }
                 PaceSectionTitle(title: "Historique", subtitle: "\(all.count) activités")
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(all.prefix(shown))) { workout in
+                    ForEach(Array(remaining.prefix(shown))) { workout in
                         NavigationLink {
                             if workout.activity_kind == "strength" {
                                 StrengthWorkoutDetailScreen(workout: workout)
@@ -90,12 +100,12 @@ struct ActivitiesScreen: View {
                             ActivityRow(workout: workout)
                         }
                         .buttonStyle(.plain)
-                        if workout.id != all.prefix(shown).last?.id { Divider().padding(.leading, 54) }
+                        if workout.id != remaining.prefix(shown).last?.id { Divider().padding(.leading, 54) }
                     }
                 }
                 .padding(.horizontal, 16)
                 .modifier(PaceGlassCardSurface(cornerRadius: 22))
-                if shown < all.count {
+                if shown < remaining.count {
                     Button("Afficher plus de séances") { shown += 25 }
                         .font(.subheadline.weight(.medium)).tint(PaceColors.teal)
                         .frame(maxWidth: .infinity)
@@ -140,37 +150,47 @@ struct PaceSessionReportInlineCard: View {
     let onRead: () -> Void
 
     var body: some View {
-        PaceCard {
-            VStack(alignment: .leading, spacing: 11) {
-                Label(report.isLocal ? "Bilan local · IA indisponible" : "L'analyse de ton coach",
-                      systemImage: report.isLocal ? "iphone" : "brain.head.profile")
-                    .font(.headline)
-                    .foregroundStyle(report.isLocal ? .secondary : PaceColors.teal)
-                Text(report.summary)
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-                if report.isLocal {
-                    Text("Mesures uniquement. Aucune adaptation du programme n'a été déduite.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Button {
-                    onRead()
-                } label: {
-                    Label("Lire le bilan complet", systemImage: "arrow.up.right")
+        Button(action: onRead) {
+            PaceCard {
+                VStack(alignment: .leading, spacing: 11) {
+                    HStack {
+                        Label(report.isLocal ? "Bilan local · IA indisponible" :
+                              "L'analyse de ton coach",
+                              systemImage: report.isLocal ? "iphone" : "brain.head.profile")
+                            .font(.headline)
+                            .foregroundStyle(report.isLocal ? .secondary : PaceColors.teal)
+                        Spacer(minLength: 4)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(PaceColors.teal)
+                    }
+                    Text(report.summary)
+                        .font(.subheadline).foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if report.isLocal {
+                        Text("Mesures uniquement. Aucune adaptation du programme n'a été déduite.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("Lire le bilan complet")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
                 }
-                .tint(PaceColors.teal)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Ouvre le bilan détaillé de cette activité dans le Coach")
     }
 }
 
 struct WorkoutDetailScreen: View {
+    @EnvironmentObject private var client: PaceChatGPTConnection
+    @EnvironmentObject private var autopilot: PaceAutopilot
     @EnvironmentObject private var journal: PaceSessionJournal
     @EnvironmentObject private var coach: PaceCoachEngine
     @State private var showJournal = false
     @State private var showCoach = false
     @State private var showIntervals = false
+    @State private var showAdvancedMetrics = false
     @State private var showComparison = false
     let workout: WorkoutPayload
     var body: some View {
@@ -204,9 +224,52 @@ struct WorkoutDetailScreen: View {
                     coach.focusWorkoutID = workout.source_uuid
                     showCoach = true
                 }
+            } else if workout.isRun || workout.activity_kind == "strength" {
+                Button {
+                    coach.focusWorkoutID = workout.source_uuid
+                    showCoach = true
+                } label: {
+                    PaceCard {
+                        HStack(spacing: 11) {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundStyle(PaceColors.teal)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(coach.reviewState(for: workout.source_uuid,
+                                    automaticEnabled: client.planUsageEnabled &&
+                                        (coach.autoReview || autopilot.enabled)).message)
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                Text("Consulter le statut ou relancer depuis le Coach")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption.weight(.semibold)).foregroundStyle(PaceColors.teal)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            RunDynamicsSection(original: workout)
-                .id("heart-chart")
+            DisclosureGroup(isExpanded: $showAdvancedMetrics) {
+                RunDynamicsSection(original: workout)
+                    .padding(.top, 10)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "waveform.path.ecg")
+                        .foregroundStyle(PaceColors.teal)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Fréquence cardiaque et dynamique")
+                            .font(.subheadline.weight(.semibold))
+                        Text(workout.hr_average_bpm.map {
+                            "FC moyenne \(PaceFormat.heart($0)) bpm · voir les courbes"
+                        } ?? "Mesures détaillées de cette séance")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .tint(PaceColors.teal)
+            .padding(16)
+            .modifier(PaceGlassCardSurface(cornerRadius: 20))
+            .id("heart-chart")
             VStack(alignment: .leading, spacing: 10) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showIntervals.toggle() }
@@ -336,6 +399,7 @@ struct WorkoutDetailScreen: View {
                         }
                     }
                     Button("Graphiques", systemImage: "waveform.path.ecg") {
+                        showAdvancedMetrics = true
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
                     }
                     Button("Intervalles de 5 minutes", systemImage: "list.number") {
@@ -596,5 +660,78 @@ struct StrengthWorkoutDetailScreen: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showCoach) { PaceCoachScreen() }
+    }
+}
+
+
+/// Only the most recent run asks HealthKit for a route thumbnail. No hidden
+/// per-row GPS reads, no fabricated trace, and no share with the AI service.
+private struct PaceFeaturedRunCard: View {
+    let workout: WorkoutPayload
+    @StateObject private var route = PaceWorkoutRouteReader()
+
+    var body: some View {
+        NavigationLink {
+            WorkoutDetailScreen(workout: workout)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    if let track = route.track {
+                        PaceRouteMap(track: track)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    } else {
+                        LinearGradient(colors: [
+                            PaceColors.teal.opacity(0.29), PaceColors.surface,
+                            PaceColors.teal.opacity(0.09)
+                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 65, weight: .ultraLight))
+                            .foregroundStyle(PaceColors.teal.opacity(0.45))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    Label("DERNIÈRE COURSE", systemImage: "figure.run")
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.7)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(14)
+                }
+                .frame(height: 190)
+                .clipped()
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(PaceFormat.fullDate(workout.startDate).capitalized)
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(PaceFormat.distance(workout.kilometers, places: 2) + " km")
+                            .font(.system(.title2, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .monospacedDigit()
+                    }
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(PaceFormat.pace(workout.paceMinutes) + " /km")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text(PaceFormat.duration(workout.duration_seconds))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
+                        .padding(.leading, 4)
+                }
+                .padding(16)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .modifier(PaceGlassCardSurface(cornerRadius: 24))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dernière course, \(PaceFormat.distance(workout.kilometers, places: 2)) kilomètres. Ouvrir la fiche.")
+        .task(id: workout.source_uuid) {
+            await route.load(workoutID: workout.source_uuid)
+        }
     }
 }

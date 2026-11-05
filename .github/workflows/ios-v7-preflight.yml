@@ -1,0 +1,49 @@
+name: PACE-LAB V7 iOS preflight
+
+on:
+  push:
+    branches:
+      - feature/v7-evidence-first-ux-audit
+  pull_request:
+    branches:
+      - feature/native-v4-4-exercise-photos
+  workflow_dispatch:
+
+# Keep only the latest preparatory validation for this branch.
+concurrency:
+  group: pace-lab-v7-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fast-logic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: JavaScript static contracts
+        run: |
+          set -euo pipefail
+          for t in tests/*contract.mjs; do node "$t"; done
+      - name: Deterministic Swift model fixtures
+        run: |
+          set -euo pipefail
+          swift --version
+          swiftc ios/PaceLabCompanion/LocalHealthStore.swift ios/PaceLabCompanion/PaceProgressEvidence.swift tests/progress-evidence-fixture.swift -o /tmp/pace-progress && /tmp/pace-progress
+          swiftc ios/PaceLabCompanion/PaceTrainingAdherence.swift tests/training-adherence-fixture.swift -o /tmp/pace-training && /tmp/pace-training
+          swiftc ios/PaceLabCompanion/PaceStrengthEvidence.swift tests/strength-evidence-fixture.swift -o /tmp/pace-strength && /tmp/pace-strength
+  compile-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout V7 source
+        uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Contracts, fixtures and simulator compilation
+        run: bash scripts/preflight-v7.sh

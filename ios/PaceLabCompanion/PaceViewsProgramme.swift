@@ -36,6 +36,14 @@ struct ProgrammeScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var tabs: PaceTabRouter
     @EnvironmentObject var athleteProfile: PaceAthleteProfileStore
+    @EnvironmentObject var runLinks: PaceRunWorkoutLinks
+    @EnvironmentObject var strengthLinks: PaceStrengthWorkoutLinks
+
+    private var adherence: PaceTrainingAdherenceSnapshot {
+        PaceTrainingAdherenceAdapter.snapshot(
+            library: library, engine: engine, runLinks: runLinks,
+            strengthLinks: strengthLinks)
+    }
 
     var body: some View {
         NavigationStack {
@@ -65,6 +73,40 @@ struct ProgrammeScreen: View {
                             Text("Progression hebdomadaire").font(.headline)
                             Text("\(library.completedCount) réalisées · \(library.missedCount) non réalisées")
                                 .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if adherence.plannedTrainingCount > 0 {
+                    PaceCard {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("Réalisation des entraînements", systemImage: "checkmark.shield")
+                                .font(.subheadline.weight(.semibold))
+                            HStack(spacing: 14) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(adherence.confirmed)")
+                                        .font(.title3.weight(.semibold)).monospacedDigit()
+                                    Text("liés à Apple Santé").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(adherence.selfReported)")
+                                        .font(.title3.weight(.semibold)).monospacedDigit()
+                                    Text("validés manuellement").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(adherence.missed)")
+                                        .font(.title3.weight(.semibold)).monospacedDigit()
+                                    Text("non réalisés").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            if adherence.unconfirmedCandidates > 0 || adherence.ambiguous > 0 {
+                                Text("\(adherence.unconfirmedCandidates) activité(s) à associer · \(adherence.ambiguous) jour(s) avec plusieurs activités possibles")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            Text("Une date ou une catégorie sportive identique ne prouve pas que toutes les consignes prévues ont été respectées.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -235,6 +277,7 @@ struct DayDetailScreen: View {
     @EnvironmentObject var library: PaceLibrary
     @EnvironmentObject var strengthTracker: PaceStrengthTracker
     @EnvironmentObject var strengthLinks: PaceStrengthWorkoutLinks
+    @EnvironmentObject var runLinks: PaceRunWorkoutLinks
     let day: PaceDay
     @State private var confirmFinish = false
     @State private var showMissedEditor = false
@@ -293,7 +336,19 @@ struct DayDetailScreen: View {
         PacePlanActivityMatch.on(day.date, in: engine.snapshot)
     }
     private var matchingActivity: WorkoutPayload? {
-        PacePlanActivityMatch.matching(for:day,in:engine.snapshot)
+        if day.type == "Course",
+           let id = runLinks.confirmedWorkoutUUID(for: day.date),
+           let match = engine.snapshot.first(where: { $0.source_uuid == id && $0.isRun }) {
+            return match
+        }
+        if day.type == "Musculation",
+           let id = strengthLinks.confirmedWorkoutUUID(for: day.date),
+           let match = engine.snapshot.first(where: {
+               $0.source_uuid == id && $0.activity_kind == "strength"
+           }) {
+            return match
+        }
+        return PacePlanActivityMatch.matching(for: day, in: engine.snapshot)
     }
 
 
@@ -470,6 +525,8 @@ struct DayDetailScreen: View {
 
             if let found = matchingActivity,
                !library.completed.contains(day.date) ||
+                (day.type == "Course" &&
+                 runLinks.confirmedWorkoutUUID(for: day.date) != found.source_uuid) ||
                 (day.type == "Musculation" &&
                  strengthLinks.confirmedWorkoutUUID(for: day.date) != found.source_uuid) {
                 PaceCard {
@@ -487,11 +544,16 @@ struct DayDetailScreen: View {
                                 if strengthLinks.confirmedWorkoutUUID(for: day.date) == found.source_uuid {
                                     library.markDayCompleted(day.date)
                                 }
+                            } else if day.type == "Course" {
+                                runLinks.confirm(date: day.date, workout: found)
+                                if runLinks.confirmedWorkoutUUID(for: day.date) == found.source_uuid {
+                                    library.markDayCompleted(day.date)
+                                }
                             } else {
                                 library.markDayCompleted(day.date)
                             }
                         } label: {
-                            Label(day.type == "Musculation"
+                            Label(day.type == "Course" || day.type == "Musculation"
                                   ? "Associer à ma séance et valider"
                                   : "Oui, valider cette séance", systemImage: "checkmark.circle")
                         }
@@ -501,6 +563,10 @@ struct DayDetailScreen: View {
                 }
             }
 
+            if let error = runLinks.error {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
             if let error = strengthLinks.error {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.footnote).foregroundStyle(.orange)

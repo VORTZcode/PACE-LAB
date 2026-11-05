@@ -185,6 +185,23 @@ private struct PaceReviewAttempt: Codable {
     var date: Date
 }
 
+/// User-facing status is derived locally. No GPT success is inferred from a
+/// request starting, a pending workout or a measured-only fallback.
+enum PaceSessionReviewState {
+    case verified, processing, retryScheduled, needsAttention, pending, notEnabled, localOnly
+    var message: String {
+        switch self {
+        case .verified: return "Bilan ChatGPT confirmé"
+        case .processing: return "Analyse ChatGPT en cours"
+        case .retryScheduled: return "Analyse interrompue · reprise programmée à l'ouverture"
+        case .needsAttention: return "Analyse non aboutie · intervention nécessaire"
+        case .pending: return "Analyse automatique en attente"
+        case .notEnabled: return "Analyse automatique non activée ou compte non connecté"
+        case .localOnly: return "Bilan local seulement · ChatGPT indisponible"
+        }
+    }
+}
+
 @MainActor final class PaceCoachEngine: ObservableObject {
     @Published var conversation: [PaceCoachMessage] = [] {
         didSet { saveConversation() }
@@ -206,6 +223,9 @@ private struct PaceReviewAttempt: Codable {
     }
     @Published var shareWaist = UserDefaults.standard.bool(forKey:"pace.coach.share-waist") {
         didSet { UserDefaults.standard.set(shareWaist,forKey:"pace.coach.share-waist") }
+    }
+    @Published var shareHealthTrends = UserDefaults.standard.bool(forKey:"pace.coach.share-health-trends") {
+        didSet { UserDefaults.standard.set(shareHealthTrends,forKey:"pace.coach.share-health-trends") }
     }
     @Published var shareNutrition = UserDefaults.standard.bool(forKey:"pace.coach.share-nutrition") {
         didSet { UserDefaults.standard.set(shareNutrition,forKey:"pace.coach.share-nutrition") }
@@ -264,6 +284,18 @@ private struct PaceReviewAttempt: Codable {
     }
     func report(for workoutID: String) -> PaceCoachSessionReport? {
         sessionReports.first { $0.workoutID == workoutID }
+    }
+    func reviewState(for workoutID: String, automaticEnabled: Bool) -> PaceSessionReviewState {
+        let report = report(for: workoutID)
+        if let report, !report.isLocal { return .verified }
+        if automaticInFlightID == workoutID { return .processing }
+        guard automaticEnabled && shareRunSummaries else {
+            return report?.isLocal == true ? .localOnly : .notEnabled
+        }
+        let attempts = reviewAttempts[workoutID]?.count ?? 0
+        if attempts >= 3 { return .needsAttention }
+        if attempts > 0 { return .retryScheduled }
+        return .pending
     }
     private let acceptedPlansURL: URL = {
         FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
@@ -402,19 +434,13 @@ private struct PaceReviewAttempt: Codable {
         } else {
             facts.append("Aucune séance correspondante dans le programme courant pour \(dateKey). Ne pas inventer de consignes.")
         }
-        if run.isRun && run.kilometers > 0.8 {
-            let similar = engine.runHistory.filter {
-                $0.source_uuid != run.source_uuid && $0.startDate < run.startDate &&
-                $0.kilometers > 0.8 &&
-                abs($0.kilometers - run.kilometers) / run.kilometers <= 0.15
-            }.prefix(3)
-            if similar.isEmpty {
-                facts.append("Aucune course antérieure suffisamment proche en distance (±15 %) pour une comparaison descriptive.")
+        if run.isRun {
+            if let comparison = PaceProgressEvidence.comparison(
+                for: run, in: engine.runHistory) {
+                let delta = Int(comparison.paceDifferenceSecondsPerKm.rounded())
+                facts.append("Comparaison déterministe avec une course du \(comparison.priorDate.formatted(.dateTime.day().month().year())), distance \(PaceFormat.distance(comparison.priorKm,places:2)) km, écart d'allure \(delta) s/km. \(comparison.evidenceLabel) Ne pas présenter cette différence comme un progrès physiologique établi.")
             } else {
-                facts.append("Courses précédentes de distance proche (±15 %, comparaison non contrôlée météo, pente, pauses ni fatigue) : " +
-                    similar.map {
-                        "\($0.startDate.formatted(.dateTime.day().month().year())) : \(PaceFormat.distance($0.kilometers, places: 2)) km ; allure \(PaceFormat.pace($0.paceMinutes))/km ; FC moyenne \(PaceFormat.heart($0.hr_average_bpm)) bpm"
-                    }.joined(separator: " | "))
+                facts.append("Aucune course antérieure suffisamment comparable selon la règle commune (±10 % de distance, écart temporel de 7 à 120 jours). Ne pas déduire un progrès.")
             }
         }
         if run.recovery_state == "pending" || run.recovery_state == "partial" {
@@ -431,6 +457,7 @@ private struct PaceReviewAttempt: Codable {
         if shareRunSummaries { domains.insert("runs") }
         if shareWeight { domains.insert("weight") }
         if shareWaist { domains.insert("waist") }
+        if shareHealthTrends && PaceHealthSignals.shared.accessRequested { domains.insert("health-trends") }
         if shareNutrition { domains.insert("nutrition") }
         if shareStrengthSets { domains.insert("strength") }
         if shareHeartProfile { domains.insert("heart-profile") }
@@ -507,6 +534,7 @@ private struct PaceReviewAttempt: Codable {
             }
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
+            pieces.append(PaceProgressEvidence.snapshot(engine.runHistory).coachEvidenceContext)
             if let memory = priorAnalysisContext(profile:profile,excluding:workoutID,engine:engine) {
                 pieces.append(memory)
             }
@@ -532,6 +560,12 @@ private struct PaceReviewAttempt: Codable {
         if shareStrengthSets, let strength {
             pieces.append(strength.coachSummary(library:library))
         }
+        if shareRunSummaries && shareSessionNotes {
+            let adherence = PaceTrainingAdherenceAdapter.snapshot(
+                library: library, engine: engine,
+                runLinks: .shared, strengthLinks: .shared)
+            pieces.append(adherence.coachSummary)
+        }
         if shareSessionNotes && shareRunSummaries {
             let missed = library.currentPlan.compactMap { library.missedSessions[$0.date] }
             if !missed.isEmpty {
@@ -539,6 +573,9 @@ private struct PaceReviewAttempt: Codable {
                     missed.map { "\($0.date) : \($0.reason)" +
                         ($0.note.isEmpty ? "" : " (\($0.note))") }.joined(separator: " ; "))
             }
+        }
+        if shareHealthTrends && PaceHealthSignals.shared.accessRequested {
+            pieces.append(PaceHealthSignals.shared.consentedCoachContext)
         }
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
             pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg. Ne permet pas d'estimer la masse grasse ou musculaire.")
@@ -562,8 +599,20 @@ private struct PaceReviewAttempt: Codable {
             }
         }
         if shareNutrition {
-            pieces.append("Programme nutritionnel actuel : " +
-                library.currentRecipes.prefix(4).map { "\($0.day) \($0.meal) : \($0.name)" }.joined(separator:" ; "))
+            pieces.append("Programme nutritionnel actuel (prévu, pas consommé mesuré) : " +
+                library.currentRecipes.prefix(4).map {
+                    "\($0.day) \($0.meal) : \($0.name)"
+                }.joined(separator:" ; "))
+            let planDates = Set(library.currentPlan.map(\.date))
+            let declared = library.mealDeclarations.values
+                .filter { planDates.contains($0.date) }
+                .sorted { $0.date > $1.date }
+                .prefix(14)
+            pieces.append("Repas volontairement déclarés consommés par l'utilisateur (date et nom, sans quantités constatées) : " +
+                (declared.isEmpty ? "aucun" :
+                    declared.map { "\($0.date) \($0.meal) : \($0.recipeName)" }
+                        .joined(separator:" ; ")))
+            pieces.append("Les kcal et protéines des recettes sont des estimations de planification. Ne jamais les présenter comme des apports réellement consommés.")
         }
         return pieces.joined(separator:"\n")
     }
