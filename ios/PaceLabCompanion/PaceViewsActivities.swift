@@ -181,6 +181,7 @@ struct WorkoutDetailScreen: View {
     @State private var showJournal = false
     @State private var showCoach = false
     @State private var showIntervals = false
+    @State private var showAdvancedMetrics = false
     @State private var showComparison = false
     let workout: WorkoutPayload
     var body: some View {
@@ -215,8 +216,27 @@ struct WorkoutDetailScreen: View {
                     showCoach = true
                 }
             }
-            RunDynamicsSection(original: workout)
-                .id("heart-chart")
+            DisclosureGroup(isExpanded: $showAdvancedMetrics) {
+                RunDynamicsSection(original: workout)
+                    .padding(.top, 10)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "waveform.path.ecg")
+                        .foregroundStyle(PaceColors.teal)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Fréquence cardiaque et dynamique")
+                            .font(.subheadline.weight(.semibold))
+                        Text(workout.hr_average_bpm.map {
+                            "FC moyenne \u005c(PaceFormat.heart($0)) bpm · voir les courbes"
+                        } ?? "Mesures détaillées de cette séance")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .tint(PaceColors.teal)
+            .padding(16)
+            .modifier(PaceGlassCardSurface(cornerRadius: 20))
+            .id("heart-chart")
             VStack(alignment: .leading, spacing: 10) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showIntervals.toggle() }
@@ -346,6 +366,7 @@ struct WorkoutDetailScreen: View {
                         }
                     }
                     Button("Graphiques", systemImage: "waveform.path.ecg") {
+                        showAdvancedMetrics = true
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
                     }
                     Button("Intervalles de 5 minutes", systemImage: "list.number") {
