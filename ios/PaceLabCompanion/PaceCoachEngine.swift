@@ -569,8 +569,20 @@ private struct PaceReviewAttempt: Codable {
             }
         }
         if shareNutrition {
-            pieces.append("Programme nutritionnel actuel : " +
-                library.currentRecipes.prefix(4).map { "\($0.day) \($0.meal) : \($0.name)" }.joined(separator:" ; "))
+            pieces.append("Programme nutritionnel actuel (prévu, pas consommé mesuré) : " +
+                library.currentRecipes.prefix(4).map {
+                    "\($0.day) \($0.meal) : \($0.name)"
+                }.joined(separator:" ; "))
+            let planDates = Set(library.currentPlan.map(\.date))
+            let declared = library.mealDeclarations.values
+                .filter { planDates.contains($0.date) }
+                .sorted { $0.date > $1.date }
+                .prefix(14)
+            pieces.append("Repas volontairement déclarés consommés par l'utilisateur (date et nom, sans quantités constatées) : " +
+                (declared.isEmpty ? "aucun" :
+                    declared.map { "\($0.date) \($0.meal) : \($0.recipeName)" }
+                        .joined(separator:" ; ")))
+            pieces.append("Les kcal et protéines des recettes sont des estimations de planification. Ne jamais les présenter comme des apports réellement consommés.")
         }
         return pieces.joined(separator:"\n")
     }
