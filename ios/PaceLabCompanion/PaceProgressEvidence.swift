@@ -118,6 +118,17 @@ enum PaceProgressEvidence {
                                     validHistoryCount: entries.count)
     }
 
+    /// The same comparison method is reused in the progress dashboard and the
+    /// detailed activity sheet; no conflicting distance thresholds.
+    static func comparison(for workout: WorkoutPayload, in workouts: [WorkoutPayload],
+                           at now: Date = .now) -> PaceRunComparison? {
+        let entries = validRuns(workouts, at: now)
+        guard let selected = entries.first(where: {
+            $0.payload.source_uuid == workout.source_uuid
+        }) else { return nil }
+        return compare(selected, against: entries)
+    }
+
     private static func compare(_ latest: Entry, against entries: [Entry]) -> PaceRunComparison? {
         let candidates = entries.filter { prior in
             let elapsed = latest.date.timeIntervalSince(prior.date)
