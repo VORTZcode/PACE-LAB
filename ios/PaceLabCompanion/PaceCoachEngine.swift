@@ -185,6 +185,23 @@ private struct PaceReviewAttempt: Codable {
     var date: Date
 }
 
+/// User-facing status is derived locally. No GPT success is inferred from a
+/// request starting, a pending workout or a measured-only fallback.
+enum PaceSessionReviewState {
+    case verified, processing, retryScheduled, needsAttention, pending, notEnabled, localOnly
+    var message: String {
+        switch self {
+        case .verified: return "Bilan ChatGPT confirmé"
+        case .processing: return "Analyse ChatGPT en cours"
+        case .retryScheduled: return "Analyse interrompue · reprise programmée à l'ouverture"
+        case .needsAttention: return "Analyse non aboutie · intervention nécessaire"
+        case .pending: return "Analyse automatique en attente"
+        case .notEnabled: return "Analyse automatique non activée ou compte non connecté"
+        case .localOnly: return "Bilan local seulement · ChatGPT indisponible"
+        }
+    }
+}
+
 @MainActor final class PaceCoachEngine: ObservableObject {
     @Published var conversation: [PaceCoachMessage] = [] {
         didSet { saveConversation() }
@@ -267,6 +284,18 @@ private struct PaceReviewAttempt: Codable {
     }
     func report(for workoutID: String) -> PaceCoachSessionReport? {
         sessionReports.first { $0.workoutID == workoutID }
+    }
+    func reviewState(for workoutID: String, automaticEnabled: Bool) -> PaceSessionReviewState {
+        let report = report(for: workoutID)
+        if let report, !report.isLocal { return .verified }
+        if automaticInFlightID == workoutID { return .processing }
+        guard automaticEnabled && shareRunSummaries else {
+            return report?.isLocal == true ? .localOnly : .notEnabled
+        }
+        let attempts = reviewAttempts[workoutID]?.count ?? 0
+        if attempts >= 3 { return .needsAttention }
+        if attempts > 0 { return .retryScheduled }
+        return .pending
     }
     private let acceptedPlansURL: URL = {
         FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
