@@ -12,7 +12,7 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-workdir="$(mktemp -d "\${TMPDIR:-/tmp}/pacelab-v7-preflight.XXXXXX")"
+workdir="$(mktemp -d "${TMPDIR:-/tmp}/pacelab-v7-preflight.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 
 echo "1/4 -- Static contracts (not substitutes for UI tests)"
