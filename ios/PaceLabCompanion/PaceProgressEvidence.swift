@@ -27,12 +27,24 @@ struct PaceRunComparison {
     }
 }
 
+struct PaceRunDistanceMilestone: Identifiable {
+    var id: Int { targetKm }
+    let targetKm: Int
+    let sourceUUID: String
+    let date: Date
+    let distanceKm: Double
+    let paceSecondsPerKm: Double
+    /// Not a split, race result or GPS segment record.
+    var description: String { "Meilleure allure sur une sortie complète de distance proche" }
+}
+
 struct PaceProgressSnapshot {
     let current28: PaceProgressWindow
     let previous28: PaceProgressWindow
     let comparison: PaceRunComparison?
     let latestRunID: String?
     let validHistoryCount: Int
+    let milestones: [PaceRunDistanceMilestone]
 
     var hasTwoPeriods: Bool {
         current28.runCount > 0 && previous28.runCount > 0
@@ -115,7 +127,26 @@ enum PaceProgressEvidence {
         return PaceProgressSnapshot(current28: current, previous28: previous,
                                     comparison: comparison,
                                     latestRunID: latest?.payload.source_uuid,
-                                    validHistoryCount: entries.count)
+                                    validHistoryCount: entries.count,
+                                    milestones: distanceMilestones(entries))
+    }
+
+    private static func distanceMilestones(_ entries: [Entry]) -> [PaceRunDistanceMilestone] {
+        [3, 5, 10].compactMap { target -> PaceRunDistanceMilestone? in
+            let candidates = entries.filter {
+                abs($0.km - Double(target)) / Double(target) <= 0.03
+            }
+            // The full-workout pace is measured. It does NOT represent a 3/5/10 km split.
+            guard let best = candidates.min(by: {
+                if abs($0.secondsPerKm - $1.secondsPerKm) < 0.001 {
+                    return $0.date > $1.date
+                }
+                return $0.secondsPerKm < $1.secondsPerKm
+            }) else { return nil }
+            return .init(targetKm: target, sourceUUID: best.payload.source_uuid,
+                         date: best.date, distanceKm: best.km,
+                         paceSecondsPerKm: best.secondsPerKm)
+        }
     }
 
     /// The same comparison method is reused in the progress dashboard and the
