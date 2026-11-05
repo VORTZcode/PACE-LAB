@@ -15,7 +15,7 @@ fi
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/pacelab-v7-preflight.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 
-echo "1/4 -- Static contracts (not substitutes for UI tests)"
+echo "1/5 -- Static contracts (not substitutes for UI tests)"
 passed=0
 for test_file in tests/*contract.mjs; do
   node "$test_file"
@@ -23,7 +23,7 @@ for test_file in tests/*contract.mjs; do
 done
 echo "PASS: $passed contract files"
 
-echo "2/4 -- Objective-running-evidence Swift fixtures"
+echo "2/5 -- Objective-running-evidence Swift fixtures"
 xcrun swiftc \
   ios/PaceLabCompanion/LocalHealthStore.swift \
   ios/PaceLabCompanion/PaceProgressEvidence.swift \
@@ -31,14 +31,21 @@ xcrun swiftc \
   -o "$workdir/progress-fixture"
 "$workdir/progress-fixture"
 
-echo "3/4 -- Flight motion fixture"
+echo "3/5 -- Flight motion fixture"
 xcrun swiftc \
   ios/PaceLabCompanion/PaceFlightMotion.swift \
   tests/flight-motion-fixture.swift \
   -o "$workdir/flight-fixture"
 "$workdir/flight-fixture"
 
-echo "4/4 -- Full iOS Simulator build (no signing, no installation)"
+echo "4/5 -- Health capability registry fixture"
+xcrun swiftc \
+  ios/PaceLabCompanion/PaceHealthCoverage.swift \
+  tests/health-coverage-fixture.swift \
+  -o "$workdir/health-coverage-fixture"
+"$workdir/health-coverage-fixture"
+
+echo "5/5 -- Full iOS Simulator build (no signing, no installation)"
 xcodebuild \
   -project ios/PaceLabCompanion.xcodeproj \
   -scheme PaceLabCompanion \
