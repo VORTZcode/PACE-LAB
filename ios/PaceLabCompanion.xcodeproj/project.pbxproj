@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F70B00800000000000000001 /* PaceStrengthProgressSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00800000000000000002 /* PaceStrengthProgressSection.swift */; };
+		F70B00700000000000000001 /* PaceStrengthEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00700000000000000002 /* PaceStrengthEvidence.swift */; };
 		F70B00600000000000000001 /* PaceTrainingAdherenceAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00600000000000000002 /* PaceTrainingAdherenceAdapter.swift */; };
 		F70B00500000000000000001 /* PaceRunWorkoutLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00500000000000000002 /* PaceRunWorkoutLinks.swift */; };
 		F70B00400000000000000001 /* PaceTrainingAdherence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70B00400000000000000002 /* PaceTrainingAdherence.swift */; };
@@ -60,6 +62,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F70B00800000000000000002 /* PaceStrengthProgressSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceStrengthProgressSection.swift; sourceTree = "<group>"; };
+		F70B00700000000000000002 /* PaceStrengthEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceStrengthEvidence.swift; sourceTree = "<group>"; };
 		F70B00600000000000000002 /* PaceTrainingAdherenceAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceTrainingAdherenceAdapter.swift; sourceTree = "<group>"; };
 		F70B00500000000000000002 /* PaceRunWorkoutLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceRunWorkoutLinks.swift; sourceTree = "<group>"; };
 		F70B00400000000000000002 /* PaceTrainingAdherence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaceTrainingAdherence.swift; sourceTree = "<group>"; };
@@ -158,6 +162,8 @@
 				F70B00100000000000000002 /* PaceProgressEvidence.swift */,
 				F70B00200000000000000002 /* PaceHealthCoverage.swift */,
 				F70B00300000000000000002 /* PaceHealthSignals.swift */,
+				F70B00800000000000000002 /* PaceStrengthProgressSection.swift */,
+				F70B00700000000000000002 /* PaceStrengthEvidence.swift */,
 				F70B00600000000000000002 /* PaceTrainingAdherenceAdapter.swift */,
 				F70B00500000000000000002 /* PaceRunWorkoutLinks.swift */,
 				F70B00400000000000000002 /* PaceTrainingAdherence.swift */,
@@ -308,6 +314,8 @@
 				F70B00100000000000000001 /* PaceProgressEvidence.swift in Sources */,
 				F70B00200000000000000001 /* PaceHealthCoverage.swift in Sources */,
 				F70B00300000000000000001 /* PaceHealthSignals.swift in Sources */,
+				F70B00800000000000000001 /* PaceStrengthProgressSection.swift in Sources */,
+				F70B00700000000000000001 /* PaceStrengthEvidence.swift in Sources */,
 				F70B00600000000000000001 /* PaceTrainingAdherenceAdapter.swift in Sources */,
 				F70B00500000000000000001 /* PaceRunWorkoutLinks.swift in Sources */,
 				F70B00400000000000000001 /* PaceTrainingAdherence.swift in Sources */,
