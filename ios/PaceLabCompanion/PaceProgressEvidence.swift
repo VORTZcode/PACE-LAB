@@ -148,3 +148,26 @@ enum PaceProgressEvidence {
                                  comparableHeartRate: closeHeart)
     }
 }
+
+
+extension PaceProgressSnapshot {
+    /// The Coach receives these facts only inside the existing opt-in run-data block.
+    /// It must not turn descriptive comparisons into claims of causality.
+    var coachEvidenceContext: String {
+        let recent = String(format: "%.1f", current28.distanceKm)
+        let older = String(format: "%.1f", previous28.distanceKm)
+        var facts = [
+            "PROGRESSION FACTUELLE (calcul local, pas une décision IA) :",
+            "28 derniers jours : \(current28.runCount) courses, \(recent) km, \(current28.activeWeeks)/4 semaines actives.",
+            "28 jours précédents : \(previous28.runCount) courses, \(older) km.",
+            "Ces deux volumes décrivent une charge enregistrée, pas un gain de capacité cardiovasculaire."
+        ]
+        if let c = comparison {
+            let delta = Int(c.paceDifferenceSecondsPerKm.rounded())
+            facts.append("Dernière course contre séance de distance similaire : écart d'allure \(delta) s/km. \(c.evidenceLabel)")
+        } else {
+            facts.append("Aucune course historique de distance suffisamment similaire pour comparaison descriptive récente.")
+        }
+        return facts.joined(separator: " ")
+    }
+}
