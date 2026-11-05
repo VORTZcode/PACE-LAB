@@ -201,6 +201,10 @@ struct WorkoutDetailScreen: View {
                     showCoach = true
                 }
             }
+            if workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling" {
+                PaceRouteSection(workout: workout)
+                    .id("route-map")
+            }
             RunDynamicsSection(original: workout)
                 .id("heart-chart")
             VStack(alignment: .leading, spacing: 10) {
@@ -326,6 +330,11 @@ struct WorkoutDetailScreen: View {
                 }
                 .accessibilityLabel("Faire analyser cette séance par ChatGPT")
                 Menu {
+                    if workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling" {
+                        Button("Parcours GPS", systemImage: "map") {
+                            withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("route-map", anchor: .top) }
+                        }
+                    }
                     Button("Graphiques", systemImage: "waveform.path.ecg") {
                         withAnimation(.easeInOut(duration: 0.22)) { navigator.scrollTo("heart-chart", anchor: .top) }
                     }

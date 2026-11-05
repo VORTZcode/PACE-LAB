@@ -96,6 +96,7 @@ final class HealthSyncEngine: ObservableObject {
         guard HKHealthStore.isHealthDataAvailable() else { status = "HealthKit indisponible sur cet appareil."; return }
         let reads: Set<HKObjectType> = [
             HKObjectType.workoutType(),
+            HKSeriesType.workoutRoute(),
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
