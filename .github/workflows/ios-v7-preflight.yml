@@ -18,6 +18,23 @@ permissions:
   contents: read
 
 jobs:
+  fast-logic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: JavaScript static contracts
+        run: |
+          set -euo pipefail
+          for t in tests/*contract.mjs; do node "$t"; done
+      - name: Deterministic Swift model fixtures
+        run: |
+          set -euo pipefail
+          swift --version
+          swiftc ios/PaceLabCompanion/LocalHealthStore.swift ios/PaceLabCompanion/PaceProgressEvidence.swift tests/progress-evidence-fixture.swift -o /tmp/pace-progress && /tmp/pace-progress
+          swiftc ios/PaceLabCompanion/PaceTrainingAdherence.swift tests/training-adherence-fixture.swift -o /tmp/pace-training && /tmp/pace-training
+          swiftc ios/PaceLabCompanion/PaceStrengthEvidence.swift tests/strength-evidence-fixture.swift -o /tmp/pace-strength && /tmp/pace-strength
   compile-and-test:
     runs-on: macos-latest
     timeout-minutes: 30
