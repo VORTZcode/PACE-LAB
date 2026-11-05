@@ -29,17 +29,16 @@ assert.match(evidence,/static func comparison\(for workout: WorkoutPayload/);
 assert.match(comparisonUI,/PaceProgressEvidence\.comparison\(for: workout, in: engine\.runHistory\)/);
 assert.ok(!comparisonUI.includes('distance similaire (±15 %)'));
 
-// UX: the latest outdoor session has a single real HealthKit route read.
-// No background GPS load is launched for every cell in the history.
-assert.match(activities,/private var featuredRun: WorkoutPayload\?/);
-assert.match(activities,/PaceFeaturedRunCard\(workout: featuredRun\)/);
-assert.match(activities,/ForEach\(Array\(remaining.prefix\(shown\)\)\)/);
-assert.match(activities,/private struct PaceFeaturedRunCard: View/);
-assert.match(activities,/@StateObject private var route = PaceWorkoutRouteReader\(\)/);
-assert.match(activities,/await route.load\(workoutID: workout.source_uuid\)/);
-assert.match(activities,/PaceRouteMap\(track: track\)/);
-assert.match(activities,/\.allowsHitTesting\(false\)/);
-assert.match(activities,/private var remaining: \[WorkoutPayload\]/);
+// UX: heavy MapKit overlays are intentionally not created in the
+// scrolling activity list. The real GPS trace remains in the detail screen.
+assert.match(activities, /private var featuredRun: WorkoutPayload\?/);
+assert.match(activities, /PaceFeaturedRunCard\(workout: featuredRun\)/);
+assert.match(activities, /ForEach\(Array\(remaining.prefix\(shown\)\)\)/);
+assert.match(activities, /private struct PaceFeaturedRunCard: View/);
+assert.doesNotMatch(activities, /PaceRouteMap\(track: track\)/);
+assert.match(activities, /private var remaining: \[WorkoutPayload\]/);
+assert.match(activities, /@State private var indexed: \[PaceIndexedActivity\]/);
+assert.match(activities, /\.onChange\(of: engine\.revision\)/);
 
 // UX: progress is framed as evidence, with missing-data state and athlete goal.
 assert.match(progress,/PaceProgressEvidence\.snapshot\(engine.runHistory\)/);

@@ -60,6 +60,24 @@ import Foundation
         ]
         let differentIntensity = PaceProgressEvidence.snapshot(highHR, at: now)
         precondition(differentIntensity.comparison?.comparableHeartRate == false)
-        print("PASS: time windows, valid workouts, duplicate UUID, similar distance, descriptive pace, HR evidence limits.")
+        var isoCalendar = Calendar(identifier: .iso8601)
+        isoCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let series = PaceProgressEvidence.trainingWeeks(samples, weeks: 8,
+                                                        at: now, calendar: isoCalendar)
+        precondition(series.count == 8, "All calendar weeks must appear, including empty weeks")
+        precondition(series.reduce(0) { $0 + $1.runCount } == 3,
+                     "No future, corrupted or duplicate UUID sessions in weekly trends")
+        precondition(abs(series.reduce(0) { $0 + $1.distanceKm } - 15.08) < 0.001)
+        precondition(series.first!.start < series.last!.start)
+        precondition(series.contains { $0.runCount == 0 }, "Empty weeks are shown honestly")
+        let selectedWeek = series.last!
+        let selectedEnd = isoCalendar.date(byAdding: .weekOfYear, value: 1,
+                                            to: selectedWeek.start)!
+        let drillDown = PaceProgressEvidence.validatedRuns(samples,
+            from: selectedWeek.start, to: selectedEnd, at: now)
+        precondition(drillDown.count == selectedWeek.runCount)
+        precondition(PaceProgressEvidence.trainingWeeks(samples, weeks: 0, at: now,
+                         calendar: isoCalendar).isEmpty)
+        print("PASS: time windows, valid workouts, duplicate UUID, similar distance, descriptive pace, HR evidence limits and navigable training weeks.")
     }
 }

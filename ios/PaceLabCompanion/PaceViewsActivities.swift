@@ -1,37 +1,72 @@
 import SwiftUI
 import Charts
 
+/// Search strings and dates are prepared once when HealthKit history changes.
+/// Re-evaluating ISO dates and localized strings for hundreds of workouts on
+/// every SwiftUI scroll frame previously blocked main-thread gestures.
+private struct PaceIndexedActivity {
+    let workout: WorkoutPayload
+    let year: Int
+    let searchText: String
+}
+
 struct ActivitiesScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @State private var kind = 0
     @State private var shown = 25
     @State private var selectedYear = 0
-    private var availableYears: [Int] {
-        Array(Set(engine.snapshot.map { Calendar.current.component(.year, from: $0.startDate) }))
-            .sorted(by: >)
-    }
-    private var all: [WorkoutPayload] {
-        engine.snapshot.filter { workout in
-            let kindMatches: Bool
-            switch kind {
-            case 0: kindMatches = workout.isRun
-            case 1: kindMatches = workout.activity_kind == "strength"
-            case 2: kindMatches = workout.activity_kind == "walking"
-            default: kindMatches = true
-            }
-            return kindMatches && (selectedYear == 0 ||
-                    Calendar.current.component(.year, from: workout.startDate) == selectedYear)
-        }
-    }
-    private var featuredRun: WorkoutPayload? {
-        guard kind == 0 || kind == 3 else { return nil }
-        return all.filter { $0.isRun }.max(by: { $0.startDate < $1.startDate })
-    }
-    private var remaining: [WorkoutPayload] {
-        all.filter { $0.source_uuid != featuredRun?.source_uuid }
-    }
+    @State private var searchText = ""
+    @State private var indexed: [PaceIndexedActivity] = []
+    @State private var all: [WorkoutPayload] = []
+    @State private var remaining: [WorkoutPayload] = []
+    @State private var featuredRun: WorkoutPayload?
+    @State private var availableYears: [Int] = []
     private var year: Int { Calendar.current.component(.year, from: .now) }
     private var statYear: Int { selectedYear == 0 ? year : selectedYear }
+
+    private func rebuildIndex() {
+        let calendar = Calendar.current
+        let rows = engine.snapshot.map { workout -> (PaceIndexedActivity, Date) in
+            let date = workout.startDate
+            let normalized = [
+                workout.cadenceLabel,
+                PaceFormat.fullDate(date),
+                PaceFormat.distance(workout.kilometers, places: 2) + " km",
+                String(format: "%.1f", workout.kilometers) + " km",
+                workout.activity_kind
+            ].joined(separator: " ")
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            return (PaceIndexedActivity(workout: workout,
+                                        year: calendar.component(.year, from: date),
+                                        searchText: normalized), date)
+        }.sorted { $0.1 > $1.1 }
+        indexed = rows.map(\.0)
+        availableYears = Array(Set(indexed.map(\.year))).sorted(by: >)
+        refreshResults()
+    }
+
+    private func refreshResults() {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        let matches = indexed.filter { entry in
+            let typeMatches: Bool
+            switch kind {
+            case 0: typeMatches = entry.workout.isRun
+            case 1: typeMatches = entry.workout.activity_kind == "strength"
+            case 2: typeMatches = entry.workout.activity_kind == "walking"
+            default: typeMatches = true
+            }
+            return typeMatches &&
+                (selectedYear == 0 || entry.year == selectedYear) &&
+                (query.isEmpty || entry.searchText.contains(query))
+        }.map(\.workout)
+        all = matches
+        // Sorted once at import, never in the scrolling view tree.
+        let featured = query.isEmpty && (kind == 0 || kind == 3)
+            ? matches.first(where: \.isRun) : nil
+        featuredRun = featured
+        remaining = matches.filter { $0.source_uuid != featured?.source_uuid }
+    }
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
@@ -62,16 +97,16 @@ struct ActivitiesScreen: View {
                     Text("Tout").tag(3)
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: kind) { _, _ in shown = 25 }
+                .onChange(of: kind) { _, _ in shown = 25; refreshResults() }
 
                 HStack {
                     Text("Période").font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
                     Menu {
-                        Button("Toutes les années") { selectedYear = 0; shown = 25 }
+                        Button("Toutes les années") { selectedYear = 0; shown = 25; refreshResults() }
                         Divider()
                         ForEach(availableYears, id: \.self) { year in
-                            Button(String(year)) { selectedYear = year; shown = 25 }
+                            Button(String(year)) { selectedYear = year; shown = 25; refreshResults() }
                         }
                     } label: {
                         Label(selectedYear == 0 ? "Toutes les années" : String(selectedYear),
@@ -100,20 +135,35 @@ struct ActivitiesScreen: View {
                             ActivityRow(workout: workout)
                         }
                         .buttonStyle(.plain)
-                        if workout.id != remaining.prefix(shown).last?.id { Divider().padding(.leading, 54) }
+                        if workout.id != remaining[min(shown, remaining.count) - 1].id {
+                            Divider().padding(.leading, 54)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
-                .modifier(PaceGlassCardSurface(cornerRadius: 22))
+                .background(PaceColors.surface,
+                            in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 if shown < remaining.count {
                     Button("Afficher plus de séances") { shown += 25 }
                         .font(.subheadline.weight(.medium)).tint(PaceColors.teal)
                         .frame(maxWidth: .infinity)
                 }
                 if all.isEmpty {
-                    ContentUnavailableView("Aucune activité", systemImage: "figure.run", description: Text("Les activités autorisées apparaîtront après synchronisation avec Apple Santé."))
+                    ContentUnavailableView(
+                        searchText.isEmpty ? "Aucune activité" : "Aucun résultat",
+                        systemImage: searchText.isEmpty ? "figure.run" : "magnifyingglass",
+                        description: Text(searchText.isEmpty ?
+                            "Les activités autorisées apparaîtront après synchronisation avec Apple Santé." :
+                            "Essayez une autre date, distance ou un autre type d’activité.")
+                    )
                 }
             }
+            .searchable(text: $searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Rechercher une séance ou une distance")
+            .onChange(of: searchText) { _, _ in shown = 25; refreshResults() }
+            .onChange(of: engine.revision) { _, _ in rebuildIndex() }
+            .task { rebuildIndex() }
         }
     }
 }
@@ -668,28 +718,20 @@ struct StrengthWorkoutDetailScreen: View {
 /// per-row GPS reads, no fabricated trace, and no share with the AI service.
 private struct PaceFeaturedRunCard: View {
     let workout: WorkoutPayload
-    @StateObject private var route = PaceWorkoutRouteReader()
-
     var body: some View {
         NavigationLink {
             WorkoutDetailScreen(workout: workout)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topLeading) {
-                    if let track = route.track {
-                        PaceRouteMap(track: track)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                    } else {
-                        LinearGradient(colors: [
-                            PaceColors.teal.opacity(0.29), PaceColors.surface,
-                            PaceColors.teal.opacity(0.09)
-                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        Image(systemName: "figure.run")
-                            .font(.system(size: 65, weight: .ultraLight))
-                            .foregroundStyle(PaceColors.teal.opacity(0.45))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                    LinearGradient(colors: [
+                        PaceColors.teal.opacity(0.26), PaceColors.surface,
+                        PaceColors.teal.opacity(0.10)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Image(systemName: "figure.run")
+                        .font(.system(size: 56, weight: .ultraLight))
+                        .foregroundStyle(PaceColors.teal.opacity(0.55))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     Label("DERNIÈRE COURSE", systemImage: "figure.run")
                         .font(.caption2.weight(.bold))
                         .tracking(0.7)
@@ -699,7 +741,7 @@ private struct PaceFeaturedRunCard: View {
                         .background(.regularMaterial, in: Capsule())
                         .padding(14)
                 }
-                .frame(height: 190)
+                .frame(height: 138)
                 .clipped()
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -730,8 +772,5 @@ private struct PaceFeaturedRunCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Dernière course, \(PaceFormat.distance(workout.kilometers, places: 2)) kilomètres. Ouvrir la fiche.")
-        .task(id: workout.source_uuid) {
-            await route.load(workoutID: workout.source_uuid)
-        }
     }
 }

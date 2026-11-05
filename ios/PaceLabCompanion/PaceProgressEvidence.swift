@@ -51,6 +51,15 @@ struct PaceProgressSnapshot {
     }
 }
 
+/// A complete ISO-calendar training week. No synthetic sessions are added for missing days.
+struct PaceTrainingTrendWeek: Identifiable {
+    var id: Date { start }
+    let start: Date
+    let distanceKm: Double
+    let durationHours: Double
+    let runCount: Int
+}
+
 /// Dates are decoded from the original payload, not an optional UI timestamp.
 /// Duplicate UUIDs, future workouts and obviously invalid speed samples are excluded.
 enum PaceProgressEvidence {
@@ -147,6 +156,44 @@ enum PaceProgressEvidence {
                          date: best.date, distanceKm: best.km,
                          paceSecondsPerKm: best.secondsPerKm)
         }
+    }
+
+    /// A stable, gap-preserving series backed by the same validated and de-duplicated
+    /// HealthKit runs as the evidence snapshot. Do not fill gaps with invented runs.
+    static func trainingWeeks(_ workouts: [WorkoutPayload], weeks: Int,
+                              at now: Date = .now,
+                              calendar: Calendar = .current) -> [PaceTrainingTrendWeek] {
+        guard (1...104).contains(weeks),
+              let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start else {
+            return []
+        }
+        let runs = validRuns(workouts, at: now)
+        return (0..<weeks).reversed().compactMap { offset -> PaceTrainingTrendWeek? in
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -offset,
+                                            to: currentWeek),
+                  let end = calendar.date(byAdding: .weekOfYear, value: 1,
+                                          to: start) else { return nil }
+            let selected = runs.filter { $0.date >= start && $0.date < end }
+            return PaceTrainingTrendWeek(
+                start: start,
+                distanceKm: selected.reduce(0) { $0 + $1.km },
+                durationHours: selected.reduce(0) {
+                    $0 + $1.payload.duration_seconds / 3600
+                },
+                runCount: selected.count
+            )
+        }
+    }
+
+    /// Drill-downs must use the exact same source validity and UUID rules as
+    /// their chart. Neither future records nor duplicates can appear on tap.
+    static func validatedRuns(_ workouts: [WorkoutPayload],
+                              from start: Date, to end: Date,
+                              at now: Date = .now) -> [WorkoutPayload] {
+        guard end > start else { return [] }
+        return validRuns(workouts, at: now)
+            .filter { $0.date >= start && $0.date < end }
+            .map(\.payload)
     }
 
     /// The same comparison method is reused in the progress dashboard and the

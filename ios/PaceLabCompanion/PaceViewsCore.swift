@@ -180,7 +180,7 @@ struct TodayScreen: View {
                 }
                 // One clear hero instead of competing cards: the next actionable workout.
                 if let day = library.nextDay {
-                    VStack(alignment: .leading, spacing: 13) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             PaceEyebrow(title: "Votre prochaine séance")
                             Spacer()
@@ -189,7 +189,7 @@ struct TodayScreen: View {
                                 .foregroundStyle(.secondary)
                         }
                         Text(day.title)
-                            .font(.system(.title, design: .rounded, weight: .semibold))
+                            .font(.system(.title2, design: .rounded, weight: .semibold))
                             .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 8) {
                             PacePill(label: day.type, symbol: day.type == "Course"
@@ -229,7 +229,7 @@ struct TodayScreen: View {
                         .tint(PaceColors.teal)
                         .controlSize(.large)
                     }
-                    .padding(19)
+                    .padding(17)
                     .modifier(PaceGlassCardSurface(cornerRadius: 26))
                 } else {
                     PaceCard {
@@ -290,9 +290,16 @@ struct TodayScreen: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 4)
-                            Text(PaceFormat.duration(latest.duration_seconds))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                if latest.kilometers > 0.1 {
+                                    Text("\(PaceFormat.distance(latest.kilometers, places: 2)) km")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                Text(PaceFormat.duration(latest.duration_seconds))
+                                    .font(latest.kilometers > 0.1 ? .caption : .subheadline.weight(.semibold))
+                                    .foregroundStyle(latest.kilometers > 0.1 ? .secondary : .primary)
+                            }
+                            .foregroundStyle(.primary)
                             Image(systemName:"chevron.right")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(PaceColors.teal)

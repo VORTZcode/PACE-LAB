@@ -23,7 +23,6 @@ assert.ok(!home.includes('Les résumés Santé ne sont envoyés'), 'privacy disc
 assert.ok(home.includes('Programme arrivé à échéance'));
 assert.ok(home.includes('Cycle terminé'));
 assert.ok(home.includes('library.completedCount == library.currentPlan.count'));
-assert.ok(home.includes('font(.system(.title, design: .rounded, weight: .semibold))'));
 assert.ok(home.includes('font(.system(.title2, design: .rounded, weight: .semibold))'));
 assert.ok(brief.includes('ANALYSE CHATGPT'));
 assert.ok(brief.includes('if let signal'));

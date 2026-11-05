@@ -195,7 +195,7 @@ struct PaceLivingCoachCard: View {
                             Image(systemName:signal.symbol).foregroundStyle(PaceColors.teal)
                             Text(signal.origin)
                                 .font(.caption2.weight(.bold)).tracking(0.8)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(PaceColors.teal)
                             Spacer(minLength:0)
                         }
                         Text(signal.title)

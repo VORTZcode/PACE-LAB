@@ -46,7 +46,7 @@ for (const text of [
 assert.ok(intervals.includes('(25...245).contains(p.bpm)'));
 assert.ok(intervals.includes('(0.7...12).contains(p.value)'));
 assert.ok(intervals.includes('(1...1800).contains(p.value)'));
-assert.ok(progress.includes('.chartYAxisLabel("km")'));
+assert.ok(progress.includes('.chartYAxisLabel(metricUnit)') && progress.includes('private var metricUnit: String'));
 assert.ok(progress.includes('.chartYAxisLabel("bpm")'));
 assert.ok(progress.includes('PaceMetric(caption: "Courses"'));
 assert.ok(body.includes('.chartYAxisLabel("kg")'));
