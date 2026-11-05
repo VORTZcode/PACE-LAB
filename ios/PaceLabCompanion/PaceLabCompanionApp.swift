@@ -72,6 +72,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var autopilot = PaceAutopilot()
     @StateObject private var strengthTracker = PaceStrengthTracker()
     @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
+    @StateObject private var runLinks = PaceRunWorkoutLinks.shared
     @State private var hasLoaded = false
 
     var body: some Scene {
@@ -108,6 +109,7 @@ struct PaceLabCompanionApp: App {
             .environmentObject(autopilot)
             .environmentObject(strengthTracker)
             .environmentObject(strengthLinks)
+            .environmentObject(runLinks)
             .onReceive(engine.$revision) { _ in
                 sleep.refresh()
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
