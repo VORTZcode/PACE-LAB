@@ -24,6 +24,11 @@ assert.match(evidence,/Ces deux volumes décrivent une charge enregistrée/);
 assert.ok(!evidence.includes('client.answer('));
 assert.ok(!evidence.includes('requestAuthorization('));
 
+const comparisonUI = read('PaceRunAnalysis');
+assert.match(evidence,/static func comparison\(for workout: WorkoutPayload/);
+assert.match(comparisonUI,/PaceProgressEvidence\.comparison\(for: workout, in: engine\.runHistory\)/);
+assert.ok(!comparisonUI.includes('distance similaire (±15 %)'));
+
 // UX: the latest outdoor session has a single real HealthKit route read.
 // No background GPS load is launched for every cell in the history.
 assert.match(activities,/private var featuredRun: WorkoutPayload\?/);
