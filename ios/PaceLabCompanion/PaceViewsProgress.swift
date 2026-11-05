@@ -230,6 +230,32 @@ private struct PaceProgressEvidencePanel: View {
                     }
                 }
             }
+            if !snapshot.milestones.isEmpty {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 13) {
+                        Label("Repères par distance", systemImage: "flag.checkered")
+                            .font(.headline)
+                            .foregroundStyle(PaceColors.teal)
+                        ForEach(snapshot.milestones) { record in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Autour de \(record.targetKm) km")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("Sortie complète de \(String(format: "%.2f", record.distanceKm)) km · \(record.date.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 8)
+                                Text(PaceFormat.pace(record.paceSecondsPerKm / 60) + " /km")
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                            }
+                            if record.targetKm != snapshot.milestones.last?.targetKm { Divider() }
+                        }
+                        Text("Ces allures correspondent à des activités complètes de distance proche (±3 %), pas à des chronos exacts de segments ou des records officiels.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 }
