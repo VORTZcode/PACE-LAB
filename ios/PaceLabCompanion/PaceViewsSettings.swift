@@ -3,6 +3,7 @@ import SwiftUI
 struct PaceSettingsScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var sleep: PaceSleepHealthKit
+    @EnvironmentObject var healthSignals: PaceHealthSignals
     @Environment(\.dismiss) private var dismiss
     @State private var isConfirming = false
     var body: some View {
@@ -33,6 +34,33 @@ struct PaceSettingsScreen: View {
                 }
             } header: { Text("Synchronisation") } footer: {
                 Text("iOS peut retarder les mises à jour en arrière-plan. L’ouverture de PACE LAB relance la synchronisation.")
+            }
+            Section("Mesures cardiovasculaires et corporelles") {
+                Button {
+                    Task { await healthSignals.requestAccess() }
+                } label: {
+                    Label(healthSignals.accessRequested ?
+                          "Redemander l'accès aux mesures complémentaires" :
+                          "Activer les mesures complémentaires Santé",
+                          systemImage: "waveform.path.ecg")
+                }
+                Button("Actualiser les mesures") {
+                    Task { await healthSignals.refresh() }
+                }
+                .disabled(!healthSignals.accessRequested || healthSignals.isLoading)
+                HStack {
+                    if healthSignals.isLoading { ProgressView() }
+                    Text(healthSignals.status).font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(PaceHealthSignalTypes.definitions, id: \.id) { metric in
+                    if let latest = healthSignals.latest(metric.id) {
+                        LabeledContent(metric.name,
+                            value: "\(String(format: "%.1f", latest.value)) \(metric.unitLabel)")
+                            .font(.subheadline)
+                    }
+                }
+                Text("La présence d'une mesure ne signifie ni diagnostic ni partage avec ChatGPT. Le partage est configuré séparément dans Coach.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Couverture des données") {
                 NavigationLink {
