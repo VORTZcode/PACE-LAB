@@ -12,11 +12,14 @@ const detail = activity.slice(activity.indexOf('struct WorkoutDetailScreen: View
 assert.ok(detail.indexOf('PaceRouteSection(workout: workout)') <
   detail.indexOf('if let report = coach.report(for: workout.source_uuid)'));
 assert.ok(map.includes('PaceRouteMap(track: route)'));
-assert.ok(map.includes('.frame(height: 328)'));
+assert.ok(map.includes('.frame(height: 360)'));
+assert.ok(map.includes('padding(.horizontal, -PaceDesign.screenInset)'));
+assert.ok(map.includes('MKImageryMapConfiguration(elevationStyle: .realistic)'));
+assert.ok(map.includes('PaceFlyoverSpeedControl(selection: $playbackSpeed)'));
 assert.ok(map.includes('Button { showFullMap = true }'));
 assert.ok(map.includes('PaceRouteFullMapScreen(track: route, workout: workout)'));
 assert.ok(map.includes('Label("Survol 3D", systemImage: "play.fill")'));
-assert.ok(map.includes('.clipShape(RoundedRectangle(cornerRadius: 27))'));
+assert.ok(map.includes('.clipShape(RoundedRectangle(cornerRadius: 18))'));
 
 // Playback has time-based interpolation and smooth bounded angular velocity.
 assert.ok(map.includes('track.cameraCourse(at: fraction)'));

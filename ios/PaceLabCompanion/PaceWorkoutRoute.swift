@@ -225,18 +225,21 @@ struct PaceRouteMap: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView(frame: .zero)
         map.delegate = context.coordinator
-        let configuration = MKStandardMapConfiguration()
-        configuration.elevationStyle = .realistic
-        configuration.pointOfInterestFilter = .excludingAll
-        map.preferredConfiguration = configuration
+        // Photographic map imagery, including real 3D terrain and buildings
+        // wherever Apple Maps has compatible coverage.
+        map.preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .realistic)
         map.isPitchEnabled = true
         map.isRotateEnabled = true
-        map.showsCompass = true
+        map.showsCompass = !followCamera
+        map.isScrollEnabled = !followCamera
+        map.isZoomEnabled = !followCamera
         return map
     }
     func updateUIView(_ map: MKMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.isPlayback = progress != nil
+        map.isScrollEnabled = !followCamera
+        map.isZoomEnabled = !followCamera
         if coordinator.trackID != track.fixes.first?.timestamp {
             coordinator.trackID = track.fixes.first?.timestamp
             let coordinates = track.fixes.map(\.location)
@@ -369,9 +372,9 @@ struct PaceRouteSection: View {
             case .ready:
                 if let route = reader.track {
                     PaceRouteMap(track: route)
-                        .frame(height: 328)
+                        .frame(height: 360)
                         .overlay(alignment: .topLeading) {
-                            Label("PARCOURS GPS", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                            Label("ITINÉRAIRE · SATELLITE", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                                 .font(.caption2.weight(.bold))
                                 .tracking(0.65)
                                 .padding(.horizontal, 12)
@@ -412,12 +415,11 @@ struct PaceRouteSection: View {
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 19))
                             .padding(13)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 27))
-                        .modifier(PaceGlassCardSurface(cornerRadius: 27))
-                        .sheet(isPresented: $showReplay) {
-                            NavigationStack {
-                                PaceRouteFlyoverScreen(track: route, workout: workout)
-                            }
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .padding(.horizontal, -PaceDesign.screenInset)
+                        .accessibilityLabel("Vue satellite du parcours de la séance")
+                        .fullScreenCover(isPresented: $showReplay) {
+                            PaceRouteFlyoverScreen(track: route, workout: workout)
                         }
                         .sheet(isPresented: $showFullMap) {
                             NavigationStack {
@@ -467,11 +469,46 @@ struct PaceRouteFullMapScreen: View {
                     Button("Fermer") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showReplay) {
-                NavigationStack {
-                    PaceRouteFlyoverScreen(track: track, workout: workout)
-                }
+            .fullScreenCover(isPresented: $showReplay) {
+                PaceRouteFlyoverScreen(track: track, workout: workout)
             }
+    }
+}
+
+/// Always-visible speed choices: avoids the iOS context menu that was
+/// visible but intermittently unselectable over the updating MapKit view.
+struct PaceFlyoverSpeedControl: View {
+    @Binding var selection: Double
+    private let values: [Double] = [0.5, 1, 2, 4]
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(values, id: \.self) { value in
+                Button {
+                    selection = value
+                } label: {
+                    Text(String(format: "%g×", value))
+                        .font(.system(size: 13, weight: selection == value ? .bold : .medium,
+                                      design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(selection == value ? .black : .white.opacity(0.78))
+                        .frame(minWidth: 35, minHeight: 43)
+                        .background {
+                            if selection == value {
+                                Capsule().fill(Color.white)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Vitesse \(String(format: "%g", value)) fois")
+                .accessibilityAddTraits(selection == value ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(.black.opacity(0.44), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Vitesse du survol")
     }
 }
 
@@ -487,76 +524,136 @@ struct PaceRouteFlyoverScreen: View {
 
     private var current: PaceRouteFrame { track.frame(at: fraction) }
     private var playbackSeconds: Double { 75 / playbackSpeed }
+    private var progressDistance: String {
+        PaceFormat.distance(current.distanceMeters / 1000, places: 2)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                PaceRouteMap(track: track, progress: fraction,
-                             followCamera: true, recenterToken: recenterToken)
-                    .ignoresSafeArea(edges: .bottom)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(workout.cadenceLabel).font(.subheadline.weight(.semibold))
-                    Text("\(String(format: "%.2f", current.distanceMeters / 1000)) km")
-                        .font(.system(size: 30, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                    Text("Parcours parcouru · \(PaceFormat.duration(current.elapsedSeconds))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(14)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-                .padding(16)
+        ZStack {
+            Color.black.ignoresSafeArea()
+            PaceRouteMap(track: track, progress: fraction,
+                         followCamera: true, recenterToken: recenterToken)
+                .ignoresSafeArea()
+
+            // Optical depth without hiding the photographic surroundings.
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0.61), .clear],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 220)
+                Spacer()
+                LinearGradient(colors: [.clear, .black.opacity(0.72)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 240)
             }
-            VStack(spacing: 14) {
-                Slider(value: $fraction, in: 0...1, onEditingChanged: { editing in
-                    if editing { isPlaying = false }
-                })
-                .tint(PaceColors.teal)
-                .accessibilityLabel("Position dans le parcours")
-                HStack {
-                    Button {
-                        if fraction >= 1 { fraction = 0 }
-                        isPlaying.toggle()
-                        lastTick = .now
-                    } label: {
-                        Label(isPlaying ? "Pause" : "Lire",
-                              systemImage: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.headline)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("PACE LAB  /  FLYOVER", systemImage: "location.north.circle.fill")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .tracking(1.45)
+                            .foregroundStyle(.white.opacity(0.88))
+                        Text(workout.cadenceLabel)
+                            .font(.system(size: 19, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(PaceColors.teal)
-                    Spacer()
-                    Menu {
-                        ForEach([0.5, 1.0, 2.0, 4.0], id: \.self) { speed in
-                            Button("\(String(format: "%g", speed))×") { playbackSpeed = speed }
+                    Spacer(minLength: 8)
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 45, height: 45)
+                            .background(.black.opacity(0.49), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Fermer le survol")
+                }
+                .padding(.horizontal, 19)
+                .padding(.top, 14)
+
+                Spacer()
+
+                VStack(spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text(progressDistance)
+                                .font(.system(size: 38, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                            Text("km")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.72))
                         }
-                    } label: {
-                        Label("\(String(format: "%g", playbackSpeed))×",
-                              systemImage: "speedometer")
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("SUR LE PARCOURS")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .tracking(1.2)
+                                .foregroundStyle(.white.opacity(0.66))
+                            Text(PaceFormat.duration(current.elapsedSeconds))
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                        }
                     }
-                    .tint(PaceColors.teal)
-                    Button {
-                        recenterToken += 1
-                    } label: {
-                        Label("Recentrer", systemImage: "location.north.line.fill")
+                    .foregroundStyle(.white)
+
+                    Slider(value: $fraction, in: 0...1, onEditingChanged: { editing in
+                        if editing { isPlaying = false }
+                    })
+                    .tint(.white)
+                    .accessibilityLabel("Position dans le parcours")
+                    .accessibilityValue("\(Int((fraction * 100).rounded())) pour cent")
+
+                    HStack(spacing: 12) {
+                        Button {
+                            if fraction >= 1 { fraction = 0 }
+                            isPlaying.toggle()
+                            lastTick = .now
+                        } label: {
+                            Label(isPlaying ? "Pause" : "Lire",
+                                  systemImage: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .frame(minWidth: 91, minHeight: 43)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white)
+                        .foregroundStyle(.black)
+
+                        Spacer(minLength: 0)
+
+                        PaceFlyoverSpeedControl(selection: $playbackSpeed)
+
+                        Spacer(minLength: 0)
+                        Button { recenterToken += 1 } label: {
+                            Image(systemName: "location.north.line.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 43, height: 43)
+                                .background(.black.opacity(0.44), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Recentrer la caméra")
                     }
-                    .tint(PaceColors.teal)
+                    Text("Imagerie Apple Plans · détails 3D selon couverture")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.62))
                 }
-                Text("Survol animé dans Plans · durée de lecture réglable · GPS non transmis au Coach IA")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 15)
-            .background(.regularMaterial)
-        }
-        .background(PaceColors.base)
-        .navigationTitle("Survol du parcours")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Fermer") { dismiss() }
+                .padding(.horizontal, 17)
+                .padding(.top, 18)
+                .padding(.bottom, 13)
+                .background(.black.opacity(0.68),
+                            in: RoundedRectangle(cornerRadius: 27, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 27)
+                        .strokeBorder(.white.opacity(0.16), lineWidth: 0.7)
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
             }
         }
+        .preferredColorScheme(.dark)
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { now in
             defer { lastTick = now }
             guard isPlaying else { return }
