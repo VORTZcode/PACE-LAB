@@ -153,6 +153,9 @@ struct RunDynamicsSection: View {
         return "\(item.source_uuid)|\(item.heart_rate_series.count)|\(item.speed_series?.count ?? 0)|\(item.power_series?.count ?? 0)|\(item.stride_series?.count ?? 0)|\(item.ground_contact_series?.count ?? 0)|\(item.vertical_series?.count ?? 0)"
     }
     private var points: [RunChartPoint] { prepared[metric] ?? [] }
+    private var heartBaseline: Double {
+        max(25, floor(((points.map(\.value).min() ?? 70) - 12) / 10) * 10)
+    }
     private var selectedPoint: RunChartPoint? {
         guard let selectedMinute else { return nil }
         return points.min { abs($0.minute - selectedMinute) < abs($1.minute - selectedMinute) }
@@ -227,12 +230,24 @@ struct RunDynamicsSection: View {
                         if preparedKey == preparationKey {
                             if points.count >= 2 {
                                 Chart {
+                                    if metric == .heart {
+                                        ForEach(points) { point in
+                                            AreaMark(x: .value("Minute", point.minute),
+                                                     yStart: .value("Base", heartBaseline),
+                                                     yEnd: .value("Battements/min", point.value),
+                                                     series: .value("Segment de mesure", point.segment))
+                                                .foregroundStyle(.linearGradient(
+                                                    colors: [Color.red.opacity(0.16), Color.red.opacity(0.015)],
+                                                    startPoint: .top, endPoint: .bottom))
+                                                .interpolationMethod(.linear)
+                                        }
+                                    }
                                     ForEach(points) { point in
                                         LineMark(x: .value("Minute", point.minute),
                                                  y: .value(metric.unit, point.value),
                                                  series: .value("Segment de mesure", point.segment))
-                                            .foregroundStyle(PaceColors.teal)
-                                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                                            .foregroundStyle(metric == .heart ? .red : PaceColors.teal)
+                                            .lineStyle(StrokeStyle(lineWidth: metric == .heart ? 2.6 : 2, lineCap: .round))
                                             .interpolationMethod(.linear)
                                     }
                                     if let picked = selectedPoint {

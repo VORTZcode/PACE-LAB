@@ -104,7 +104,12 @@ struct PaceLabCompanionApp: App {
             }
             .onReceive(strengthTracker.$records) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
-                launchAutopilot()
+                if !launchAutomaticSessionReview() { launchAutopilot() }
+            }
+            .onReceive(library.$completed) { _ in
+                // A confirmed session can unlock the HealthKit review, but
+                // manually checking a box cannot fabricate workout measurements.
+                if !launchAutomaticSessionReview() { launchAutopilot() }
             }
             .onReceive(journal.$notes) { _ in
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
@@ -118,6 +123,13 @@ struct PaceLabCompanionApp: App {
                 if !launchAutomaticSessionReview() { launchAutopilot() }
             }
             .onReceive(coach.$autoReview) { _ in
+                _ = launchAutomaticSessionReview()
+            }
+            .onReceive(coach.$shareStrengthSets) { _ in
+                coach.detectNewWorkout(engine: engine)
+                _ = launchAutomaticSessionReview()
+            }
+            .onReceive(coach.$shareRunSummaries) { _ in
                 _ = launchAutomaticSessionReview()
             }
             .onReceive(chatGPT.$planUsageEnabled) { _ in

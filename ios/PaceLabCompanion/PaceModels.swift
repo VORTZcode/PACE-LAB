@@ -62,6 +62,14 @@ struct PaceRecipe: Decodable, Identifiable {
     let notes: String
 }
 
+/// A planned session can be missed without being counted as completed.
+struct PaceMissedSession: Codable, Equatable {
+    let date: String
+    let reason: String
+    let note: String
+    let recordedAt: Date
+}
+
 struct PaceBodyLog: Identifiable, Codable {
     let id: UUID
     let date: Date
@@ -71,6 +79,21 @@ struct PaceBodyLog: Identifiable, Codable {
 @MainActor final class PaceLibrary: ObservableObject {
     let programme: PaceProgramme
     @Published private(set) var completed: Set<String>
+    @Published private(set) var missedSessions: [String: PaceMissedSession] = [:]
+    private var missedURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("pace-missed-sessions.json")
+    }
+    private func persistMissed() {
+        guard let bytes = try? JSONEncoder().encode(missedSessions) else { return }
+        try? FileManager.default.createDirectory(at: missedURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        if (try? bytes.write(to: missedURL, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: missedURL.path)
+        }
+    }
     @Published private(set) var eaten: Set<String>
     @Published private(set) var shoppingChecked: Set<String>
     @Published private(set) var bodyLogs: [PaceBodyLog]
@@ -108,14 +131,37 @@ struct PaceBodyLog: Identifiable, Codable {
             .flatMap { try? JSONDecoder().decode(PaceAICoachDraft.self,from:$0) }
         approvedAdjustments = (try? Data(contentsOf:adaptationURL))
             .flatMap { try? JSONDecoder().decode([String:PaceApprovedAdjustment].self,from:$0) } ?? [:]
+        missedSessions = (try? Data(contentsOf: missedURL))
+            .flatMap { try? JSONDecoder().decode([String: PaceMissedSession].self, from: $0) } ?? [:]
+        missedSessions = missedSessions.filter { !completed.contains($0.key) }
     }
     func markDayCompleted(_ id: String) {
+        if missedSessions.removeValue(forKey: id) != nil { persistMissed() }
         guard completed.insert(id).inserted else { return }
         UserDefaults.standard.set(Array(completed), forKey: "pace.v2.completed")
     }
     func toggleDay(_ id: String) {
-        if !completed.insert(id).inserted { completed.remove(id) }
+        if !completed.insert(id).inserted {
+            completed.remove(id)
+        } else if missedSessions.removeValue(forKey: id) != nil {
+            persistMissed()
+        }
         UserDefaults.standard.set(Array(completed), forKey: "pace.v2.completed")
+    }
+    func markDayMissed(_ date: String, reason: String, note: String) {
+        guard currentPlan.contains(where: { $0.date == date }) else { return }
+        let allowed = ["Manque de temps", "Fatigue", "Douleur ou gêne", "Maladie", "Imprévu", "Autre"]
+        guard allowed.contains(reason) else { return }
+        completed.remove(date)
+        UserDefaults.standard.set(Array(completed), forKey: "pace.v2.completed")
+        missedSessions[date] = PaceMissedSession(date: date, reason: reason,
+            note: String(note.prefix(500)).trimmingCharacters(in: .whitespacesAndNewlines),
+            recordedAt: .now)
+        persistMissed()
+    }
+    func clearMissed(_ date: String) {
+        guard missedSessions.removeValue(forKey: date) != nil else { return }
+        persistMissed()
     }
     func toggleMeal(_ id: String) {
         if !eaten.insert(id).inserted { eaten.remove(id) }
@@ -173,7 +219,7 @@ struct PaceBodyLog: Identifiable, Codable {
         formatter.dateFormat = "yyyy-MM-dd"
         let next = Calendar.current.date(byAdding:.day,value:1,to:Calendar.current.startOfDay(for:endDate)) ?? endDate
         let day = formatter.string(from:next)
-        return currentPlan.first(where:{ $0.date >= day && $0.type == "Course" && !completed.contains($0.date) })
+        return currentPlan.first(where:{ $0.date >= day && $0.type == "Course" && !completed.contains($0.date) && missedSessions[$0.date] == nil })
     }
     func approveAdaptation(_ proposal:PaceAdaptation) throws {
         guard proposal.requiresApproval,let date = proposal.sessionDate,
@@ -225,6 +271,7 @@ struct PaceBodyLog: Identifiable, Codable {
         UserDefaults.standard.set([],forKey:"pace.v2.shopping")
     }
     var completedCount: Int { currentPlan.filter { completed.contains($0.date) }.count }
+    var missedCount: Int { currentPlan.filter { missedSessions[$0.date] != nil }.count }
     var nextDay: PaceDay? {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -232,7 +279,7 @@ struct PaceBodyLog: Identifiable, Codable {
         formatter.dateFormat = "yyyy-MM-dd"
         let today = formatter.string(from: .now)
         guard let last = currentPlan.last, today <= last.date else { return nil }
-        return currentPlan.first(where: { $0.date >= today && !completed.contains($0.date) })
+        return currentPlan.first(where: { $0.date >= today && !completed.contains($0.date) && missedSessions[$0.date] == nil })
     }
 }
 

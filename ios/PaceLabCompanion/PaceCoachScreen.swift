@@ -63,8 +63,8 @@ struct PaceCoachScreen: View {
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
                                 Label(autopilot.enabled || coach.autoReview
-                                      ? "Nouvelle sortie détectée · bilan automatique prévu"
-                                      : "Nouvelle sortie disponible pour le bilan",
+                                      ? "Nouvelle activité détectée · bilan automatique prévu"
+                                      : "Nouvelle activité disponible pour le bilan",
                                       systemImage:"checkmark.circle")
                                     .font(.subheadline).foregroundStyle(PaceColors.teal)
                             }
@@ -72,7 +72,10 @@ struct PaceCoachScreen: View {
                                 adaptiveReviewCard(suggested)
                             }
                             sessionAnalysisCard
-                            if let report = coach.latestReport { sessionReportCard(report) }
+                            if let run = coach.selectedRun(engine: engine),
+                               let report = coach.report(for: run.source_uuid) {
+                                sessionReportCard(report)
+                            }
                         } else if activeTab == .plan {
                             programmeEvidenceCard
                             updateCard
@@ -806,14 +809,15 @@ struct PaceCoachScreen: View {
     private var sessionAnalysisCard: some View {
         PaceCard {
             VStack(alignment:.leading,spacing:13) {
-                Label("Décrypter une séance",systemImage:"waveform.path.ecg")
+                Label("Bilan de mes activités",systemImage:"waveform.path.ecg")
                     .font(.headline)
                 if let run = coach.selectedRun(engine:engine) {
                     Menu {
-                        Button("Dernière course") { coach.focusWorkoutID = nil }
+                        Button("Dernière activité") { coach.focusWorkoutID = nil }
                         Divider()
-                        ForEach(Array(engine.runHistory.prefix(12))) { option in
-                            Button("\(option.startDate.formatted(.dateTime.day().month().year())) · \(PaceFormat.distance(option.kilometers,places:2)) km") {
+                        ForEach(Array(engine.snapshot.filter { $0.isRun ||
+                            ($0.activity_kind == "strength" && coach.shareStrengthSets) }.prefix(12))) { option in
+                            Button("\(option.startDate.formatted(.dateTime.day().month().year())) · \(option.cadenceLabel) · \(PaceFormat.duration(option.duration_seconds))") {
                                 coach.focusWorkoutID = option.source_uuid
                             }
                         }
@@ -822,7 +826,7 @@ struct PaceCoachScreen: View {
                             VStack(alignment:.leading,spacing:3) {
                                 Text("Séance sélectionnée")
                                     .font(.caption).foregroundStyle(.secondary)
-                                Text("\(run.startDate.formatted(.dateTime.day().month().year())) · \(PaceFormat.distance(run.kilometers,places:2)) km")
+                                Text("\(run.startDate.formatted(.dateTime.day().month().year())) · \(run.cadenceLabel) · \(PaceFormat.duration(run.duration_seconds))")
                                     .font(.subheadline.weight(.semibold))
                             }
                             Spacer()
@@ -835,15 +839,17 @@ struct PaceCoachScreen: View {
                     .buttonStyle(.plain)
                     .tint(PaceColors.teal)
                         .font(.subheadline.weight(.medium))
-                    Text("Le bilan compare ta course, tes quatre dernières semaines et les informations dont tu autorises le partage.")
+                    Text("Le bilan s’appuie sur l’activité mesurée, ton historique et les seules informations dont tu autorises le partage.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     if coach.isLoading {
                         Label("Analyse ChatGPT en cours…",systemImage:"clock.arrow.circlepath")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(PaceColors.teal)
                     } else if autopilot.enabled || coach.autoReview {
-                        Label(coach.latestReport?.workoutID == run.source_uuid
-                              ? "Bilan disponible ci-dessous"
+                        Label(coach.report(for: run.source_uuid)?.isLocal == true
+                              ? "Bilan local disponible · analyse IA à relancer"
+                              : coach.report(for: run.source_uuid) != nil
+                                ? "Bilan ChatGPT disponible ci-dessous"
                               : !coach.error.isEmpty
                                 ? "Bilan incomplet · relance possible"
                                 : coach.newWorkoutAwaitingReview
@@ -892,7 +898,7 @@ struct PaceCoachScreen: View {
             }
             PaceCard {
                 VStack(alignment:.leading,spacing:14) {
-                    Label(report.title,systemImage:"checkmark.seal")
+                    Label(report.title,systemImage: report.isLocal ? "iphone" : "checkmark.seal")
                         .font(.headline).foregroundStyle(PaceColors.teal)
                     if let session = engine.workout(id:report.workoutID) {
                         Text("Séance du \(session.startDate.formatted(.dateTime.day().month().year())) · \(PaceFormat.distance(session.kilometers,places:2)) km")

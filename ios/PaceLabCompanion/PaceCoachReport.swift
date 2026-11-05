@@ -9,7 +9,31 @@ struct PaceCoachSessionReport: Codable, Identifiable {
     let recommendations: [String]
     let uncertainties: [String]
     let trainingImpact: String
+    /// nil means a legacy ChatGPT report; "local" is measured-only fallback.
+    var origin: String? = nil
+    var isLocal: Bool { origin == "local" }
     var id: String { workoutID }
+
+    static func localFallback(for workout: WorkoutPayload) -> PaceCoachSessionReport {
+        var observations = [
+            "Activité enregistrée dans Apple Santé : \(workout.cadenceLabel).",
+            "Durée mesurée : \(PaceFormat.duration(workout.duration_seconds))."
+        ]
+        if workout.isRun && workout.kilometers > 0 {
+            observations.append("Distance mesurée : \(PaceFormat.distance(workout.kilometers, places: 2)) km.")
+        }
+        if let mean = workout.hr_average_bpm, mean > 0 {
+            observations.append("Fréquence cardiaque moyenne enregistrée : \(Int(mean.rounded())) bpm.")
+        }
+        return PaceCoachSessionReport(workoutID: workout.source_uuid, createdAt: .now,
+            title: "Bilan local · analyse IA indisponible",
+            summary: "L’activité est bien enregistrée. ChatGPT n’a pas pu produire un bilan valide ; les seules informations affichées ci-dessous viennent des mesures disponibles sur ton iPhone.",
+            observations: observations,
+            recommendations: ["Conserve ton programme pour l’instant ; réessaie l’analyse IA lorsque le service est disponible."],
+            uncertainties: ["Aucune conclusion sur la récupération ou la progression sans analyse et contexte suffisants."],
+            trainingImpact: "Aucune adaptation automatique n’est justifiée par ce bilan local.",
+            origin: "local")
+    }
 
     static func extract(_ response:String,workoutID:String) throws -> PaceCoachSessionReport {
         guard let from = response.firstIndex(of:"{"),let to = response.lastIndex(of:"}"),

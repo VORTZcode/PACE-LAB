@@ -34,7 +34,7 @@ assert.match(engine,/shareWeight/);
 assert.match(engine,/shareNutrition/);
 assert.match(engine,/newWorkoutAwaitingReview/);
 assert.match(engine,/FileProtectionType\.completeUntilFirstUserAuthentication/);
-assert.match(app,/coach\.beginAutomaticReview\(engine:engine\)/);
+assert.match(app,/coach\.beginAutomaticReview\(engine:engine,autonomousMode:autopilot\.enabled\)/);
 assert.match(app,/chatGPT\.planUsageEnabled/);
 assert.match(app,/PaceCoachScreen/);
 assert.match(home,/PaceLivingCoachCard/);

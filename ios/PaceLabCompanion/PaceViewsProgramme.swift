@@ -32,7 +32,7 @@ struct ProgrammeScreen: View {
                         .frame(width: 68, height: 68)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Progression hebdomadaire").font(.headline)
-                            Text("\(library.completedCount) séances ou journées validées")
+                            Text("\(library.completedCount) réalisées · \(library.missedCount) non réalisées")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
@@ -137,7 +137,13 @@ struct ProgrammeScreen: View {
                                     }
                                     Text("\(day.type) · \(Int(day.minutes)) min")
                                         .font(.caption).foregroundStyle(.secondary)
-                                    if day.type == "Musculation" && library.activeCoachDraft == nil {
+                                    if let missed = library.missedSessions[day.date] {
+                                        Label("Non réalisée · \(missed.reason)", systemImage: "minus.circle.fill")
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(.orange)
+                                    }
+                                    if day.type == "Musculation" && library.activeCoachDraft == nil &&
+                                       library.missedSessions[day.date] == nil {
                                         let exercises = library.programme.force.filter { $0.day == day.day }
                                         Text("\(strengthTracker.completedSets(day: day.date, exercises: exercises)) / \(strengthTracker.totalSets(exercises: exercises)) séries validées")
                                             .font(.caption2.weight(.medium))
@@ -146,8 +152,10 @@ struct ProgrammeScreen: View {
                                     }
                                 }
                                 Spacer(minLength: 4)
-                                Image(systemName: library.completed.contains(day.date) ? "checkmark.circle.fill" : "chevron.right")
-                                    .foregroundStyle(library.completed.contains(day.date) ? PaceColors.teal : Color.secondary)
+                                Image(systemName: library.completed.contains(day.date) ? "checkmark.circle.fill" :
+                                      library.missedSessions[day.date] != nil ? "minus.circle.fill" : "chevron.right")
+                                    .foregroundStyle(library.completed.contains(day.date) ? PaceColors.teal :
+                                                     library.missedSessions[day.date] != nil ? .orange : Color.secondary)
                             }
                             .padding(16)
                             .modifier(PaceGlassCardSurface(cornerRadius: isCurrent ? 23 : 19))
@@ -183,6 +191,7 @@ struct DayDetailScreen: View {
     @EnvironmentObject var strengthLinks: PaceStrengthWorkoutLinks
     let day: PaceDay
     @State private var confirmFinish = false
+    @State private var showMissedEditor = false
     @State private var presentedExerciseID: String?
     @State private var exerciseDetailTab = 0
     @State private var restEnd: Date?
@@ -389,6 +398,26 @@ struct DayDetailScreen: View {
                     .font(.footnote)
                     .foregroundStyle(.orange)
             }
+            if let missed = library.missedSessions[day.date] {
+                PaceCard {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label("Séance non réalisée", systemImage: "minus.circle.fill")
+                            .font(.headline).foregroundStyle(.orange)
+                        Text("Motif : \(missed.reason)")
+                            .font(.subheadline)
+                        if !missed.note.isEmpty {
+                            Text(missed.note).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        HStack {
+                            Button("Modifier le motif") { showMissedEditor = true }
+                            Spacer()
+                            Button("Remettre en attente") { library.clearMissed(day.date) }
+                        }
+                        .font(.subheadline)
+                        .tint(PaceColors.teal)
+                    }
+                }
+            }
             Button {
                 if day.type == "Musculation", !library.completed.contains(day.date),
                    strengthTracker.totalSets(exercises: exercises) >
@@ -404,6 +433,22 @@ struct DayDetailScreen: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(PaceColors.teal)
+            if day.type != "Repos" && day.type != "Récupération" &&
+               !library.completed.contains(day.date) && library.missedSessions[day.date] == nil {
+                Button {
+                    showMissedEditor = true
+                } label: {
+                    Label("Je n’ai pas pu faire cette séance", systemImage: "calendar.badge.exclamationmark")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+            }
+        }
+        .sheet(isPresented: $showMissedEditor) {
+            PaceMissedSessionEditor(day: day)
+                .environmentObject(library)
         }
         .fullScreenCover(isPresented: Binding(
             get: { presentedExerciseID != nil },
@@ -743,5 +788,60 @@ private struct PaceStrengthSetRow: View {
                 .submitLabel(.done)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+
+/// Records an absence honestly; it is not an Apple Health workout or a completed session.
+private struct PaceMissedSessionEditor: View {
+    @EnvironmentObject private var library: PaceLibrary
+    @Environment(\.dismiss) private var dismiss
+    let day: PaceDay
+    @State private var reason = "Manque de temps"
+    @State private var note = ""
+    private let reasons = ["Manque de temps", "Fatigue", "Douleur ou gêne", "Maladie", "Imprévu", "Autre"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(day.title).font(.headline)
+                    Text(day.date).font(.subheadline).foregroundStyle(.secondary)
+                } header: { Text("Séance prévue") }
+                Section("Pourquoi n’a-t-elle pas eu lieu ?") {
+                    Picker("Motif", selection: $reason) {
+                        ForEach(reasons, id: \.self) { item in Text(item).tag(item) }
+                    }
+                    TextField("Précision facultative", text: $note, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+                Section {
+                    Text("Cette séance sera indiquée comme non réalisée, sans être comptée comme terminée. Tu pourras modifier ce motif ou remettre la séance en attente.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Text("Ton motif reste sur cet iPhone ; le partage de tes notes avec l’IA dépend de ton autorisation.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Séance non réalisée")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Annuler") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Enregistrer") {
+                        library.markDayMissed(day.date, reason: reason, note: note)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                if let saved = library.missedSessions[day.date] {
+                    reason = saved.reason
+                    note = saved.note
+                }
+            }
+        }
     }
 }

@@ -187,6 +187,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     @Published private(set) var acceptedPlans: [PaceAcceptedPlanRecord] = []
     @Published var pending: PaceAICoachDraft?
     @Published private(set) var latestReport: PaceCoachSessionReport?
+    @Published private(set) var sessionReports: [PaceCoachSessionReport] = []
     @Published var focusWorkoutID: String?
     @Published var isLoading = false
     @Published var error = ""
@@ -226,6 +227,31 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         let directory = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
         return directory.appendingPathComponent("pace-coach-latest-report.json")
     }()
+    private let reportsURL: URL = {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("pace-coach-reports.json")
+    }()
+    private func saveReport(_ report: PaceCoachSessionReport) {
+        sessionReports.removeAll { $0.workoutID == report.workoutID }
+        sessionReports.insert(report, at: 0)
+        sessionReports = Array(sessionReports.prefix(30))
+        latestReport = report
+        guard let data = try? JSONEncoder().encode(sessionReports) else { return }
+        try? FileManager.default.createDirectory(at: reportsURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        if (try? data.write(to: reportsURL, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: reportsURL.path)
+        }
+        // Maintain compatibility with older versions which read only one report.
+        if let previous = try? JSONEncoder().encode(report) {
+            try? previous.write(to: reportURL, options: .atomic)
+        }
+    }
+    func report(for workoutID: String) -> PaceCoachSessionReport? {
+        sessionReports.first { $0.workoutID == workoutID }
+    }
     private let acceptedPlansURL: URL = {
         FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
             .appendingPathComponent("pace-coach-accepted-history.json")
@@ -245,9 +271,14 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
            let saved = try? JSONDecoder().decode([PaceCoachMessage].self,from:data) {
             conversation = Array(saved.suffix(24))
         }
-        if let data = try? Data(contentsOf:reportURL) {
-            latestReport = try? JSONDecoder().decode(PaceCoachSessionReport.self,from:data)
+        if let data = try? Data(contentsOf: reportsURL),
+           let saved = try? JSONDecoder().decode([PaceCoachSessionReport].self, from: data) {
+            sessionReports = Array(saved.prefix(30))
+        } else if let data = try? Data(contentsOf: reportURL),
+                  let legacy = try? JSONDecoder().decode(PaceCoachSessionReport.self, from: data) {
+            sessionReports = [legacy]
         }
+        latestReport = sessionReports.first
         if let data = UserDefaults.standard.data(forKey:storeKey) {
             pending = try? JSONDecoder().decode(PaceAICoachDraft.self,from:data)
         }
@@ -320,9 +351,16 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         } catch { self.error = "Impossible de sauvegarder l'historique local des plans." }
     }
 
+    /// Only authorize strength data when the athlete opted into its sharing.
+    private func latestReportableWorkout(engine: HealthSyncEngine) -> WorkoutPayload? {
+        engine.snapshot.first { $0.isRun || ($0.activity_kind == "strength" && shareStrengthSets) }
+    }
     func selectedRun(engine:HealthSyncEngine) -> WorkoutPayload? {
-        guard let focusWorkoutID else { return engine.runHistory.first }
-        return engine.workout(id:focusWorkoutID) ?? engine.runHistory.first
+        guard let focusWorkoutID else { return latestReportableWorkout(engine: engine) }
+        guard let selected = engine.workout(id: focusWorkoutID),
+              selected.isRun || (selected.activity_kind == "strength" && shareStrengthSets)
+        else { return latestReportableWorkout(engine: engine) }
+        return selected
     }
     func contextPreview(engine: HealthSyncEngine, library: PaceLibrary,
                         journal: PaceSessionJournal? = nil,
@@ -358,12 +396,16 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
             if let run = selectedRun(engine:engine) {
                 let date = run.startDate.formatted(.dateTime.day().month().year())
-                pieces.append("Séance étudiée : \(date), \(PaceFormat.distance(run.kilometers,places:2)) km, \(PaceFormat.duration(run.duration_seconds)), allure \(PaceFormat.pace(run.paceMinutes))/km, FC moyenne \(PaceFormat.heart(run.hr_average_bpm))bpm, FC max \(PaceFormat.heart(run.hr_max_bpm))bpm.")
-                if shareDynamics { pieces.append(PaceCoachTelemetry.detailedMetrics(run)) }
-                if shareDynamicsTimeline {
-                    pieces.append(PaceCoachTelemetry.synchronizedDynamics(run))
-                } else if shareHeartProfile {
-                    pieces.append(PaceCoachTelemetry.heartMinuteProfile(run))
+                if run.isRun {
+                    pieces.append("Séance étudiée : \(date), course, \(PaceFormat.distance(run.kilometers,places:2)) km, \(PaceFormat.duration(run.duration_seconds)), allure \(PaceFormat.pace(run.paceMinutes))/km, FC moyenne \(PaceFormat.heart(run.hr_average_bpm))bpm, FC max \(PaceFormat.heart(run.hr_max_bpm))bpm.")
+                    if shareDynamics { pieces.append(PaceCoachTelemetry.detailedMetrics(run)) }
+                    if shareDynamicsTimeline {
+                        pieces.append(PaceCoachTelemetry.synchronizedDynamics(run))
+                    } else if shareHeartProfile {
+                        pieces.append(PaceCoachTelemetry.heartMinuteProfile(run))
+                    }
+                } else if shareStrengthSets {
+                    pieces.append("Séance étudiée : \(date), renforcement musculaire enregistré dans Apple Santé, durée \(PaceFormat.duration(run.duration_seconds)), FC moyenne \(PaceFormat.heart(run.hr_average_bpm))bpm, FC max \(PaceFormat.heart(run.hr_max_bpm))bpm. Les répétitions et charges ne sont connues que lorsqu'elles ont été saisies.")
                 }
                 if shareSessionNotes,let journal {
                     pieces.append(PaceCoachTelemetry.noteContext(run,journal:journal))
@@ -372,6 +414,14 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         }
         if shareStrengthSets, let strength {
             pieces.append(strength.coachSummary(library:library))
+        }
+        if shareSessionNotes && shareRunSummaries {
+            let missed = library.currentPlan.compactMap { library.missedSessions[$0.date] }
+            if !missed.isEmpty {
+                pieces.append("Séances du programme explicitement non réalisées (ne pas les compter comme entraînement) : " +
+                    missed.map { "\($0.date) : \($0.reason)" +
+                        ($0.note.isEmpty ? "" : " (\($0.note))") }.joined(separator: " ; "))
+            }
         }
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
             pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg.")
@@ -403,30 +453,32 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     func clearConversation() { conversation.removeAll() }
 
     func beginAutomaticReview(engine:HealthSyncEngine, autonomousMode:Bool = false) -> Bool {
-        // Autopilot opt-in also authorizes unattended session summaries. The
-        // older auto-review switch remains available outside autonomous mode.
+        detectNewWorkout(engine: engine)
         guard (autoReview || autonomousMode) && shareRunSummaries && newWorkoutAwaitingReview,
-              let uuid = engine.runHistory.first?.source_uuid,
+              let uuid = latestReportableWorkout(engine: engine)?.source_uuid,
               autoRequestedID != uuid, automaticInFlightID == nil,
               lastAutomaticAttempt.map({ Date().timeIntervalSince($0) >= 600 }) ?? true
         else { return false }
-        // Reserve in memory, but record success only when ChatGPT delivers a valid report.
         automaticInFlightID = uuid
         lastAutomaticAttempt = .now
         return true
     }
     func detectNewWorkout(engine:HealthSyncEngine) {
-        guard let latest = engine.runHistory.first else { return }
-        if seenRunningUUID == nil {
-            seenRunningUUID = latest.source_uuid
-            UserDefaults.standard.set(latest.source_uuid,forKey:"pace.coach.seen-run")
+        guard let latest = latestReportableWorkout(engine: engine) else {
+            newWorkoutAwaitingReview = false
             return
         }
-        guard let seen = seenRunningUUID, seen != latest.source_uuid else { return }
-        // Do not submit a workout that is still inside the recovery measurement window.
-        guard latest.endDate.timeIntervalSinceNow <= -185,
-              latest.recovery_state != "pending" else { return }
-        newWorkoutAwaitingReview = true
+        // Do not automatically replay an entire pre-existing HealthKit history.
+        let isRecent = latest.endDate >= Date().addingTimeInterval(-7 * 86400)
+        let isSettled = latest.endDate.timeIntervalSinceNow <= -185 &&
+                        (latest.activity_kind != "running" || latest.recovery_state != "pending")
+        let alreadyReviewed = autoRequestedID == latest.source_uuid ||
+            (report(for: latest.source_uuid).map { !$0.isLocal } ?? false)
+        newWorkoutAwaitingReview = isRecent && isSettled && !alreadyReviewed
+        if newWorkoutAwaitingReview {
+            seenRunningUUID = latest.source_uuid
+            UserDefaults.standard.set(latest.source_uuid, forKey: "pace.coach.seen-run")
+        }
     }
 
     func generate(client:PaceChatGPTConnection,engine:HealthSyncEngine,library:PaceLibrary,
@@ -558,7 +610,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         error = ""
         let instructions = """
         Tu es le coach sportif de PACE LAB. Tu aides un coureur amateur à progresser durablement.
-        Analyse cette sortie en français en distinguant : mesures, interprétations prudentes et incertitudes.
+        Analyse cette activité (course ou renforcement) en français en distinguant : mesures, interprétations prudentes et incertitudes.
         Les statistiques facultatives manquantes doivent rester inconnues. Ne prétends PAS avoir des
         informations météo, pente, fréquence cardiaque maximale, seuil lactique ou zones étalonnées
         si elles ne sont pas fournies. Aucun diagnostic médical.
@@ -598,13 +650,7 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
                 report = try PaceCoachSessionReport.extract(
                     corrected,workoutID:run.source_uuid)
             }
-            if let data = try? JSONEncoder().encode(report) {
-                try data.write(to:reportURL,options:.atomic)
-                try FileManager.default.setAttributes(
-                    [.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],
-                    ofItemAtPath:reportURL.path)
-            }
-            latestReport = report
+            saveReport(report)
             if automaticInFlightID == run.source_uuid {
                 autoRequestedID = run.source_uuid
                 UserDefaults.standard.set(run.source_uuid,forKey:"pace.coach.last-automatic-request")
@@ -614,14 +660,27 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
             seenRunningUUID = run.source_uuid
             UserDefaults.standard.set(run.source_uuid,forKey:"pace.coach.seen-run")
         } catch {
+            let failure = error.localizedDescription
             automaticInFlightID = nil
-            self.error = error.localizedDescription
+            // This is a measured-only report, NOT a successful GPT analysis.
+            // Leave the automatic request pending for a later bounded retry.
+            saveReport(.localFallback(for: run))
+            self.error = "Analyse ChatGPT indisponible : \(failure). Un bilan local mesuré est conservé ; aucun ajustement appliqué."
         }
         isLoading = false
     }
     func clearSessionReport() {
-        latestReport = nil
-        try? FileManager.default.removeItem(at:reportURL)
+        guard let report = latestReport else { return }
+        sessionReports.removeAll { $0.workoutID == report.workoutID }
+        latestReport = sessionReports.first
+        if let data = try? JSONEncoder().encode(sessionReports) {
+            try? data.write(to: reportsURL, options: .atomic)
+        }
+        if let first = latestReport, let data = try? JSONEncoder().encode(first) {
+            try? data.write(to: reportURL, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: reportURL)
+        }
     }
 
     func dismissPending() {
