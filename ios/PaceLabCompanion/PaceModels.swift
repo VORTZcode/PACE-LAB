@@ -141,9 +141,7 @@ struct PaceBodyLog: Identifiable, Codable {
         eaten = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.eaten") ?? [])
         // Legacy weekday-only checkmarks have no date provenance. They are
         // retained in the old store but never imputed to the current week.
-        mealDeclarations = (try? Data(contentsOf: mealURL))
-            .flatMap { try? JSONDecoder().decode(
-                [String: PaceMealDeclaration].self, from: $0) } ?? [:]
+
         shoppingChecked = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.shopping") ?? [])
         let raw = UserDefaults.standard.data(forKey: "pace.v2.body")
         bodyLogs = raw.flatMap { try? JSONDecoder().decode([PaceBodyLog].self, from: $0) } ?? []
@@ -154,6 +152,9 @@ struct PaceBodyLog: Identifiable, Codable {
         missedSessions = (try? Data(contentsOf: missedURL))
             .flatMap { try? JSONDecoder().decode([String: PaceMissedSession].self, from: $0) } ?? [:]
         missedSessions = missedSessions.filter { !completed.contains($0.key) }
+        mealDeclarations = (try? Data(contentsOf: mealURL))
+            .flatMap { try? JSONDecoder().decode(
+                [String: PaceMealDeclaration].self, from: $0) } ?? [:]
     }
     func markDayCompleted(_ id: String) {
         if missedSessions.removeValue(forKey: id) != nil { persistMissed() }
