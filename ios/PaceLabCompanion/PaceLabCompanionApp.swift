@@ -68,6 +68,7 @@ struct PaceLabCompanionApp: App {
     @StateObject private var adaptiveMonitor = PaceAdaptiveMonitor()
     @StateObject private var living = PaceLivingCoach()
     @StateObject private var sleep = PaceSleepHealthKit()
+    @StateObject private var healthSignals = PaceHealthSignals.shared
     @StateObject private var autopilot = PaceAutopilot()
     @StateObject private var strengthTracker = PaceStrengthTracker()
     @StateObject private var strengthLinks = PaceStrengthWorkoutLinks()
@@ -103,6 +104,7 @@ struct PaceLabCompanionApp: App {
             .environmentObject(adaptiveMonitor)
             .environmentObject(living)
             .environmentObject(sleep)
+            .environmentObject(healthSignals)
             .environmentObject(autopilot)
             .environmentObject(strengthTracker)
             .environmentObject(strengthLinks)
@@ -163,6 +165,7 @@ struct PaceLabCompanionApp: App {
                 guard !hasLoaded else { return }
                 sleep.startObservers()
                 sleep.refresh(force:true)
+                Task { await healthSignals.refresh() }
                 hasLoaded = true
                 engine.startObservers()
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
@@ -173,6 +176,7 @@ struct PaceLabCompanionApp: App {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 sleep.startObservers()
                 sleep.refresh(force:true)
+                Task { await healthSignals.refresh() }
                 living.refresh(engine:engine,journal:journal,strength:strengthTracker)
                 coach.refreshAcceptedPlans(engine:engine,journal:journal)
                 engine.resync()
