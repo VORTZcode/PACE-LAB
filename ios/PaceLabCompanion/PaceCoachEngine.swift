@@ -531,6 +531,11 @@ private struct PaceReviewAttempt: Codable {
         if shareStrengthSets, let strength {
             pieces.append(strength.coachSummary(library:library))
         }
+        if shareRunSummaries && shareSessionNotes {
+            let adherence = PaceTrainingAdherenceAdapter.snapshot(
+                library: library, engine: engine)
+            pieces.append(adherence.coachSummary)
+        }
         if shareSessionNotes && shareRunSummaries {
             let missed = library.currentPlan.compactMap { library.missedSessions[$0.date] }
             if !missed.isEmpty {
