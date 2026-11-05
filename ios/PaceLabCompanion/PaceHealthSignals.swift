@@ -114,8 +114,8 @@ enum PaceSignalTrends {
             status = "Apple Santé n'est pas disponible sur cet appareil."
             return
         }
-        let types = Set(PaceHealthSignalTypes.definitions.compactMap {
-            HKObjectType.quantityType(forIdentifier: $0.identifier)
+        let types: Set<HKObjectType> = Set(PaceHealthSignalTypes.definitions.compactMap {
+            HKObjectType.quantityType(forIdentifier: $0.identifier) as HKObjectType?
         })
         do {
             try await withCheckedThrowingContinuation {
