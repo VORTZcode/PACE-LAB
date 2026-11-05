@@ -402,19 +402,13 @@ private struct PaceReviewAttempt: Codable {
         } else {
             facts.append("Aucune séance correspondante dans le programme courant pour \(dateKey). Ne pas inventer de consignes.")
         }
-        if run.isRun && run.kilometers > 0.8 {
-            let similar = engine.runHistory.filter {
-                $0.source_uuid != run.source_uuid && $0.startDate < run.startDate &&
-                $0.kilometers > 0.8 &&
-                abs($0.kilometers - run.kilometers) / run.kilometers <= 0.15
-            }.prefix(3)
-            if similar.isEmpty {
-                facts.append("Aucune course antérieure suffisamment proche en distance (±15 %) pour une comparaison descriptive.")
+        if run.isRun {
+            if let comparison = PaceProgressEvidence.comparison(
+                for: run, in: engine.runHistory) {
+                let delta = Int(comparison.paceDifferenceSecondsPerKm.rounded())
+                facts.append("Comparaison déterministe avec une course du \(comparison.priorDate.formatted(.dateTime.day().month().year())), distance \(PaceFormat.distance(comparison.priorKm,places:2)) km, écart d'allure \(delta) s/km. \(comparison.evidenceLabel) Ne pas présenter cette différence comme un progrès physiologique établi.")
             } else {
-                facts.append("Courses précédentes de distance proche (±15 %, comparaison non contrôlée météo, pente, pauses ni fatigue) : " +
-                    similar.map {
-                        "\($0.startDate.formatted(.dateTime.day().month().year())) : \(PaceFormat.distance($0.kilometers, places: 2)) km ; allure \(PaceFormat.pace($0.paceMinutes))/km ; FC moyenne \(PaceFormat.heart($0.hr_average_bpm)) bpm"
-                    }.joined(separator: " | "))
+                facts.append("Aucune course antérieure suffisamment comparable selon la règle commune (±10 % de distance, écart temporel de 7 à 120 jours). Ne pas déduire un progrès.")
             }
         }
         if run.recovery_state == "pending" || run.recovery_state == "partial" {
