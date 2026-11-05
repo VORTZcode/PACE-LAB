@@ -23,11 +23,21 @@ struct ActivitiesScreen: View {
                     Calendar.current.component(.year, from: workout.startDate) == selectedYear)
         }
     }
+    private var featuredRun: WorkoutPayload? {
+        guard kind == 0 || kind == 3 else { return nil }
+        return all.filter { $0.isRun }.max(by: { $0.startDate < $1.startDate })
+    }
+    private var remaining: [WorkoutPayload] {
+        all.filter { $0.source_uuid != featuredRun?.source_uuid }
+    }
     private var year: Int { Calendar.current.component(.year, from: .now) }
     private var statYear: Int { selectedYear == 0 ? year : selectedYear }
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
+                if let featuredRun {
+                    PaceFeaturedRunCard(workout: featuredRun)
+                }
                 NavigationLink {
                     ProgressScreen()
                 } label: {
@@ -79,7 +89,7 @@ struct ActivitiesScreen: View {
                 }
                 PaceSectionTitle(title: "Historique", subtitle: "\(all.count) activités")
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(all.prefix(shown))) { workout in
+                    ForEach(Array(remaining.prefix(shown))) { workout in
                         NavigationLink {
                             if workout.activity_kind == "strength" {
                                 StrengthWorkoutDetailScreen(workout: workout)
@@ -90,12 +100,12 @@ struct ActivitiesScreen: View {
                             ActivityRow(workout: workout)
                         }
                         .buttonStyle(.plain)
-                        if workout.id != all.prefix(shown).last?.id { Divider().padding(.leading, 54) }
+                        if workout.id != remaining.prefix(shown).last?.id { Divider().padding(.leading, 54) }
                     }
                 }
                 .padding(.horizontal, 16)
                 .modifier(PaceGlassCardSurface(cornerRadius: 22))
-                if shown < all.count {
+                if shown < remaining.count {
                     Button("Afficher plus de séances") { shown += 25 }
                         .font(.subheadline.weight(.medium)).tint(PaceColors.teal)
                         .frame(maxWidth: .infinity)
@@ -596,5 +606,78 @@ struct StrengthWorkoutDetailScreen: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showCoach) { PaceCoachScreen() }
+    }
+}
+
+
+/// Only the most recent run asks HealthKit for a route thumbnail. No hidden
+/// per-row GPS reads, no fabricated trace, and no share with the AI service.
+private struct PaceFeaturedRunCard: View {
+    let workout: WorkoutPayload
+    @StateObject private var route = PaceWorkoutRouteReader()
+
+    var body: some View {
+        NavigationLink {
+            WorkoutDetailScreen(workout: workout)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    if let track = route.track {
+                        PaceRouteMap(track: track)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    } else {
+                        LinearGradient(colors: [
+                            PaceColors.teal.opacity(0.29), PaceColors.surface,
+                            PaceColors.teal.opacity(0.09)
+                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 65, weight: .ultraLight))
+                            .foregroundStyle(PaceColors.teal.opacity(0.45))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    Label("DERNIÈRE COURSE", systemImage: "figure.run")
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.7)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(14)
+                }
+                .frame(height: 190)
+                .clipped()
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(PaceFormat.fullDate(workout.startDate).capitalized)
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(PaceFormat.distance(workout.kilometers, places: 2) + " km")
+                            .font(.system(.title2, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .monospacedDigit()
+                    }
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(PaceFormat.pace(workout.paceMinutes) + " /km")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text(PaceFormat.duration(workout.duration_seconds))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
+                        .padding(.leading, 4)
+                }
+                .padding(16)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .modifier(PaceGlassCardSurface(cornerRadius: 24))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dernière course, \(PaceFormat.distance(workout.kilometers, places: 2)) kilomètres. Ouvrir la fiche.")
+        .task(id: workout.source_uuid) {
+            await route.load(workoutID: workout.source_uuid)
+        }
     }
 }
