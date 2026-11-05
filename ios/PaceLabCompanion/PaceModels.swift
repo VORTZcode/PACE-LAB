@@ -70,6 +70,15 @@ struct PaceMissedSession: Codable, Equatable {
     let recordedAt: Date
 }
 
+/// A dated, user-declared meal. This is not an observation of actual calories.
+struct PaceMealDeclaration: Codable, Identifiable {
+    let id: String
+    let date: String
+    let meal: String
+    let recipeName: String
+    let declaredAt: Date
+}
+
 struct PaceBodyLog: Identifiable, Codable {
     let id: UUID
     let date: Date
@@ -80,6 +89,10 @@ struct PaceBodyLog: Identifiable, Codable {
     let programme: PaceProgramme
     @Published private(set) var completed: Set<String>
     @Published private(set) var missedSessions: [String: PaceMissedSession] = [:]
+    private var mealURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("pace-dated-meal-declarations.json")
+    }
     private var missedURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("pace-missed-sessions.json")
@@ -95,6 +108,8 @@ struct PaceBodyLog: Identifiable, Codable {
         }
     }
     @Published private(set) var eaten: Set<String>
+    @Published private(set) var mealDeclarations: [String: PaceMealDeclaration] = [:]
+    @Published private(set) var mealSaveError: String?
     @Published private(set) var shoppingChecked: Set<String>
     @Published private(set) var bodyLogs: [PaceBodyLog]
     @Published private(set) var activeCoachDraft: PaceAICoachDraft?
@@ -124,6 +139,11 @@ struct PaceBodyLog: Identifiable, Codable {
         }
         completed = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.completed") ?? [])
         eaten = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.eaten") ?? [])
+        // Legacy weekday-only checkmarks have no date provenance. They are
+        // retained in the old store but never imputed to the current week.
+        mealDeclarations = (try? Data(contentsOf: mealURL))
+            .flatMap { try? JSONDecoder().decode(
+                [String: PaceMealDeclaration].self, from: $0) } ?? [:]
         shoppingChecked = Set(UserDefaults.standard.stringArray(forKey: "pace.v2.shopping") ?? [])
         let raw = UserDefaults.standard.data(forKey: "pace.v2.body")
         bodyLogs = raw.flatMap { try? JSONDecoder().decode([PaceBodyLog].self, from: $0) } ?? []
@@ -163,6 +183,38 @@ struct PaceBodyLog: Identifiable, Codable {
         guard missedSessions.removeValue(forKey: date) != nil else { return }
         persistMissed()
     }
+    func isMealDeclared(_ recipe: PaceRecipe, on date: String) -> Bool {
+        mealDeclarations[date + "|" + recipe.meal + "|" + recipe.name] != nil
+    }
+
+    func toggleMealDeclaration(_ recipe: PaceRecipe, on date: String) {
+        // Don't allow consumption entries for a date or recipe outside the
+        // currently displayed plan. No quantities or nutrients are invented.
+        guard currentPlan.contains(where: { $0.date == date && $0.day == recipe.day }),
+              currentRecipes.contains(where: {
+                  $0.day == recipe.day && $0.meal == recipe.meal && $0.name == recipe.name
+              }) else { return }
+        let id = date + "|" + recipe.meal + "|" + recipe.name
+        var next = mealDeclarations
+        if next.removeValue(forKey: id) == nil {
+            next[id] = PaceMealDeclaration(id: id, date: date, meal: recipe.meal,
+                                           recipeName: recipe.name, declaredAt: .now)
+        }
+        do {
+            let bytes = try JSONEncoder().encode(next)
+            try FileManager.default.createDirectory(
+                at: mealURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try bytes.write(to: mealURL, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: mealURL.path)
+            mealDeclarations = next
+            mealSaveError = nil
+        } catch {
+            mealSaveError = "Impossible d'enregistrer cette déclaration de repas."
+        }
+    }
+
     func toggleMeal(_ id: String) {
         if !eaten.insert(id).inserted { eaten.remove(id) }
         UserDefaults.standard.set(Array(eaten), forKey: "pace.v2.eaten")
