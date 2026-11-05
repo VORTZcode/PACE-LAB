@@ -325,6 +325,38 @@ struct PaceCoachScreen: View {
                           systemImage:"calendar.badge.checkmark")
                         .font(.caption).foregroundStyle(PaceColors.teal)
                 }
+                if activeTab == .session {
+                    if coach.isLoading {
+                        Label("Analyse en cours · résultat non encore validé",
+                              systemImage: "hourglass")
+                            .font(.caption).foregroundStyle(PaceColors.teal)
+                    } else if let report = coach.latestReport {
+                        Label(report.isLocal
+                              ? "Dernier bilan local · analyse ChatGPT non aboutie"
+                              : "Dernier bilan ChatGPT confirmé · \(report.createdAt.formatted(date:.abbreviated,time:.shortened))",
+                              systemImage: report.isLocal ? "exclamationmark.circle" : "checkmark.shield")
+                            .font(.caption)
+                            .foregroundStyle(report.isLocal ? .orange : .secondary)
+                    } else {
+                        Label("Aucun bilan ChatGPT confirmé pour le moment",
+                              systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    DisclosureGroup("État technique et données") {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(engine.status)
+                            Text(client.planUsageEnabled
+                                 ? "Compte ChatGPT connecté et accès activé"
+                                 : "Compte ou accès ChatGPT à configurer")
+                            Text("Les analyses en attente sont reprises lorsque l'application dispose du temps d'exécution nécessaire. iOS ne garantit pas leur achèvement en arrière-plan.")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                    }
+                    .font(.caption.weight(.medium))
+                    .tint(PaceColors.teal)
+                }
                 if !autopilot.enabled {
                     Button("Configurer les analyses automatiques") { showAccountSettings=true }
                         .font(.caption.weight(.semibold))
