@@ -9,6 +9,11 @@ on:
       - feature/native-v4-4-exercise-photos
   workflow_dispatch:
 
+# Keep only the latest preparatory validation for this branch.
+concurrency:
+  group: pace-lab-v7-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
