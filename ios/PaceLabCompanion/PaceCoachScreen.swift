@@ -4,9 +4,9 @@ private struct PaceWorkoutID: Identifiable {
     let id: String
 }
 private enum PaceCoachTab: String, CaseIterable {
-    case session = "Ma séance"
-    case plan = "Mon programme"
     case chat = "Discuter"
+    case session = "Bilans"
+    case plan = "Programme"
     var symbol: String {
         switch self {
         case .session: return "waveform.path.ecg"
@@ -35,7 +35,7 @@ struct PaceCoachScreen: View {
     @State private var showMetrics = false
     @State private var showConsent = false
     @State private var showingConfirmation = false
-    @State private var activeTab: PaceCoachTab = .session
+    @State private var activeTab: PaceCoachTab = .chat
     @State private var showAccountSettings = false
     @State private var showProfile = false
     @State private var effortWorkoutID: PaceWorkoutID?
@@ -45,21 +45,9 @@ struct PaceCoachScreen: View {
             ScrollView {
                 LazyVStack(alignment:.leading,spacing:22) {
                     if client.planUsageEnabled {
-                        coachHeader
+                        if athleteProfile.profile == nil { coachHeader }
                         coachStatusOverview
                         modeSelector
-                        DisclosureGroup(isExpanded:$showMetrics) {
-                            VStack(alignment:.leading,spacing:12) {
-                                trainingSnapshot
-                                sleepSnapshot
-                            }
-                            .padding(.top,10)
-                        } label: {
-                            Label("Données utilisées par le coach",systemImage:"chart.bar.xaxis")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                        .tint(PaceColors.teal)
-                        .padding(.horizontal,4)
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
                                 Label(autopilot.enabled || coach.autoReview
@@ -71,15 +59,32 @@ struct PaceCoachScreen: View {
                             if !autopilot.enabled, let suggested = adaptiveMonitor.visible {
                                 adaptiveReviewCard(suggested)
                             }
-                            sessionAnalysisCard
                             if let run = coach.selectedRun(engine: engine),
                                let report = coach.report(for: run.source_uuid) {
                                 sessionReportCard(report)
                             }
+                            sessionAnalysisCard
+                            DisclosureGroup(isExpanded:$showMetrics) {
+                                VStack(alignment:.leading,spacing:12) {
+                                    trainingSnapshot
+                                    sleepSnapshot
+                                }
+                                .padding(.top,10)
+                            } label: {
+                                Label("Mesures et sources utilisées",systemImage:"chart.bar.xaxis")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .tint(PaceColors.teal)
+                            .padding(.horizontal,4)
                         } else if activeTab == .plan {
-                            programmeEvidenceCard
-                            updateCard
                             if let pending = coach.pending { proposalCard(pending) }
+                            else { updateCard }
+                            DisclosureGroup("Données et méthode du programme") {
+                                programmeEvidenceCard
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .tint(PaceColors.teal)
+                            .padding(.horizontal,4)
                         } else {
                             chatSection
                         }
@@ -104,9 +109,6 @@ struct PaceCoachScreen: View {
                         }
                         .padding(14)
                     }
-                    Text("Conseils sportifs à examiner, pas diagnostic médical. Les décisions et modifications du programme restent sous ton contrôle.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .padding(.bottom,20)
                 }
                 .frame(maxWidth:750)
                 .padding(.horizontal,18)
@@ -229,62 +231,39 @@ struct PaceCoachScreen: View {
     }
 
     private var coachStatusOverview: some View {
-        PaceCard {
-            VStack(alignment:.leading,spacing:12) {
-                HStack(alignment:.top,spacing:12) {
-                    Image(systemName:autopilot.enabled ? "brain.head.profile" : "shield.lefthalf.filled")
-                        .font(.title2)
+        PaceCard(padding:14) {
+            VStack(alignment:.leading,spacing:9) {
+                HStack(spacing:9) {
+                    Image(systemName:autopilot.enabled ? "checkmark.circle.fill" : "brain.head.profile")
                         .foregroundStyle(PaceColors.teal)
-                        .frame(width:44,height:44)
-                        .background(PaceColors.teal.opacity(0.09),
-                                    in:RoundedRectangle(cornerRadius:14))
-                    VStack(alignment:.leading,spacing:5) {
-                        Text(autopilot.enabled ? "Coach autonome actif" : "Ton coach est prêt")
-                            .font(.headline)
-                        Text(autopilot.enabled
-                             ? "Il analyse les nouvelles données lorsque l'application est réveillée."
-                             : "Active l'analyse autonome pour recevoir des décisions justifiées, sans demande manuelle.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal:false,vertical:true)
-                    }
-                    Spacer(minLength:0)
-                }
-                if let recent=autopilot.entries.first {
-                    Divider().opacity(0.3)
-                    Text("DERNIÈRE DÉCISION")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1)
-                        .foregroundStyle(.secondary)
-                    HStack(alignment:.top,spacing:8) {
-                        Image(systemName:recent.action == "allègement" ? "calendar.badge.clock" :
-                              recent.action == "à examiner" ? "exclamationmark.shield" : "checkmark.shield")
+                    Text(autopilot.enabled ? "Coach autonome actif" : "Coach en mode manuel")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button { showAccountSettings=true } label: {
+                        Image(systemName:"slider.horizontal.3")
                             .foregroundStyle(PaceColors.teal)
-                        VStack(alignment:.leading,spacing:3) {
-                            Text(recent.headline).font(.subheadline.weight(.semibold))
-                            Text(recent.date.formatted(date:.abbreviated,time:.shortened))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
                     }
-                } else if autopilot.enabled {
-                    Label("Aucune décision pour le moment. Le programme reste inchangé.",
-                          systemImage:"checkmark.shield")
+                    .accessibilityLabel("Autorisations et réglages du coach")
+                }
+                if coach.automaticNeedsAttentionCount > 0 {
+                    Label("\(coach.automaticNeedsAttentionCount) bilan(s) à reprendre",
+                          systemImage:"exclamationmark.circle")
+                        .font(.caption).foregroundStyle(.orange)
+                } else if coach.automaticPendingCount > 0 && autopilot.enabled {
+                    Label("\(coach.automaticPendingCount) activité(s) à analyser",
+                          systemImage:"clock.arrow.circlepath")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Button {
-                    showAccountSettings=true
-                } label: {
-                    HStack {
-                        Text(autopilot.enabled ? "Paramètres et décisions du coach" : "Configurer le coach")
-                        Spacer()
-                        Image(systemName:"arrow.up.right")
-                    }
-                    .font(.subheadline.weight(.semibold))
+                if coach.pending != nil {
+                    Label("Un programme est prêt à être examiné.",
+                          systemImage:"calendar.badge.checkmark")
+                        .font(.caption).foregroundStyle(PaceColors.teal)
                 }
-                .buttonStyle(.bordered)
-                .tint(PaceColors.teal)
-                .controlSize(.regular)
-                .accessibilityHint("Ouvre les autorisations et l'historique des analyses du coach")
+                if !autopilot.enabled {
+                    Button("Configurer les analyses automatiques") { showAccountSettings=true }
+                        .font(.caption.weight(.semibold))
+                        .tint(PaceColors.teal)
+                }
             }
         }
     }
@@ -839,12 +818,14 @@ struct PaceCoachScreen: View {
                     .buttonStyle(.plain)
                     .tint(PaceColors.teal)
                         .font(.subheadline.weight(.medium))
-                    Text("Le bilan s’appuie sur l’activité mesurée, ton historique et les seules informations dont tu autorises le partage.")
-                        .font(.subheadline).foregroundStyle(.secondary)
                     if coach.isLoading {
                         Label("Analyse ChatGPT en cours…",systemImage:"clock.arrow.circlepath")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(PaceColors.teal)
+                    } else if (autopilot.enabled || coach.autoReview) &&
+                              coach.report(for:run.source_uuid)?.isLocal == false {
+                        Label("Bilan à jour",systemImage:"checkmark.circle")
+                            .font(.caption).foregroundStyle(PaceColors.teal)
                     } else if autopilot.enabled || coach.autoReview {
                         Label(coach.report(for: run.source_uuid)?.isLocal == true
                               ? "Bilan local disponible · analyse IA à relancer"
@@ -881,7 +862,7 @@ struct PaceCoachScreen: View {
                         .disabled(!coach.shareRunSummaries)
                     }
                 } else {
-                    Text("Enregistre d’abord une course avec Apple Santé.")
+                    Text("Aucune activité disponible à analyser.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             }
@@ -904,29 +885,41 @@ struct PaceCoachScreen: View {
                         Text("Séance du \(session.startDate.formatted(.dateTime.day().month().year())) · \(PaceFormat.distance(session.kilometers,places:2)) km")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    Text(report.summary).font(.subheadline)
-                    Divider()
-                    Text("Ce que montrent les mesures").font(.subheadline.weight(.semibold))
-                    ForEach(report.observations,id:\.self) { line in
-                        Label(line,systemImage:"chart.xyaxis.line")
-                            .font(.footnote).fixedSize(horizontal:false,vertical:true)
+                    Text(report.summary)
+                        .font(.subheadline).fixedSize(horizontal:false,vertical:true)
+                    if let first=report.recommendations.first {
+                        Divider()
+                        Label(first,systemImage:"arrow.forward.circle")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(PaceColors.teal)
                     }
-                    Divider()
-                    Text("Conseils pour la suite").font(.subheadline.weight(.semibold))
-                    ForEach(report.recommendations,id:\.self) { line in
-                        Label(line,systemImage:"checkmark.circle")
-                            .font(.footnote).fixedSize(horizontal:false,vertical:true)
-                    }
-                    Text("Conséquence sur le programme").font(.subheadline.weight(.semibold))
-                    Text(report.trainingImpact).font(.footnote)
-                    DisclosureGroup("Ce qu’on ne peut pas conclure") {
-                        ForEach(report.uncertainties,id:\.self) { line in
-                            Label(line,systemImage:"info.circle")
-                                .font(.caption).foregroundStyle(.secondary)
+                    Text(report.trainingImpact)
+                        .font(.footnote).foregroundStyle(.secondary)
+                    DisclosureGroup("Comprendre l'analyse") {
+                        VStack(alignment:.leading,spacing:11) {
+                            Text("Observations").font(.subheadline.weight(.semibold))
+                            ForEach(report.observations,id:\.self) { line in
+                                Text(line).font(.footnote)
+                            }
+                            if report.recommendations.count > 1 {
+                                Text("Autres conseils").font(.subheadline.weight(.semibold))
+                                ForEach(report.recommendations.dropFirst(),id:\.self) { line in
+                                    Text(line).font(.footnote)
+                                }
+                            }
+                            Text("Limites").font(.subheadline.weight(.semibold))
+                            ForEach(report.uncertainties,id:\.self) { line in
+                                Text(line).font(.footnote).foregroundStyle(.secondary)
+                            }
                         }
-                    }.tint(PaceColors.teal)
-                    Text("Bilan sportif généré par ChatGPT, sans diagnostic médical.")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .padding(.top,6)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .tint(PaceColors.teal)
+                    if report.isLocal {
+                        Text("Bilan local uniquement. Aucun raisonnement ChatGPT disponible.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -1027,55 +1020,97 @@ struct PaceCoachScreen: View {
     }
 
     private var chatSection: some View {
-        VStack(alignment:.leading,spacing:13) {
-            HStack(alignment:.firstTextBaseline) {
-                PaceSectionTitle(title:"Discuter avec le coach")
+        VStack(alignment:.leading,spacing:16) {
+            HStack {
+                Text("Conversation")
+                    .font(.title3.weight(.semibold))
                 Spacer()
                 if !coach.conversation.isEmpty {
-                    Button("Effacer") { coach.clearConversation() }
-                        .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Menu {
+                        Button("Effacer la conversation",role:.destructive) {
+                            coach.clearConversation()
+                        }
+                    } label: {
+                        Image(systemName:"ellipsis")
+                            .frame(width:44,height:44)
+                    }
+                    .accessibilityLabel("Options de la conversation")
+                    .tint(.secondary)
                 }
             }
-            PaceCard {
-                VStack(alignment:.leading,spacing:12) {
-                    if coach.conversation.isEmpty {
-                        Text("Pose une question sur une séance, la récupération ou le programme.")
+            if coach.conversation.isEmpty {
+                Text("Écris au coach ici. Ses analyses de séance validées apparaîtront aussi automatiquement.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .padding(.vertical,13)
+            } else {
+                ForEach(coach.conversation.suffix(24)) { message in
+                    let isMine=message.speaker == "Moi"
+                    HStack(alignment:.bottom,spacing:9) {
+                        if isMine { Spacer(minLength:36) }
+                        VStack(alignment:.leading,spacing:5) {
+                            if !isMine {
+                                Text("Coach")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(PaceColors.teal)
+                            }
+                            Text(message.text)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal:false,vertical:true)
+                        }
+                        .padding(14)
+                        .background(isMine
+                                    ? PaceColors.teal.opacity(0.12) : PaceColors.surface.opacity(0.78),
+                                    in:RoundedRectangle(cornerRadius:18))
+                        if !isMine { Spacer(minLength:16) }
+                    }
+                    .accessibilityElement(children:.combine)
+                }
+            }
+            if coach.isLoading {
+                HStack(alignment:.bottom,spacing:9) {
+                    ProgressView().controlSize(.small)
+                    if coach.streamingReply.isEmpty {
+                        Text("Le coach écrit…")
                             .font(.subheadline).foregroundStyle(.secondary)
                     } else {
-                        ForEach(coach.conversation) { message in
-                            VStack(alignment:.leading,spacing:5) {
-                                Text(message.speaker)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(message.speaker == "Coach" ? PaceColors.teal : .secondary)
-                                Text(message.text)
-                                    .font(.subheadline)
-                                    .textSelection(.enabled)
-                            }
-                            .frame(maxWidth:.infinity,alignment:.leading)
-                            .padding(11)
-                            .background(PaceColors.base,in:RoundedRectangle(cornerRadius:13))
-                        }
+                        Text(coach.streamingReply)
+                            .font(.subheadline)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal:false,vertical:true)
                     }
-                    HStack(alignment:.bottom,spacing:10) {
-                        TextField("Une question pour le coach…",text:$question,axis:.vertical)
-                            .lineLimit(1...4)
-                            .textInputAutocapitalization(.sentences)
-                            .padding(.horizontal,13).padding(.vertical,11)
-                            .background(PaceColors.base,in:RoundedRectangle(cornerRadius:16))
-                        Button {
-                            let text = question
-                            question = ""
-                            Task { await coach.chat(text,client:client,engine:engine,library:library,journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep) }
-                        } label: {
-                            Image(systemName:"arrow.up.circle.fill")
-                                .font(.system(size:32))
-                                .foregroundStyle(PaceColors.teal)
-                        }
-                        .disabled(coach.isLoading || question.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
-                        .accessibilityLabel("Envoyer la question")
-                    }
+                    Spacer(minLength:0)
                 }
+                .padding(13)
             }
+            HStack(alignment:.bottom,spacing:10) {
+                TextField("Écrire au coach…",text:$question,axis:.vertical)
+                    .lineLimit(1...5)
+                    .textInputAutocapitalization(.sentences)
+                    .padding(.horizontal,14).padding(.vertical,12)
+                    .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:19))
+                    .accessibilityLabel("Message au coach")
+                Button {
+                    let text=question.trimmingCharacters(in:.whitespacesAndNewlines)
+                    guard !text.isEmpty else { return }
+                    question=""
+                    Task {
+                        await coach.chat(text,client:client,engine:engine,library:library,
+                                         journal:journal,profile:athleteProfile,
+                                         strength:strengthTracker,sleep:sleep)
+                    }
+                } label: {
+                    Image(systemName:"arrow.up.circle.fill")
+                        .font(.system(size:35))
+                        .foregroundStyle(PaceColors.teal)
+                }
+                .disabled(coach.isLoading ||
+                          question.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Envoyer le message")
+            }
+            .padding(.top,9)
         }
     }
+
 }

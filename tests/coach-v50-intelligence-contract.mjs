@@ -16,7 +16,7 @@ for(const token of ['-56 * 86400','source_uuid','deduplicated','comparisonPercen
 assert.match(profile,/preferredRunsPerWeek: 3/);
 assert.match(profile,/preferredStrengthPerWeek: 2/);
 assert.ok(living.includes('PaceLongitudinalRules.calculate'));
-assert.ok(living.includes('living.history.last7Km'));
+assert.ok(living.includes('PaceLivingCoachCard'));
 assert.ok(living.includes('recent7HighEffort >= 2'));
 assert.ok(living.includes('recent7MaximumDiscomfort ?? -1) >= 4'));
 assert.ok(evidence.includes('runs.count > profile.preferredRunsPerWeek'));

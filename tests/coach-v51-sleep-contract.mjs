@@ -31,7 +31,7 @@ assert.ok(screen.includes('.disabled(!sleep.monitoringEnabled)'));
 assert.ok(screen.includes('sleep.requestAccess()'));
 assert.ok(screen.includes('sleepSnapshot'));
 assert.ok(screen.includes('sleep:sleep)'));
-assert.ok(home.includes('Sommeil moyen'));
+assert.ok(!home.includes('Sommeil moyen :'), 'sleep detail moved to Coach measurements');
 assert.ok(app.includes('.environmentObject(sleep)'));
 assert.ok(app.includes('sleep.refresh()'));
 assert.ok(profile.includes('preferredRunsPerWeek: 3'));

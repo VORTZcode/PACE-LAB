@@ -61,24 +61,27 @@ struct ProgrammeScreen: View {
                     let plannedStrength=library.currentPlan.filter { $0.type == "Musculation" }.count
                     if plannedRuns != preferred.preferredRunsPerWeek ||
                         plannedStrength != preferred.preferredStrengthPerWeek {
-                        PaceCard {
-                            VStack(alignment:.leading,spacing:10) {
-                                Label("Fréquence à vérifier",systemImage:"calendar.badge.exclamationmark")
+                        HStack(spacing:10) {
+                            Image(systemName:"calendar.badge.exclamationmark")
+                                .foregroundStyle(.orange)
+                            VStack(alignment:.leading,spacing:3) {
+                                Text("Fréquence différente de ton profil")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(PaceColors.teal)
-                                Text("Rythme confirmé : \(preferred.preferredRunsPerWeek) courses et \(preferred.preferredStrengthPerWeek) renforcements par semaine. Ce cycle prévoit \(plannedRuns) courses et \(plannedStrength) renforcements.")
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                                Text("Le programme reste inchangé jusqu'à ta décision.")
+                                Text("Plan : \(plannedRuns) courses + \(plannedStrength) muscu · objectif : \(preferred.preferredRunsPerWeek) + \(preferred.preferredStrengthPerWeek)")
                                     .font(.caption).foregroundStyle(.secondary)
-                                Button {
-                                    tabs.selected = .coach
-                                } label: {
-                                    Label("Examiner avec mon coach",systemImage:"brain.head.profile")
-                                        .font(.subheadline.weight(.semibold))
-                                }
-                                .tint(PaceColors.teal)
                             }
+                            Spacer(minLength:4)
+                            Button {
+                                tabs.selected = .coach
+                            } label: {
+                                Image(systemName:"arrow.up.right")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .accessibilityLabel("Examiner la fréquence avec le coach")
+                            .tint(PaceColors.teal)
                         }
+                        .padding(14)
+                        .modifier(PaceGlassCardSurface(cornerRadius:18))
                     }
                 }
 
@@ -110,7 +113,7 @@ struct ProgrammeScreen: View {
                     }
                 }
 
-                PaceSectionTitle(title: "Les prochains jours", subtitle: "Choisissez une séance")
+                PaceSectionTitle(title: "Ta semaine")
                 if let draft = library.activeCoachDraft {
                     PaceCard {
                         VStack(alignment: .leading, spacing: 9) {
@@ -360,7 +363,19 @@ struct DayDetailScreen: View {
             }
 
             if exercises.isEmpty {
-                PaceEffortGuide(day: day)
+                if library.completed.contains(day.date) || !dayActivities.isEmpty {
+                    DisclosureGroup {
+                        PaceEffortGuide(day:day)
+                            .padding(.top,10)
+                    } label: {
+                        Label("Revoir les consignes prévues",systemImage:"text.book.closed")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(PaceColors.teal)
+                    .padding(.horizontal,4)
+                } else {
+                    PaceEffortGuide(day:day)
+                }
             }
             if !exercises.isEmpty {
                 let done = strengthTracker.completedSets(day: day.date, exercises: exercises)

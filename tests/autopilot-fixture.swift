@@ -102,6 +102,18 @@ struct PaceSleepSummary {
         require(!PaceAutopilotSignificance.reconcile(action:"maintain",
                 claimedEvidenceIDs:["subjective","training"],supported:observed),
                 "model cannot mutate on maintain")
+        require(PaceAutoReviewRetryRules.ready(attempts:0,last:nil,now:now),
+                "new activity eligible without manual request")
+        require(!PaceAutoReviewRetryRules.ready(attempts:1,last:now.addingTimeInterval(-600),now:now),
+                "first failed review must back off 30 minutes")
+        require(PaceAutoReviewRetryRules.ready(attempts:1,last:now.addingTimeInterval(-1900),now:now),
+                "first review can resume after backoff")
+        require(!PaceAutoReviewRetryRules.ready(attempts:2,last:now.addingTimeInterval(-3600),now:now),
+                "second failure backs off two hours")
+        require(PaceAutoReviewRetryRules.ready(attempts:2,last:now.addingTimeInterval(-7300),now:now),
+                "second failure can resume later")
+        require(!PaceAutoReviewRetryRules.ready(attempts:3,last:now.addingTimeInterval(-86400),now:now),
+                "stop autonomous retries after three failures")
         print("PASS: meaningful coach decisions, independent evidence, personal sleep baseline, cooldown and grounded AI claims.")
     }
 }

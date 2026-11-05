@@ -20,7 +20,7 @@ assert.ok(report.includes('origin == "local"'));
 assert.ok(report.includes('Aucune adaptation automatique'));
 assert.ok(engine.includes('report(for workoutID: String)'));
 assert.ok(engine.includes('activity_kind == "strength" && shareStrengthSets'));
-assert.ok(engine.includes('newWorkoutAwaitingReview = isRecent && isSettled && !alreadyReviewed'));
+assert.ok(engine.includes('automaticPendingCount=eligible.count'));
 assert.ok(app.includes('launchAutomaticSessionReview()'));
 assert.ok(chart.includes('AreaMark(') && chart.includes('Color.red.opacity'));
 assert.ok(chart.includes('series: .value("Segment de mesure", point.segment)'));

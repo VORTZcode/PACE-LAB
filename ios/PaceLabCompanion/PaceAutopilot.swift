@@ -121,6 +121,30 @@ private struct PaceAutopilotAI: Decodable {
         let lastAutomaticChange=entries.first(where: { $0.action == "allègement" })?.date
         guard fingerprint != UserDefaults.standard.string(forKey:fingerprintKey),
               fingerprint != inFlightFingerprint else { return }
+        // All new workouts still get their full ChatGPT session review.
+        // Don't spend a second GPT call on a plan change when the local
+        // evidence cannot justify an autonomous modification.
+        if localSignificantPain {
+            let title="Gêne déclarée : adaptation automatique suspendue"
+            append(.init(id:UUID(),date:now,action:"à examiner",
+                headline:title,
+                explanation:"Le signal de gêne est traité localement. Aucune donnée de douleur n'a besoin d'être partagée pour bloquer une adaptation. Le programme est conservé jusqu'à réévaluation.",
+                sessionDate:nil,evidenceDetails:["Gêne déclarée par l'athlète"]))
+            status="Gêne déclarée · décision humaine nécessaire"
+            coach.publishImportantDecision(
+                "Tu as signalé une gêne importante. Je n'ai pas modifié le programme. " +
+                "Examine la prochaine séance et consulte un professionnel de santé si la douleur persiste ou s'aggrave.",
+                key:"pain-veto-\(lastRun.source_uuid)-\(target.date)")
+            notify("PACE LAB · séance à réévaluer",
+                   body:"Une adaptation a été suspendue. Consulte ton Coach.")
+            UserDefaults.standard.set(fingerprint,forKey:fingerprintKey)
+            return
+        }
+        if sources.count < 2 {
+            status="Programme conservé · aucun changement suffisamment justifié"
+            UserDefaults.standard.set(fingerprint,forKey:fingerprintKey)
+            return
+        }
         if let lastAttempt=UserDefaults.standard.object(forKey:attemptedKey) as? Date,
            now.timeIntervalSince(lastAttempt) < 15 * 60 { return }
         inFlightFingerprint=fingerprint
@@ -219,14 +243,12 @@ private struct PaceAutopilotAI: Decodable {
                 ? " · Modification refusée : " + (grounded ? safety.explanation :
                                                   "sources citées insuffisantes ou non vérifiées.")
                 : ""
+            // One clear statement in the activity feed. Alternative, expected
+            // effect and uncertainty are separately available in the audit log.
             let reason=(seriousPain && !coach.shareSessionNotes
-                ? "Signal de gêne détecté localement : aucune modification automatique. " +
+                ? "Gêne détectée localement : aucune modification automatique. " +
                   "Ce signal n'a pas été transmis à ChatGPT. · " : "") +
-                decision.reason +
-                " · Alternative examinée : " + decision.alternativeConsidered +
-                " · Effet attendu : " + decision.expectedEffect +
-                " · Incertitude : " + decision.uncertainty +
-                (applied ? " · " + safety.explanation : rejection)
+                decision.reason + (applied ? " · " + safety.explanation : rejection)
             append(.init(id:UUID(),date:now,action:label,headline:applied ?
                          "Séance du \(target.date) allégée automatiquement" :
                          (needsReview ? "Situation à examiner · programme conservé" :
@@ -238,8 +260,25 @@ private struct PaceAutopilotAI: Decodable {
                          uncertainty:decision.uncertainty))
             status=applied ? "Séance du \(target.date) ajustée automatiquement" :
                              "Analyse effectuée · programme conservé"
-            if applied { notify("PACE LAB · séance adaptée",body:reason) }
-            if needsReview { notify("PACE LAB · bilan à examiner",body:reason) }
+            if applied {
+                coach.publishImportantDecision(
+                    "J'ai allégé la séance du \(target.date) après examen des données " +
+                    "autorisées. \(decision.reason) Tu peux annuler l'adaptation dans Programme.",
+                    key:"adaptation-\(lastRun.source_uuid)-\(target.date)")
+                notify("PACE LAB · séance adaptée",
+                       body:"Une séance a été allégée. Détails et annulation dans Programme.")
+            }
+            if needsReview {
+                coach.publishImportantDecision(
+                    "Ton programme reste inchangé : une situation demande ton attention. " +
+                    (seriousPain && !coach.shareSessionNotes
+                       ? "Un signal de gêne conservé sur l'iPhone bloque l'adaptation. "
+                       : String(decision.reason.prefix(220))) +
+                    " Tu peux examiner le détail dans les décisions du Coach.",
+                    key:"review-\(lastRun.source_uuid)-\(target.date)")
+                notify("PACE LAB · décision à examiner",
+                       body:"Ouvre le Coach pour voir le point à vérifier.")
+            }
             UserDefaults.standard.set(fingerprint,forKey:fingerprintKey)
         } catch {
             status="Analyse reportée : \(error.localizedDescription)"

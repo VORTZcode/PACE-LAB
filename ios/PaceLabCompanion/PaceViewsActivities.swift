@@ -34,12 +34,9 @@ struct ActivitiesScreen: View {
                     HStack(spacing:13) {
                         Image(systemName:"chart.xyaxis.line")
                             .font(.title3).foregroundStyle(PaceColors.teal)
-                        VStack(alignment:.leading,spacing:4) {
-                            Text("Ma progression")
-                                .font(.headline).foregroundStyle(.primary)
-                            Text("Volumes, régularité, cardio et mesures corporelles")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        Text("Ma progression")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
                         Spacer()
                         Image(systemName:"chevron.right").foregroundStyle(.secondary)
                     }

@@ -48,3 +48,15 @@ enum PaceAutopilotGuard {
         return .init(allowed:true,explanation:"Au moins deux domaines indépendants vérifiés ; allègement plafonné à environ 20 %, suivi de la tolérance.",minutes:reduced)
     }
 }
+
+
+/// Engineering retry policy, not a physiological threshold.
+enum PaceAutoReviewRetryRules {
+    static let maximumAttempts = 3
+    static func ready(attempts:Int,last:Date?,now:Date) -> Bool {
+        if attempts >= maximumAttempts { return false }
+        guard attempts > 0, let last else { return true }
+        let seconds:TimeInterval = attempts == 1 ? 30*60 : 2*60*60
+        return now.timeIntervalSince(last) >= seconds
+    }
+}

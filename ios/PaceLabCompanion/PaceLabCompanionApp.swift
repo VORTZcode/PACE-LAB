@@ -163,16 +163,19 @@ struct PaceLabCompanionApp: App {
 
     @discardableResult
     private func launchAutomaticSessionReview() -> Bool {
-        guard chatGPT.planUsageEnabled, !coach.isLoading,
+        guard chatGPT.planUsageEnabled, !coach.isLoading, !autopilot.isEvaluating,
               coach.beginAutomaticReview(engine:engine,autonomousMode:autopilot.enabled)
         else { return false }
-        coach.focusWorkoutID = nil
+        guard let reservedID=coach.pendingAutomaticWorkoutID else { return false }
         Task { @MainActor in
             await coach.analyzeSession(client:chatGPT,engine:engine,library:library,
-                journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep)
-            // Keep session interpretation and training adjustments sequential,
-            // so simultaneous OpenAI requests cannot conflict or discard results.
+                journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep,
+                workoutID:reservedID)
+            // Keep review and training changes sequential. Process the remaining
+            // recent activities gradually, without a burst of GPT requests.
             launchAutopilot()
+            try? await Task.sleep(for:.seconds(27))
+            _ = launchAutomaticSessionReview()
         }
         return true
     }
@@ -183,6 +186,44 @@ struct PaceLabCompanionApp: App {
             await autopilot.evaluateIfNeeded(client:chatGPT,coach:coach,engine:engine,
                 sleep:sleep,journal:journal,profile:athleteProfile,
                 strength:strengthTracker,library:library)
+            prepareNextWeekIfNeeded()
+            // If the previous review had to wait for the autonomous decision,
+            // the next eligible workout can now proceed.
+            _ = launchAutomaticSessionReview()
+        }
+    }
+
+    /// Only prepare a draft; a full seven-day programme and nutrition plan
+    /// cannot replace the current programme without the athlete accepting it.
+    private func prepareNextWeekIfNeeded() {
+        guard autopilot.enabled, chatGPT.planUsageEnabled, coach.shareRunSummaries,
+              athleteProfile.profile != nil, athleteProfile.shareProfile,
+              !coach.isLoading, !autopilot.isEvaluating, coach.pending == nil,
+              !engine.runHistory.isEmpty else { return }
+        let formatter=DateFormatter()
+        formatter.locale=Locale(identifier:"en_US_POSIX")
+        formatter.dateFormat="yyyy-MM-dd"
+        let today=formatter.string(from:.now)
+        let plan=library.currentPlan.sorted(by:{$0.date < $1.date})
+        guard let last=plan.last, !plan.isEmpty,
+              plan.filter({ $0.date >= today }).count <= 2 else { return }
+        let key="pace.coach.weekly-proposal." + last.date
+        let attemptKey=key + ".attempt"
+        guard !UserDefaults.standard.bool(forKey:key) else { return }
+        if let attempted=UserDefaults.standard.object(forKey:attemptKey) as? Date,
+           Date.now.timeIntervalSince(attempted) < 24*3600 { return }
+        UserDefaults.standard.set(Date.now,forKey:attemptKey)
+        Task { @MainActor in
+            await coach.generate(client:chatGPT,engine:engine,library:library,
+                journal:journal,profile:athleteProfile,strength:strengthTracker,sleep:sleep)
+            if coach.pending != nil {
+                UserDefaults.standard.set(true,forKey:key)
+                coach.publishImportantDecision(
+                    "J'ai préparé la semaine suivante avec tes dernières données. " +
+                    "Tu peux examiner les séances et les repas dans Mon programme, " +
+                    "puis accepter ou refuser la proposition. Rien n'a été remplacé.",
+                    key:"next-week-" + last.date)
+            }
         }
     }
 }

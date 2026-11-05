@@ -34,7 +34,7 @@ assert.ok(tracker.includes('func completedSets(since date: Date'));
 assert.ok(coach.includes('let sharedNotes = shareSessionNotes ?'));
 assert.ok(coach.includes('PaceLivingCoachRules.calculate(runs:engine.runHistory,notes:sharedNotes)'));
 assert.ok(coach.includes('automaticInFlightID'));
-assert.ok(coach.includes('lastAutomaticAttempt'));
+assert.ok(coach.includes('PaceAutoReviewRetryRules.ready'));
 assert.ok(coach.includes('if automaticInFlightID == run.source_uuid'));
 assert.ok(!coach.includes('autoRequestedID = uuid\n        UserDefaults.standard.set(uuid'), 'Do not mark a failed review successful');
 console.log('V4.5: 28 original offline illustrations with zoom, local living brief, training+RPE+strength evidence, user consent and retryable AI.');

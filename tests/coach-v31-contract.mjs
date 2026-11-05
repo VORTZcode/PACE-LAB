@@ -23,11 +23,12 @@ assert.match(coach,/if shareDynamics \{ pieces\.append\(PaceCoachTelemetry\.deta
 assert.match(coach,/if shareSessionNotes,let journal \{/);
 assert.match(coach,/report = try PaceCoachSessionReport\.extract\(response,workoutID:run\.source_uuid\)/);
 assert.match(coach,/reportURL/);
-assert.match(coach,/\(autoReview \|\| autonomousMode\) && shareRunSummaries && newWorkoutAwaitingReview/);
+assert.match(coach,/guard \(autoReview \|\| autonomousMode\), shareRunSummaries/);
 assert.match(app,/coach\.analyzeSession/);
-assert.doesNotMatch(app,/coach\.generate\(client:chatGPT/);
+assert.match(app,/prepareNextWeekIfNeeded\(\)/);
+assert.doesNotMatch(app,/library\.acceptCoachDraft\(/);
 assert.match(screen,/Analyser cette sortie/);
-assert.match(screen,/Ce qu’on ne peut pas conclure/);
+assert.match(screen,/DisclosureGroup\("Comprendre l'analyse"\)/);
 assert.match(screen,/Séance sélectionnée/);
 assert.match(screen,/Voir le résumé sportif partagé/);
 assert.match(screen,/analysées par OpenAI/);

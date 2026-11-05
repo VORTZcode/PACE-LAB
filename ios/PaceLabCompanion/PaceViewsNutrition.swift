@@ -29,21 +29,17 @@ struct NutritionScreen: View {
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Nutrition") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("VOTRE PLAN ALIMENTAIRE")
-                        .font(.caption2.weight(.bold)).tracking(1.3).foregroundStyle(PaceColors.teal)
-                    Text("Repas du programme")
+                HStack {
+                    Text("Repas de la semaine")
                         .font(.title3.weight(.semibold))
-                    Text("Deux repas par jour. Quantités de féculents indiquées à cru.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
                     NavigationLink {
                         GroceryScreen()
                     } label: {
-                        Label("Liste de courses", systemImage: "basket")
+                        Label("Courses",systemImage:"basket")
                             .font(.subheadline.weight(.semibold))
                     }
                     .tint(PaceColors.teal)
-                    .padding(.top, 6)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -112,13 +108,9 @@ struct NutritionScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                PaceCard {
-                    HStack(spacing: 13) {
-                        Image(systemName: "info.circle").foregroundStyle(PaceColors.teal)
-                        Text("Les apports sont des estimations du programme, pas des calories effectivement consommées.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
+                Text("Apports estimés, et non consommations mesurées. Féculents indiqués à cru.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal,4)
             }
             .onAppear { selectCurrentOrUpcoming() }
             .onChange(of: library.activeCoachDraft?.id) { _, _ in

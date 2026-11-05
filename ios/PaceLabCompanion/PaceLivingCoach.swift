@@ -113,66 +113,105 @@ enum PaceLivingCoachRules {
     }
 }
 
-/// Compact home signal: sources are always measured or explicitly reported,
-/// and any adjustment remains behind the review/approval flow.
+/// One actionable fact, never a miniature dashboard competing with the
+/// next workout. Routine maintenance and missing optional data stay silent.
 struct PaceLivingCoachCard: View {
-    @EnvironmentObject private var sleep: PaceSleepHealthKit
     @EnvironmentObject private var living: PaceLivingCoach
+    @EnvironmentObject private var coach: PaceCoachEngine
+    @EnvironmentObject private var autopilot: PaceAutopilot
+    @EnvironmentObject private var library: PaceLibrary
+    @EnvironmentObject private var engine: HealthSyncEngine
     let onOpenCoach: () -> Void
 
+    private struct Signal {
+        let title: String
+        let detail: String
+        let origin: String
+        let symbol: String
+        let action: String
+    }
+
+    private var signal: Signal? {
+        let now = Date.now
+        // A safety concern outranks a routine activity report.
+        if let decision=autopilot.entries.first(where: {
+            $0.action == "à examiner" && now.timeIntervalSince($0.date) < 4*86400
+        }) {
+            return .init(title:"Une décision demande ton attention",
+                         detail:decision.headline,origin:"COACH",symbol:"exclamationmark.shield",
+                         action:"Voir pourquoi")
+        }
+        if let accepted=autopilot.entries.first(where:{
+            $0.action == "allègement" && now.timeIntervalSince($0.date) < 5*86400 &&
+            $0.sessionDate.map { library.approvedAdjustments[$0] != nil } == true
+        }) {
+            return .init(title:"Prochaine séance ajustée",
+                         detail:accepted.headline,origin:"COACH",symbol:"calendar.badge.clock",
+                         action:"Voir l'adaptation")
+        }
+        if let planned=coach.pending {
+            return .init(title:"La semaine suivante est prête",
+                         detail:String(planned.summary.prefix(160)),origin:"À VALIDER",
+                         symbol:"calendar.badge.checkmark",action:"Examiner le programme")
+        }
+        if let latest=engine.snapshot.first,
+           now.timeIntervalSince(latest.endDate) < 3*86400,
+           let report=coach.report(for:latest.source_uuid), !report.isLocal {
+            return .init(title:"Bilan de séance disponible",
+                         detail:String(report.summary.prefix(210)),origin:"ANALYSE CHATGPT",
+                         symbol:"waveform.path.ecg",action:"Lire le bilan")
+        }
+        if living.brief.priority == .discomfort {
+            return .init(title:"Récupération à réévaluer",
+                         detail:"Une gêne significative a été déclarée récemment.",
+                         origin:"RESSENTI",symbol:"exclamationmark.shield",
+                         action:"Examiner la situation")
+        }
+        if living.brief.priority == .feedback,
+           let last=engine.runHistory.first,
+           now.timeIntervalSince(last.endDate) < 36*3600 {
+            return .init(title:"Un ressenti manque",
+                         detail:"Ton effort perçu aide à interpréter la dernière course.",
+                         origin:"À COMPLÉTER",symbol:"square.and.pencil",
+                         action:"Ajouter mon ressenti")
+        }
+        if coach.automaticNeedsAttentionCount > 0 {
+            return .init(title:"Analyse à reprendre",
+                         detail:"Une activité n'a pas pu être analysée après plusieurs essais.",
+                         origin:"COACH",symbol:"arrow.clockwise.circle",
+                         action:"Voir les détails")
+        }
+        return nil
+    }
+
     var body: some View {
-        PaceCard {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack {
-                    Label("COACH ÉVOLUTIF", systemImage: "brain.head.profile")
-                        .font(.caption.weight(.bold))
-                        .tracking(0.6)
-                        .foregroundStyle(PaceColors.teal)
-                    Spacer()
-                    Text("BILAN LOCAL")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                Text(living.brief.headline)
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
-                Text(living.brief.detail)
-                    .font(.subheadline).foregroundStyle(.secondary)
-                    .lineLimit(living.brief.priority == .discomfort ? nil : 3)
-                    .fixedSize(horizontal: false, vertical: true)
-                if living.history.recent28Runs > 0 {
-                    HStack(spacing:12) {
-                        Label(String(format:"%.1f km / 7 j",living.history.last7Km),
-                              systemImage:"figure.run")
-                        Text("·").foregroundStyle(.tertiary)
-                        Text("\(living.history.feedbackCount28)/\(living.history.recent28Runs) ressentis")
+        if let signal {
+            PaceCard(padding:17) {
+                VStack(alignment:.leading,spacing:9) {
+                    HStack(spacing:8) {
+                        Image(systemName:signal.symbol).foregroundStyle(PaceColors.teal)
+                        Text(signal.origin)
+                            .font(.caption2.weight(.bold)).tracking(0.8)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength:0)
                     }
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .accessibilityElement(children:.combine)
-                } else {
-                    Label("Aucune course synchronisée pour le moment",
-                          systemImage:"waveform.path")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(signal.title)
+                        .font(.headline).foregroundStyle(.primary)
+                    Text(signal.detail)
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Button(action:onOpenCoach) {
+                        HStack {
+                            Text(signal.action)
+                            Spacer()
+                            Image(systemName:"arrow.up.right")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(PaceColors.teal)
                 }
-                if sleep.monitoringEnabled, sleep.summary.coverage7 >= 3,
-                   let minutes=sleep.summary.mostRecent7AverageMinutes {
-                    Label("Sommeil moyen : \(minutes / 60) h \(minutes % 60) min",
-                          systemImage:"moon.stars")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Button(action: onOpenCoach) {
-                    HStack {
-                        Text(living.brief.priority == .feedback ? "Compléter mon ressenti" : "Voir l'analyse du coach")
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                    }.font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(PaceColors.teal)
-                .padding(.top, 3)
             }
         }
-        .accessibilityElement(children: .contain)
     }
 }

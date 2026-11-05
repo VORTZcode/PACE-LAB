@@ -256,10 +256,6 @@ struct TodayScreen: View {
                     }
                 }
 
-                if autopilot.enabled {
-                    Label(autopilot.status,systemImage:"brain.head.profile")
-                        .font(.caption).foregroundStyle(PaceColors.teal)
-                }
                 PaceLivingCoachCard { tabs.selected = .coach }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {
@@ -318,11 +314,6 @@ struct TodayScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Label("Les résumés Santé ne sont envoyés à ChatGPT qu'avec tes autorisations.",
-                      systemImage: "lock.shield")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {

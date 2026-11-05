@@ -22,7 +22,8 @@ assert.ok(auto.includes('constent') || auto.includes('let permittedSleep=coach.s
 assert.ok(auto.includes('notes:coach.shareSessionNotes ? journal.notes : [:]'));
 assert.ok(auto.includes('strength.completedSets(since:'));
 assert.ok(auto.includes('try library.approveAdaptation(adaptation)'));
-assert.ok(auto.includes('if applied { notify('));
+assert.ok(auto.includes('if applied {'));
+assert.ok(auto.includes('coach.publishImportantDecision('));
 assert.ok(auto.includes('if needsReview'));
 assert.ok(auto.includes('last-analysed'));
 assert.ok(auto.includes('FileProtectionType.completeUntilFirstUserAuthentication'));
@@ -41,7 +42,7 @@ assert.ok(!app.includes('if !autopilot.enabled && chatGPT.planUsageEnabled'));
 assert.ok(screen.includes('Coach autonome'));
 assert.ok(screen.includes('Autoriser les adaptations automatiques'));
 assert.ok(screen.includes('autopilot.setEnabled($0)'));
-assert.ok(home.includes('autopilot.status'));
+assert.ok(home.includes('PaceLivingCoachCard'));
 assert.ok(pbx.includes('PaceAutopilotGuard.swift in Sources'));
 assert.ok(pbx.includes('PaceAutopilot.swift in Sources'));
 console.log('V5.2: opt-in autonomous watch+sleep AI review, deterministic safe reduction, idempotency and audit.');

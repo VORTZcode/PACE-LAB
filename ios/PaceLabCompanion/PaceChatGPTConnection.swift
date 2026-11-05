@@ -405,7 +405,7 @@ private enum PaceOIDCVerify {
         }
     }
 
-    func answer(instructions:String, input:String) async throws -> String {
+    func answer(instructions:String, input:String, onDelta:((String)->Void)? = nil) async throws -> String {
         guard planUsageEnabled else { throw PaceChatError.invalid("Active l’utilisation de ton abonnement ChatGPT.") }
         try await refreshIfRequired()
         if selectedModel.isEmpty { try await discoverModels() }
@@ -438,7 +438,10 @@ private enum PaceOIDCVerify {
                   let kind = event["type"] as? String else { continue }
             switch kind {
             case "response.output_text.delta":
-                if let fragment = event["delta"] as? String { output += fragment }
+                if let fragment = event["delta"] as? String {
+                    output += fragment
+                    onDelta?(fragment)
+                }
             case "response.completed": completed = true
             case "response.failed":
                 let message = (event["response"] as? [String:Any])?["error"] as? [String:Any]

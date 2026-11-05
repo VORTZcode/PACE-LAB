@@ -12,7 +12,7 @@ assert.ok(guided.includes('parler en phrases complètes'));
 assert.ok(guided.includes('4 min de course et 1 min de marche'));
 assert.ok(guided.includes('RIR 2–3'));
 assert.ok(guided.includes('RPE 6–7'));
-assert.ok(workout.includes('PaceEffortGuide(day: day)'));
+assert.ok(workout.includes('PaceEffortGuide(day:day)'));
 assert.ok(workout.includes('PaceExerciseVisual(figure: guide.figure'));
 assert.ok(workout.includes('PaceStrengthSetRow('));
 assert.ok(workout.includes('strengthTracker.completedSets'));
