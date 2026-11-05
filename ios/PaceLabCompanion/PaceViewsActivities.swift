@@ -227,7 +227,7 @@ struct WorkoutDetailScreen: View {
                         Text("Fréquence cardiaque et dynamique")
                             .font(.subheadline.weight(.semibold))
                         Text(workout.hr_average_bpm.map {
-                            "FC moyenne \u005c(PaceFormat.heart($0)) bpm · voir les courbes"
+                            "FC moyenne \(PaceFormat.heart($0)) bpm · voir les courbes"
                         } ?? "Mesures détaillées de cette séance")
                             .font(.caption).foregroundStyle(.secondary)
                     }
