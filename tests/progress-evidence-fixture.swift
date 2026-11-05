@@ -48,7 +48,7 @@ import Foundation
         let onlyLatest = PaceProgressEvidence.snapshot([samples[0]], at: now)
         precondition(onlyLatest.comparison == nil && !onlyLatest.hasTwoPeriods)
         let olderComparison = PaceProgressEvidence.comparison(for: samples[1], in: samples, at: now)
-        precondition(olderComparison == nil, "Do not compare a session against future records")
+        precondition(olderComparison?.priorID == "previous", "A historical comparison must use only an earlier workout")
         let selectedComparison = PaceProgressEvidence.comparison(for: samples[0], in: samples, at: now)
         precondition(selectedComparison?.priorID == "similar")
         let highHR = [
