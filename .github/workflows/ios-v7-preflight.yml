@@ -1,0 +1,27 @@
+name: PACE-LAB V7 iOS preflight
+
+on:
+  push:
+    branches:
+      - feature/v7-evidence-first-ux-audit
+  pull_request:
+    branches:
+      - feature/native-v4-4-exercise-photos
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout V7 source
+        uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Contracts, fixtures and simulator compilation
+        run: bash scripts/preflight-v7.sh
