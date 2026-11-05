@@ -47,6 +47,10 @@ import Foundation
         precondition(compared.heartDifferenceBPM == -3)
         let onlyLatest = PaceProgressEvidence.snapshot([samples[0]], at: now)
         precondition(onlyLatest.comparison == nil && !onlyLatest.hasTwoPeriods)
+        let olderComparison = PaceProgressEvidence.comparison(for: samples[1], in: samples, at: now)
+        precondition(olderComparison == nil, "Do not compare a session against future records")
+        let selectedComparison = PaceProgressEvidence.comparison(for: samples[0], in: samples, at: now)
+        precondition(selectedComparison?.priorID == "similar")
         let highHR = [
             samples[0],
             run("higherHR", "2026-10-20T08:00:00Z", km: 4.98, pace: 380, heart: 180)
