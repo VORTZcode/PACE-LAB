@@ -15,7 +15,7 @@ fi
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/pacelab-v7-preflight.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 
-echo "1/6 -- Static contracts (not substitutes for UI tests)"
+echo "1/7 -- Static contracts (not substitutes for UI tests)"
 passed=0
 for test_file in tests/*contract.mjs; do
   node "$test_file"
@@ -23,7 +23,7 @@ for test_file in tests/*contract.mjs; do
 done
 echo "PASS: $passed contract files"
 
-echo "2/6 -- Objective-running-evidence Swift fixtures"
+echo "2/7 -- Objective-running-evidence Swift fixtures"
 xcrun swiftc \
   ios/PaceLabCompanion/LocalHealthStore.swift \
   ios/PaceLabCompanion/PaceProgressEvidence.swift \
@@ -31,28 +31,35 @@ xcrun swiftc \
   -o "$workdir/progress-fixture"
 "$workdir/progress-fixture"
 
-echo "3/6 -- Flight motion fixture"
+echo "3/7 -- Flight motion fixture"
 xcrun swiftc \
   ios/PaceLabCompanion/PaceFlightMotion.swift \
   tests/flight-motion-fixture.swift \
   -o "$workdir/flight-fixture"
 "$workdir/flight-fixture"
 
-echo "4/6 -- Health capability registry fixture"
+echo "4/7 -- Health capability registry fixture"
 xcrun swiftc \
   ios/PaceLabCompanion/PaceHealthCoverage.swift \
   tests/health-coverage-fixture.swift \
   -o "$workdir/health-coverage-fixture"
 "$workdir/health-coverage-fixture"
 
-echo "5/6 -- Plan adherence model fixture"
+echo "5/7 -- Plan adherence model fixture"
 xcrun swiftc \
   ios/PaceLabCompanion/PaceTrainingAdherence.swift \
   tests/training-adherence-fixture.swift \
   -o "$workdir/training-adherence-fixture"
 "$workdir/training-adherence-fixture"
 
-echo "6/6 -- Full iOS Simulator build (no signing, no installation)"
+echo "6/7 -- Strength performance evidence fixture"
+xcrun swiftc \
+  ios/PaceLabCompanion/PaceStrengthEvidence.swift \
+  tests/strength-evidence-fixture.swift \
+  -o "$workdir/strength-evidence-fixture"
+"$workdir/strength-evidence-fixture"
+
+echo "7/7 -- Full iOS Simulator build (no signing, no installation)"
 xcodebuild \
   -project ios/PaceLabCompanion.xcodeproj \
   -scheme PaceLabCompanion \
