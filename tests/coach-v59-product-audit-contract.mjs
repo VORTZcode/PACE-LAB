@@ -37,6 +37,13 @@ assert.ok(app.includes('prepareNextWeekIfNeeded()'));
 assert.ok(app.includes('coach.pending == nil'));
 assert.ok(app.includes('coach.generate(client:chatGPT'));
 assert.ok(!app.includes('library.acceptCoachDraft('), 'full plan may not be silently adopted');
+assert.ok(app.includes('enum PaceCoachDestination'));
+assert.ok(app.includes('coachDestination = .discussion'));
+assert.ok(app.includes('func openCoach(_ destination:PaceCoachDestination)'));
+assert.ok(home.includes('tabs.openCoach(.bilans)'));
+assert.ok(home.includes('tabs.openCoach(.programme)'));
+assert.ok(home.includes('tabs.openCoach(.settings)'));
+
 
 // AI is conversational and writes useful athlete-facing updates once, rather
 // than repeating every internal decision and streaming status on the home tab.

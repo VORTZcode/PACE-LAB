@@ -92,6 +92,7 @@ Problèmes observés dans le code avant cette révision :
 - [x] L'accueil est silencieux en l'absence d'événement nécessitant une action.
 - [x] Les détails de mesures et de méthode sont accessibles, mais repliés par défaut.
 - [x] Le programme suit l'activité réellement réalisée, sans imposer une explication technique après chaque séance.
+- [x] Les boutons de l’accueil conduisent au bilan, au programme ou aux réglages concernés, et non à un onglet générique.
 - [x] Le prochain cycle peut être proposé automatiquement, sans remplacement silencieux.
 - [x] Les notifications ne contiennent pas le détail des renseignements médicaux.
 - [ ] Validation de bout en bout sur une nouvelle séance réelle avec la connexion ChatGPT fonctionnelle.

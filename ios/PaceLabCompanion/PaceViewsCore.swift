@@ -112,7 +112,7 @@ struct PaceScreen<Content: View>: View {
             }
             .padding(.horizontal, PaceDesign.screenInset)
             .padding(.top, 12)
-            .padding(.bottom, 36)
+            .padding(.bottom, 95)
             .frame(maxWidth: 780)
             .frame(maxWidth: .infinity)
         }
@@ -245,9 +245,9 @@ struct TodayScreen: View {
                                  : "Aucune séance future n'est encore programmée. Le coach peut préparer une nouvelle semaine à partir de tes données.")
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Button {
-                                tabs.selected = .coach
+                                tabs.openCoach(.programme)
                             } label: {
-                                Label("Ouvrir mon coach", systemImage:"brain.head.profile")
+                                Label("Préparer la prochaine semaine", systemImage:"brain.head.profile")
                                     .fontWeight(.semibold)
                             }
                             .buttonStyle(.borderedProminent)
@@ -256,7 +256,15 @@ struct TodayScreen: View {
                     }
                 }
 
-                PaceLivingCoachCard { tabs.selected = .coach }
+                PaceLivingCoachCard { destination in
+                    switch destination {
+                    case "programme": tabs.selected = .programme
+                    case "plan": tabs.openCoach(.programme)
+                    case "bilans": tabs.openCoach(.bilans)
+                    case "settings": tabs.openCoach(.settings)
+                    default: tabs.openCoach(.discussion)
+                    }
+                }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {
                     NavigationLink {

@@ -7,8 +7,23 @@ import BackgroundTasks
 enum PacePrimaryTab: Hashable {
     case today, activities, programme, coach, nutrition
 }
+enum PaceCoachDestination: Hashable {
+    case discussion, bilans, programme, settings
+}
 @MainActor final class PaceTabRouter: ObservableObject {
-    @Published var selected: PacePrimaryTab = .today
+    private var routing = false
+    @Published var selected: PacePrimaryTab = .today {
+        didSet {
+            if selected == .coach && !routing { coachDestination = .discussion }
+        }
+    }
+    @Published var coachDestination: PaceCoachDestination = .discussion
+    func openCoach(_ destination:PaceCoachDestination) {
+        routing = true
+        coachDestination = destination
+        selected = .coach
+        routing = false
+    }
 
     init() {
         // UI audit previews use a fresh simulator (no personal HealthKit history).

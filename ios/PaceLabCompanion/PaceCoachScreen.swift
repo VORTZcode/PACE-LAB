@@ -27,6 +27,7 @@ struct PaceCoachScreen: View {
     @EnvironmentObject private var adaptiveMonitor: PaceAdaptiveMonitor
     @EnvironmentObject private var sleep: PaceSleepHealthKit
     @EnvironmentObject private var autopilot: PaceAutopilot
+    @EnvironmentObject private var tabs: PaceTabRouter
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isPresented) private var isPresented
     @State private var question = ""
@@ -116,6 +117,10 @@ struct PaceCoachScreen: View {
                 .frame(maxWidth:.infinity)
             }
             .background(PaceColors.base)
+            .onAppear { navigateToCoachDestination(tabs.coachDestination) }
+            .onChange(of:tabs.coachDestination) { _, destination in
+                navigateToCoachDestination(destination)
+            }
             .navigationTitle("Coach")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -187,6 +192,21 @@ struct PaceCoachScreen: View {
             } message: {
                 Text("Tu confirmes les sept séances et les repas proposés. Tu pourras revenir au programme initial dans Programme.")
             }
+        }
+    }
+
+    private func navigateToCoachDestination(_ destination:PaceCoachDestination) {
+        if isPresented && coach.focusWorkoutID != nil {
+            activeTab = .session
+            return
+        }
+        switch destination {
+        case .discussion: activeTab = .chat
+        case .bilans: activeTab = .session
+        case .programme: activeTab = .plan
+        case .settings:
+            activeTab = .plan
+            showAccountSettings = true
         }
     }
 

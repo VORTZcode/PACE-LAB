@@ -121,7 +121,7 @@ struct PaceLivingCoachCard: View {
     @EnvironmentObject private var autopilot: PaceAutopilot
     @EnvironmentObject private var library: PaceLibrary
     @EnvironmentObject private var engine: HealthSyncEngine
-    let onOpenCoach: () -> Void
+    let onOpenCoach: (String) -> Void
 
     private struct Signal {
         let title: String
@@ -129,6 +129,7 @@ struct PaceLivingCoachCard: View {
         let origin: String
         let symbol: String
         let action: String
+        let destination: String
     }
 
     private var signal: Signal? {
@@ -139,7 +140,7 @@ struct PaceLivingCoachCard: View {
         }) {
             return .init(title:"Une décision demande ton attention",
                          detail:decision.headline,origin:"COACH",symbol:"exclamationmark.shield",
-                         action:"Voir pourquoi")
+                         action:"Voir pourquoi",destination:"settings")
         }
         if let accepted=autopilot.entries.first(where:{
             $0.action == "allègement" && now.timeIntervalSince($0.date) < 5*86400 &&
@@ -147,25 +148,25 @@ struct PaceLivingCoachCard: View {
         }) {
             return .init(title:"Prochaine séance ajustée",
                          detail:accepted.headline,origin:"COACH",symbol:"calendar.badge.clock",
-                         action:"Voir l'adaptation")
+                         action:"Voir l'adaptation",destination:"programme")
         }
         if let planned=coach.pending {
             return .init(title:"La semaine suivante est prête",
                          detail:String(planned.summary.prefix(160)),origin:"À VALIDER",
-                         symbol:"calendar.badge.checkmark",action:"Examiner le programme")
+                         symbol:"calendar.badge.checkmark",action:"Examiner le programme",destination:"plan")
         }
         if let latest=engine.snapshot.first,
            now.timeIntervalSince(latest.endDate) < 3*86400,
            let report=coach.report(for:latest.source_uuid), !report.isLocal {
             return .init(title:"Bilan de séance disponible",
                          detail:String(report.summary.prefix(210)),origin:"ANALYSE CHATGPT",
-                         symbol:"waveform.path.ecg",action:"Lire le bilan")
+                         symbol:"waveform.path.ecg",action:"Lire le bilan",destination:"bilans")
         }
         if living.brief.priority == .discomfort {
             return .init(title:"Récupération à réévaluer",
                          detail:"Une gêne significative a été déclarée récemment.",
                          origin:"RESSENTI",symbol:"exclamationmark.shield",
-                         action:"Examiner la situation")
+                         action:"Examiner la situation",destination:"settings")
         }
         if living.brief.priority == .feedback,
            let last=engine.runHistory.first,
@@ -173,13 +174,13 @@ struct PaceLivingCoachCard: View {
             return .init(title:"Un ressenti manque",
                          detail:"Ton effort perçu aide à interpréter la dernière course.",
                          origin:"À COMPLÉTER",symbol:"square.and.pencil",
-                         action:"Ajouter mon ressenti")
+                         action:"Ajouter mon ressenti",destination:"bilans")
         }
         if coach.automaticNeedsAttentionCount > 0 {
             return .init(title:"Analyse à reprendre",
                          detail:"Une activité n'a pas pu être analysée après plusieurs essais.",
                          origin:"COACH",symbol:"arrow.clockwise.circle",
-                         action:"Voir les détails")
+                         action:"Voir les détails",destination:"settings")
         }
         return nil
     }
@@ -200,7 +201,7 @@ struct PaceLivingCoachCard: View {
                     Text(signal.detail)
                         .font(.subheadline).foregroundStyle(.secondary)
                         .lineLimit(2)
-                    Button(action:onOpenCoach) {
+                    Button { onOpenCoach(signal.destination) } label: {
                         HStack {
                             Text(signal.action)
                             Spacer()

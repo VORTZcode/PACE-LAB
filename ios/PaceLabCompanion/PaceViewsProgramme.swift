@@ -72,7 +72,7 @@ struct ProgrammeScreen: View {
                             }
                             Spacer(minLength:4)
                             Button {
-                                tabs.selected = .coach
+                                tabs.openCoach(.programme)
                             } label: {
                                 Image(systemName:"arrow.up.right")
                                     .font(.caption.weight(.semibold))
@@ -204,7 +204,7 @@ struct ProgrammeScreen: View {
         }
         .toolbar {
             ToolbarItem(placement:.topBarTrailing) {
-                Button { tabs.selected = .coach } label: { Image(systemName:"brain.head.profile") }
+                Button { tabs.openCoach(.programme) } label: { Image(systemName:"brain.head.profile") }
                     .accessibilityLabel("Adapter mon programme avec ChatGPT")
             }
         }

@@ -37,6 +37,6 @@ assert.match(ui,/Accepter pour cette séance uniquement/);
 assert.match(ui,/Conserver le programme actuel/);
 assert.match(program,/Annuler l'adaptation/);
 assert.match(today,/PaceLivingCoachCard/);
-assert.match(settings,/5\.5 · Parcours Coach/);
+assert.match(settings,/5\.9 · Coach autonome et interface épurée/);
 assert.match(settings,/résumés autorisés du Coach sont envoyés à OpenAI/);
 console.log('V3.3: larger athlete inputs, 3+2 preferred rhythm, post-run adaptive rules, single-session approval, undo and protected storage verified.');
