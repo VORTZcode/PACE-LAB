@@ -507,6 +507,7 @@ private struct PaceReviewAttempt: Codable {
             }
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
+            pieces.append(PaceProgressEvidence.snapshot(engine.runHistory).coachEvidenceContext)
             if let memory = priorAnalysisContext(profile:profile,excluding:workoutID,engine:engine) {
                 pieces.append(memory)
             }
