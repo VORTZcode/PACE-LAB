@@ -148,17 +148,17 @@ private struct PaceProgressEvidencePanel: View {
                     HStack(alignment: .top, spacing: 14) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("28 derniers jours").font(.caption).foregroundStyle(.secondary)
-                            Text("\\(km(snapshot.current28.distanceKm)) km")
+                            Text("\(km(snapshot.current28.distanceKm)) km")
                                 .font(.title2.weight(.semibold)).monospacedDigit()
-                            Text("\\(snapshot.current28.runCount) courses · \\(snapshot.current28.activeWeeks)/4 semaines actives")
+                            Text("\(snapshot.current28.runCount) courses · \(snapshot.current28.activeWeeks)/4 semaines actives")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 2)
                         VStack(alignment: .trailing, spacing: 3) {
                             Text("28 jours précédents").font(.caption).foregroundStyle(.secondary)
-                            Text("\\(km(snapshot.previous28.distanceKm)) km")
+                            Text("\(km(snapshot.previous28.distanceKm)) km")
                                 .font(.headline.weight(.semibold)).monospacedDigit()
-                            Text("\\(snapshot.previous28.runCount) courses")
+                            Text("\(snapshot.previous28.runCount) courses")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -182,9 +182,9 @@ private struct PaceProgressEvidencePanel: View {
                         let magnitude = Int(abs(change).rounded())
                         let label = magnitude < 3 ? "Allure proche" :
                             change < 0 ? "Allure plus rapide" : "Allure plus lente"
-                        Text("\\(label) de \\(magnitude) s/km")
+                        Text("\(label) de \(magnitude) s/km")
                             .font(.title3.weight(.semibold))
-                        Text("Comparaison avec une course de \\(km(comparison.priorKm)) km du \\(comparison.priorDate.formatted(date: .abbreviated, time: .omitted)).")
+                        Text("Comparaison avec une course de \(km(comparison.priorKm)) km du \(comparison.priorDate.formatted(date: .abbreviated, time: .omitted)).")
                             .font(.subheadline).foregroundStyle(.secondary)
                         Text(comparison.evidenceLabel)
                             .font(.caption).foregroundStyle(.secondary)
