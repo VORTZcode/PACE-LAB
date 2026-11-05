@@ -14,12 +14,14 @@ private struct CardioPoint: Identifiable {
 
 struct ProgressScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
+    @EnvironmentObject var athleteProfile: PaceAthleteProfileStore
     @State private var selectedYear = Calendar.current.component(.year, from: .now)
     private var years: [Int] {
         Array(Set(engine.runHistory.map { Calendar.current.component(.year, from: $0.startDate) }))
             .sorted(by: >)
     }
     private var yearRuns: [WorkoutPayload] { engine.runs(year: selectedYear) }
+    private var evidence: PaceProgressSnapshot { PaceProgressEvidence.snapshot(engine.runHistory) }
     private var monthSeries: [MonthBucket] {
         (1...12).map { month in
             MonthBucket(month: month,
@@ -58,6 +60,8 @@ struct ProgressScreen: View {
                     PaceMetric(caption: "Distance totale", value: PaceFormat.distance(engine.totalDistance(year: selectedYear)), suffix: "km", symbol: "figure.run")
                     PaceMetric(caption: "Courses", value: "\(yearRuns.count)", suffix: "", symbol: "calendar")
                 }
+                PaceProgressEvidencePanel(snapshot: evidence,
+                                          runningGoal: athleteProfile.profile?.runningGoal)
                 BodyMetricsSection()
                 PaceSectionTitle(title: "Volume mensuel", subtitle: String(selectedYear))
                 PaceCard {
@@ -111,5 +115,87 @@ struct ProgressScreen: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 3)
             }
+    }
+}
+
+
+/// Local, reproducible measurements: GPT descriptions are never presented as measurements.
+private struct PaceProgressEvidencePanel: View {
+    let snapshot: PaceProgressSnapshot
+    let runningGoal: String?
+
+    private func km(_ value: Double) -> String {
+        String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PaceSectionTitle(title: "Évolution mesurée", subtitle: "Deux périodes de 28 jours")
+            PaceCard {
+                VStack(alignment: .leading, spacing: 15) {
+                    if let runningGoal, !runningGoal.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("OBJECTIF PERSONNEL")
+                                .font(.caption2.weight(.bold))
+                                .tracking(0.8)
+                                .foregroundStyle(PaceColors.teal)
+                            Text(runningGoal)
+                                .font(.subheadline.weight(.medium))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Divider()
+                    }
+                    HStack(alignment: .top, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("28 derniers jours").font(.caption).foregroundStyle(.secondary)
+                            Text("\\(km(snapshot.current28.distanceKm)) km")
+                                .font(.title2.weight(.semibold)).monospacedDigit()
+                            Text("\\(snapshot.current28.runCount) courses · \\(snapshot.current28.activeWeeks)/4 semaines actives")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 2)
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("28 jours précédents").font(.caption).foregroundStyle(.secondary)
+                            Text("\\(km(snapshot.previous28.distanceKm)) km")
+                                .font(.headline.weight(.semibold)).monospacedDigit()
+                            Text("\\(snapshot.previous28.runCount) courses")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if !snapshot.hasTwoPeriods {
+                        Label("Pas encore assez de séances dans les deux périodes pour comparer le volume.",
+                              systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("Il s'agit du volume réalisé, pas d'une mesure directe de forme ou de progression physiologique.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            PaceCard {
+                VStack(alignment: .leading, spacing: 11) {
+                    Label("Repère de performance", systemImage: "arrow.left.arrow.right")
+                        .font(.headline)
+                        .foregroundStyle(PaceColors.teal)
+                    if let comparison = snapshot.comparison {
+                        let change = comparison.paceDifferenceSecondsPerKm
+                        let magnitude = Int(abs(change).rounded())
+                        let label = magnitude < 3 ? "Allure proche" :
+                            change < 0 ? "Allure plus rapide" : "Allure plus lente"
+                        Text("\\(label) de \\(magnitude) s/km")
+                            .font(.title3.weight(.semibold))
+                        Text("Comparaison avec une course de \\(km(comparison.priorKm)) km du \\(comparison.priorDate.formatted(date: .abbreviated, time: .omitted)).")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Text(comparison.evidenceLabel)
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("Pas encore de course suffisamment comparable.")
+                            .font(.subheadline.weight(.medium))
+                        Text("Une comparaison sera proposée après une autre sortie de distance proche, espacée d'au moins sept jours. Aucune progression n'est supposée.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
     }
 }
