@@ -17,6 +17,16 @@ enum PaceChatError: LocalizedError {
         let report = try PaceCoachSessionReport.extract(valid,workoutID:"synthetic")
         precondition(report.workoutID == "synthetic")
         precondition(report.observations.count == 1)
+        // Pre-V6.1 report JSON carries no consent snapshot: it must still decode,
+        // and remain ineligible for forwarding into later model requests.
+        let legacy = try JSONEncoder().encode(report)
+        let restored = try JSONDecoder().decode(PaceCoachSessionReport.self,from:legacy)
+        precondition(restored.sharedContextDomains == nil)
+        var consented = report
+        consented.sharedContextDomains = ["runs", "profile"]
+        let restoredNew = try JSONDecoder().decode(PaceCoachSessionReport.self,
+                                                  from:JSONEncoder().encode(consented))
+        precondition(restoredNew.sharedContextDomains == ["runs", "profile"])
 
         func expectMissing(_ payload:String,_ section:String) {
             do {

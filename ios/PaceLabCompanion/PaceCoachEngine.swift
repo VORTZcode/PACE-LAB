@@ -204,6 +204,9 @@ private struct PaceReviewAttempt: Codable {
     @Published var shareWeight = UserDefaults.standard.bool(forKey:"pace.coach.share-weight") {
         didSet { UserDefaults.standard.set(shareWeight,forKey:"pace.coach.share-weight") }
     }
+    @Published var shareWaist = UserDefaults.standard.bool(forKey:"pace.coach.share-waist") {
+        didSet { UserDefaults.standard.set(shareWaist,forKey:"pace.coach.share-waist") }
+    }
     @Published var shareNutrition = UserDefaults.standard.bool(forKey:"pace.coach.share-nutrition") {
         didSet { UserDefaults.standard.set(shareNutrition,forKey:"pace.coach.share-nutrition") }
     }
@@ -284,7 +287,7 @@ private struct PaceReviewAttempt: Codable {
         }
         if let data = try? Data(contentsOf:historyURL),
            let saved = try? JSONDecoder().decode([PaceCoachMessage].self,from:data) {
-            conversation = Array(saved.suffix(24))
+            conversation = Array(saved.suffix(100))
         }
         if let data = try? Data(contentsOf: reportsURL),
            let saved = try? JSONDecoder().decode([PaceCoachSessionReport].self, from: data) {
@@ -421,6 +424,56 @@ private struct PaceReviewAttempt: Codable {
         return facts
     }
 
+    /// Only reuse a prior analysis when each original data permission remains
+    /// active. A legacy report without an explicit consent snapshot is excluded.
+    private func currentSharedDomains(profile: PaceAthleteProfileStore?) -> Set<String> {
+        var domains: Set<String> = []
+        if shareRunSummaries { domains.insert("runs") }
+        if shareWeight { domains.insert("weight") }
+        if shareWaist { domains.insert("waist") }
+        if shareNutrition { domains.insert("nutrition") }
+        if shareStrengthSets { domains.insert("strength") }
+        if shareHeartProfile { domains.insert("heart-profile") }
+        if shareDynamics { domains.insert("dynamics") }
+        if shareDynamicsTimeline { domains.insert("dynamics-timeline") }
+        if shareSleep { domains.insert("sleep") }
+        if shareSessionNotes { domains.insert("notes") }
+        if profile?.shareProfile == true && profile?.profile != nil {
+            domains.insert("profile")
+        }
+        return domains
+    }
+
+    private func priorAnalysisContext(profile: PaceAthleteProfileStore?,
+                                      excluding workoutID: String?,
+                                      engine: HealthSyncEngine) -> String? {
+        let authorized = currentSharedDomains(profile: profile)
+        guard authorized.contains("runs") else { return nil }
+        let selectedDate = workoutID.flatMap { engine.workout(id:$0)?.startDate }
+        let earlier = sessionReports.filter { report in
+            guard !report.isLocal,
+                  let recordedDomains = report.sharedContextDomains,
+                  !recordedDomains.isEmpty,
+                  Set(recordedDomains).isSubset(of:authorized),
+                  report.workoutID != workoutID,
+                  let activity = engine.workout(id:report.workoutID) else { return false }
+            return selectedDate.map { activity.startDate < $0 } ?? true
+        }
+        let summaries = earlier.sorted(by:{$0.createdAt > $1.createdAt}).prefix(3).map { report in
+            let date = engine.workout(id:report.workoutID)?.startDate
+                .formatted(date:.abbreviated,time:.omitted) ?? "date inconnue"
+            func short(_ text:String, max:Int) -> String {
+                String(text.replacingOccurrences(of:"\n",with:" ").prefix(max))
+            }
+            return "\(date) : analyse précédente [à réévaluer, non mesurée] : " +
+                short(report.summary,max:240) + " ; conseil précédent : " +
+                short(report.recommendations.first ?? "aucun",max:170)
+        }
+        guard !summaries.isEmpty else { return nil }
+        return "HISTORIQUE DE BILANS IA (interprétations antérieures, non preuves nouvelles ; vérifier avec les mesures actuelles) : " +
+            summaries.joined(separator:" | ")
+    }
+
     func contextPreview(engine: HealthSyncEngine, library: PaceLibrary,
                         journal: PaceSessionJournal? = nil,
                         profile:PaceAthleteProfileStore? = nil,
@@ -454,6 +507,9 @@ private struct PaceReviewAttempt: Codable {
             }
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
+            if let memory = priorAnalysisContext(profile:profile,excluding:workoutID,engine:engine) {
+                pieces.append(memory)
+            }
             if let run = workoutID.flatMap({ engine.workout(id:$0) }) ?? selectedRun(engine:engine) {
                 let date = run.startDate.formatted(.dateTime.day().month().year())
                 if run.isRun {
@@ -485,7 +541,18 @@ private struct PaceReviewAttempt: Codable {
             }
         }
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
-            pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg.")
+            pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg. Ne permet pas d'estimer la masse grasse ou musculaire.")
+        }
+        if shareWaist {
+            let measures = library.bodyLogs.filter { $0.waistCm != nil }.sorted { $0.date > $1.date }
+            if let latest = measures.first, let cm = latest.waistCm {
+                pieces.append("Tour de taille déclaré : \(PaceFormat.distance(cm,places:1)) cm le \(latest.date.formatted(date:.numeric,time:.omitted)).")
+                if let previous = measures.dropFirst().first(where: {
+                    $0.date <= latest.date.addingTimeInterval(-14*86400)
+                }), let earlier = previous.waistCm {
+                    pieces.append("Mesure de comparaison à au moins 14 jours : \(PaceFormat.distance(earlier,places:1)) cm le \(previous.date.formatted(date:.numeric,time:.omitted)). Variations possibles selon conditions de mesure ; aucune estimation de masse grasse.")
+                }
+            }
         }
         if shareSleep {
             if let sleep, sleep.monitoringEnabled {
@@ -724,6 +791,7 @@ private struct PaceReviewAttempt: Codable {
         }
         isLoading = true
         error = ""
+        let consentAtStart = currentSharedDomains(profile:profile)
         let instructions = """
         Tu es le coach sportif de PACE LAB, exigeant et précis, pas un commentateur de chiffres.
         Analyse cette activité (course ou renforcement) comme un compte rendu d'entraîneur :
@@ -742,6 +810,11 @@ private struct PaceReviewAttempt: Codable {
         par la pente, le vent, les pauses ou le sommeil. Une séance manquée n'est pas un effort.
         Ne propose aucune séance punitive ni compensation automatique après une absence.
         Les recommandations doivent rester prudentes ; cette analyse ne change PAS le plan.
+        Examine les conclusions antérieures si elles sont fournies, puis confirme, nuance
+        ou corrige le conseil précédent à partir de la séance réellement observée.
+        L'objectif de 10 km à 15 km/h (s'il figure dans le profil partagé) reste
+        un cap à long terme, jamais une allure de travail imposée aujourd'hui.
+        Les objectifs corporels ne prouvent aucune modification de composition corporelle.
         Produis un bilan utile et personnalisé, sans répétitions génériques, dans les rubriques JSON.
         Renvoie UNIQUEMENT un objet JSON :
         {"title":"Titre concis","summary":"Synthèse en 2 à 4 phrases",
@@ -756,7 +829,7 @@ private struct PaceReviewAttempt: Codable {
                                          profile:profile,strength:strength,sleep:sleep,
                                          workoutID:run.source_uuid)
             let response = try await client.answer(instructions:instructions,input:context)
-            let report: PaceCoachSessionReport
+            var report: PaceCoachSessionReport
             do {
                 report = try PaceCoachSessionReport.extract(response,workoutID:run.source_uuid)
             } catch {
@@ -777,6 +850,7 @@ private struct PaceReviewAttempt: Codable {
                     corrected,workoutID:run.source_uuid)
             }
             guard shareRunSummaries,
+                  consentAtStart == currentSharedDomains(profile:profile),
                   run.isRun || (run.activity_kind == "strength" && shareStrengthSets)
             else {
                 automaticInFlightID = nil
@@ -784,6 +858,7 @@ private struct PaceReviewAttempt: Codable {
                 isLoading = false
                 return
             }
+            report.sharedContextDomains = Array(consentAtStart).sorted()
             saveReport(report)
             publishSessionInsight(report,run:run)
             reviewAttempts.removeValue(forKey:run.source_uuid)

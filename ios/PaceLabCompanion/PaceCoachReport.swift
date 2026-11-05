@@ -11,6 +11,9 @@ struct PaceCoachSessionReport: Codable, Identifiable {
     let trainingImpact: String
     /// nil means a legacy ChatGPT report; "local" is measured-only fallback.
     var origin: String? = nil
+    /// Categories granted when this analysis was produced. Legacy reports have
+    /// no provenance and must not be sent back to the model automatically.
+    var sharedContextDomains: [String]? = nil
     var isLocal: Bool { origin == "local" }
     var id: String { workoutID }
 

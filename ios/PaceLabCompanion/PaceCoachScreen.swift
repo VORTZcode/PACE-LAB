@@ -49,6 +49,14 @@ struct PaceCoachScreen: View {
                 LazyVStack(alignment:.leading,spacing:22) {
                     if client.planUsageEnabled {
                         if athleteProfile.profile == nil { coachHeader }
+                        else if !athleteProfile.shareProfile {
+                            Button { showProfile = true } label: {
+                                Label("Activer le partage de mes objectifs avec le Coach",
+                                      systemImage:"person.crop.circle.badge.exclamationmark")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .tint(PaceColors.teal)
+                        }
                         if activeTab != .chat || !autopilot.enabled ||
                            coach.automaticPendingCount > 0 ||
                            coach.automaticNeedsAttentionCount > 0 || coach.pending != nil {
@@ -700,6 +708,7 @@ struct PaceCoachScreen: View {
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Toggle("Dernier poids renseigné",isOn:$coach.shareWeight)
+                Toggle("Tour de taille renseigné et évolution",isOn:$coach.shareWaist)
                 Toggle(isOn:$coach.shareStrengthSets) {
                     VStack(alignment:.leading,spacing:3) {
                         Text("Mes séries de musculation")

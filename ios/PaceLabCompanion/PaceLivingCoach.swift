@@ -187,32 +187,36 @@ struct PaceLivingCoachCard: View {
 
     var body: some View {
         if let signal {
-            PaceCard(padding:17) {
-                VStack(alignment:.leading,spacing:9) {
-                    HStack(spacing:8) {
-                        Image(systemName:signal.symbol).foregroundStyle(PaceColors.teal)
-                        Text(signal.origin)
-                            .font(.caption2.weight(.bold)).tracking(0.8)
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength:0)
-                    }
-                    Text(signal.title)
-                        .font(.headline).foregroundStyle(.primary)
-                    Text(signal.detail)
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .lineLimit(2)
-                    Button { onOpenCoach(signal.destination) } label: {
+            // A single tap target: the whole card, not a nested text-only button.
+            Button { onOpenCoach(signal.destination) } label: {
+                PaceCard(padding:17) {
+                    VStack(alignment:.leading,spacing:9) {
+                        HStack(spacing:8) {
+                            Image(systemName:signal.symbol).foregroundStyle(PaceColors.teal)
+                            Text(signal.origin)
+                                .font(.caption2.weight(.bold)).tracking(0.8)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength:0)
+                        }
+                        Text(signal.title)
+                            .font(.headline).foregroundStyle(.primary)
+                        Text(signal.detail)
+                            .font(.subheadline).foregroundStyle(.secondary)
+                            .lineLimit(2)
                         HStack {
                             Text(signal.action)
                             Spacer()
                             Image(systemName:"arrow.up.right")
                         }
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(PaceColors.teal)
                 }
+                .contentShape(RoundedRectangle(cornerRadius:24))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(signal.title). \(signal.action)")
+            .accessibilityHint("Ouvre le détail dans le Coach")
         }
     }
 }
