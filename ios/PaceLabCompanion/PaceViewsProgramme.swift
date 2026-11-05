@@ -15,6 +15,19 @@ enum PacePlanActivityMatch {
             calendar.isDate($0.startDate, inSameDayAs: plannedDate)
         }.sorted { $0.startDate < $1.startDate }
     }
+
+    static func matching(for day: PaceDay, in workouts: [WorkoutPayload]) -> WorkoutPayload? {
+        let expected: String
+        switch day.type {
+        case "Course": expected = "running"
+        case "Musculation": expected = "strength"
+        case "Récupération": expected = "walking"
+        default: return nil
+        }
+        let candidates = on(day.date,in:workouts).filter { $0.activity_kind == expected }
+        // A shared workout category is a hint, not proof of completing the prescription.
+        return candidates.count == 1 ? candidates.first : nil
+    }
 }
 
 struct ProgrammeScreen: View {
@@ -159,10 +172,19 @@ struct ProgrammeScreen: View {
                                     Text("\(day.type) · \(Int(day.minutes)) min")
                                         .font(.caption).foregroundStyle(.secondary)
                                     let observed = PacePlanActivityMatch.on(day.date, in: engine.snapshot)
-                                    if !observed.isEmpty {
-                                        Label("\(observed.count) activité(s) Apple Santé", systemImage: "applewatch")
+                                    if let recorded = PacePlanActivityMatch.matching(for:day,in:engine.snapshot) {
+                                        Label(day.type == "Course"
+                                              ? "Course enregistrée · \(PaceFormat.distance(recorded.kilometers,places:2)) km · \(PaceFormat.duration(recorded.duration_seconds))"
+                                              : "Activité enregistrée · \(PaceFormat.duration(recorded.duration_seconds))",
+                                              systemImage:"applewatch")
                                             .font(.caption.weight(.medium))
                                             .foregroundStyle(PaceColors.teal)
+                                            .fixedSize(horizontal:false,vertical:true)
+                                    } else if !observed.isEmpty {
+                                        Label("\(observed.count) activité\(observed.count > 1 ? "s" : "") ce jour · à rapprocher du programme",
+                                              systemImage:"questionmark.circle")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
                                     if let missed = library.missedSessions[day.date] {
                                         Label("Non réalisée · \(missed.reason)", systemImage: "minus.circle.fill")
@@ -197,9 +219,6 @@ struct ProgrammeScreen: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text("Le cycle suivant sera proposé après analyse des séances et de la récupération. Aucun entraînement futur n’est inventé.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 3)
             }
         }
         .toolbar {
@@ -274,16 +293,7 @@ struct DayDetailScreen: View {
         PacePlanActivityMatch.on(day.date, in: engine.snapshot)
     }
     private var matchingActivity: WorkoutPayload? {
-        let expected: String
-        switch day.type {
-        case "Course": expected = "running"
-        case "Musculation": expected = "strength"
-        case "Récupération": expected = "walking"
-        default: return nil
-        }
-        let candidates = dayActivities.filter { $0.activity_kind == expected }
-        // Multiple activities of the same type require user selection, not a guess.
-        return candidates.count == 1 ? candidates.first : nil
+        PacePlanActivityMatch.matching(for:day,in:engine.snapshot)
     }
 
 
@@ -300,15 +310,18 @@ struct DayDetailScreen: View {
                 }
                 .padding(.top, 5)
             }
+            // Before the workout, show the instructions rather than a false
+            // warning that Apple Santé has not recorded a future session.
+            if !dayActivities.isEmpty || library.completed.contains(day.date) {
             PaceSectionTitle(title: "Activité enregistrée",
                              subtitle: "Apple Santé")
             if dayActivities.isEmpty {
                 PaceCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Aucune activité synchronisée pour cette date",
+                        Label("Journée validée, sans activité Apple Santé",
                               systemImage: "applewatch.slash")
                             .font(.subheadline.weight(.medium))
-                        Text("L'enregistrement peut encore être en cours de synchronisation. Une validation manuelle du programme ne crée pas de données Apple Santé.")
+                        Text("La synchronisation peut être en cours. Cette validation ne crée pas de mesures Apple Watch.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
@@ -360,6 +373,7 @@ struct DayDetailScreen: View {
                         }
                     }
                 }
+            }
             }
 
             if exercises.isEmpty {

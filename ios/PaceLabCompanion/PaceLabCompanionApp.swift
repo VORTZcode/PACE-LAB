@@ -154,6 +154,11 @@ struct PaceLabCompanionApp: App {
             .onReceive(chatGPT.$planUsageEnabled) { _ in
                 _ = launchAutomaticSessionReview()
             }
+            // Foreground catch-up: bounded retry windows can expire without a
+            // new HealthKit event. No polling service or background guarantee.
+            .onReceive(Timer.publish(every:65,on:.main,in:.common).autoconnect()) { _ in
+                _ = launchAutomaticSessionReview()
+            }
             .onAppear {
                 guard !hasLoaded else { return }
                 sleep.startObservers()

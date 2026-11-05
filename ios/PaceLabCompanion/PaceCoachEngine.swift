@@ -502,7 +502,7 @@ private struct PaceReviewAttempt: Codable {
     }
 
     private func saveConversation() {
-        let records = Array(conversation.suffix(24))
+        let records = Array(conversation.suffix(100))
         guard let data = try? JSONEncoder().encode(records) else { return }
         do {
             try data.write(to:historyURL,options:.atomic)
@@ -570,8 +570,19 @@ private struct PaceReviewAttempt: Codable {
         guard !report.isLocal else { return }
         let key="pace.coach.conversation-session." + report.workoutID
         guard !UserDefaults.standard.bool(forKey:key) else { return }
-        let summary=String(report.summary.prefix(450))
-        let action=report.recommendations.first.map { "À retenir : " + String($0.prefix(190)) } ?? ""
+        // The conversation is a pointer to the full report, not a duplicate.
+        // Avoid cutting an athlete-facing sentence in the middle of a word.
+        func excerpt(_ value:String, limit:Int) -> String {
+            let clean=value.trimmingCharacters(in:.whitespacesAndNewlines)
+            guard clean.count > limit else { return clean }
+            let head=String(clean.prefix(limit))
+            let trimmed=head.lastIndex(of:" ").map { String(head[..<$0]) } ?? head
+            return trimmed + "…"
+        }
+        let summary=excerpt(report.summary,limit:310)
+        let action=report.recommendations.first.map {
+            "À retenir : " + excerpt($0,limit:150)
+        } ?? ""
         conversation.append(.init(speaker:"Coach",text:
             "Bilan du \(run.startDate.formatted(.dateTime.day().month().year())) · \(run.cadenceLabel)\n" +
             summary + (action.isEmpty ? "" : "\n" + action)))
@@ -685,7 +696,7 @@ private struct PaceReviewAttempt: Codable {
         let history = conversation.suffix(8).map { "\($0.speaker) : \($0.text)" }.joined(separator:"\n")
         do {
             let reply = try await client.answer(
-                instructions:"Tu es le coach personnel PACE LAB. Échange en français comme avec un athlète : réponds à la question directement et avec précision, sans slogans ni commentaires génériques. Utilise les données explicitement autorisées et les objectifs confirmés. Si aucune donnée pertinente n'existe, dis-le sobrement. Distingue fait et hypothèse. Aucun diagnostic médical ; cette conversation ne peut pas modifier directement le programme, seules les décisions autonomes autorisées et vérifiées peuvent l'adapter.",
+                instructions:"Tu es le coach personnel PACE LAB. Réponds en français à la dernière demande de l'athlète, comme dans une conversation continue. Sois précis, naturel et direct. Privilégie une réponse brève quand la question est simple, développe vraiment lorsqu'il demande une analyse poussée. Ne récite pas ses chiffres, son profil, les autorisations ou des slogans : ne cite une mesure que si elle soutient ton raisonnement. Quand une information importante apparaît, explique pourquoi elle compte et quelle action concrète est utile. Explique les incertitudes seulement lorsqu'elles changent la décision. Utilise exclusivement les données autorisées et les objectifs confirmés, distingue mesure, interprétation et hypothèse. Ne prétends jamais avoir analysé une mesure absente, modifié une séance ou mis à jour le programme. Tu peux discuter de propositions, pas les appliquer depuis ce chat. Aucun diagnostic médical ni promesse de performance. Évite les introductions et conclusions automatiques.",
                 input:contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep)+"\n\nConversation:\n"+history,
                 onDelta:{ [weak self] fragment in self?.streamingReply += fragment })
             conversation.append(.init(speaker:"Coach",text:reply))

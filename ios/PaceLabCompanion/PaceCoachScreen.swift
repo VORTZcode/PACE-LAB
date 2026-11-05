@@ -31,6 +31,7 @@ struct PaceCoachScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isPresented) private var isPresented
     @State private var question = ""
+    @FocusState private var composerFocused: Bool
     @State private var showPreview = false
     @State private var showDataControls = false
     @State private var showMetrics = false
@@ -43,11 +44,16 @@ struct PaceCoachScreen: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { chatScroll in
             ScrollView {
                 LazyVStack(alignment:.leading,spacing:22) {
                     if client.planUsageEnabled {
                         if athleteProfile.profile == nil { coachHeader }
-                        coachStatusOverview
+                        if activeTab != .chat || !autopilot.enabled ||
+                           coach.automaticPendingCount > 0 ||
+                           coach.automaticNeedsAttentionCount > 0 || coach.pending != nil {
+                            coachStatusOverview
+                        }
                         modeSelector
                         if activeTab == .session {
                             if coach.newWorkoutAwaitingReview && coach.shareRunSummaries {
@@ -92,17 +98,15 @@ struct PaceCoachScreen: View {
                     } else {
                         introduction
                         connectionCard
-                        Text("Connecte ton compte pour obtenir une analyse personnalisée. Tu pourras ensuite confirmer tes objectifs et décider des données partagées.")
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                    if !coach.error.isEmpty {
+                    if !coach.error.isEmpty && activeTab != .chat {
                         Label(coach.error,systemImage:"exclamationmark.triangle")
                             .font(.subheadline).foregroundStyle(.orange)
                             .padding(14)
                             .frame(maxWidth:.infinity,alignment:.leading)
                             .modifier(PaceGlassCardSurface(cornerRadius: 16))
                     }
-                    if coach.isLoading {
+                    if coach.isLoading && activeTab != .chat {
                         HStack(spacing:11) {
                             ProgressView().controlSize(.small)
                             Text("Le coach prépare son analyse…")
@@ -117,7 +121,40 @@ struct PaceCoachScreen: View {
                 .frame(maxWidth:.infinity)
             }
             .background(PaceColors.base)
-            .onAppear { navigateToCoachDestination(tabs.coachDestination) }
+            .safeAreaInset(edge:.bottom,spacing:0) {
+                if client.planUsageEnabled && activeTab == .chat {
+                    coachComposer
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of:coach.conversation.last?.id) { _,_ in
+                guard activeTab == .chat else { return }
+                withAnimation(.easeOut(duration:0.2)) {
+                    chatScroll.scrollTo("coach-chat-end",anchor:.bottom)
+                }
+            }
+            .onChange(of:coach.streamingReply.count / 120) { _,_ in
+                guard activeTab == .chat else { return }
+                chatScroll.scrollTo("coach-chat-end",anchor:.bottom)
+            }
+            .onChange(of:activeTab) { _, tab in
+                if tab == .chat {
+                    Task { @MainActor in
+                        chatScroll.scrollTo("coach-chat-end",anchor:.bottom)
+                    }
+                } else {
+                    composerFocused = false
+                }
+            }
+            .onAppear {
+                navigateToCoachDestination(tabs.coachDestination)
+                if activeTab == .chat {
+                    Task { @MainActor in
+                        await Task.yield()
+                        chatScroll.scrollTo("coach-chat-end",anchor:.bottom)
+                    }
+                }
+            }
             .onChange(of:tabs.coachDestination) { _, destination in
                 navigateToCoachDestination(destination)
             }
@@ -191,6 +228,7 @@ struct PaceCoachScreen: View {
                 }
             } message: {
                 Text("Tu confirmes les sept séances et les repas proposés. Tu pourras revenir au programme initial dans Programme.")
+            }
             }
         }
     }
@@ -1039,6 +1077,44 @@ struct PaceCoachScreen: View {
         }
     }
 
+    private var coachComposer: some View {
+        HStack(alignment:.bottom,spacing:11) {
+            TextField("Message au coach…",text:$question,axis:.vertical)
+                .lineLimit(1...5)
+                .textInputAutocapitalization(.sentences)
+                .focused($composerFocused)
+                .padding(.horizontal,15)
+                .padding(.vertical,12)
+                .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:19))
+                .accessibilityLabel("Écrire un message au coach")
+            Button(action:sendCoachMessage) {
+                Image(systemName:"arrow.up.circle.fill")
+                    .font(.system(size:35))
+                    .foregroundStyle(PaceColors.teal)
+                    .frame(minWidth:44,minHeight:44)
+            }
+            .disabled(coach.isLoading ||
+                      question.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Envoyer au coach")
+        }
+        .padding(.horizontal,16)
+        .padding(.vertical,11)
+        .background(.regularMaterial)
+        .overlay(alignment:.top) { Rectangle().fill(.primary.opacity(0.06)).frame(height:0.5) }
+    }
+
+    private func sendCoachMessage() {
+        let text=question.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !text.isEmpty,!coach.isLoading else { return }
+        question=""
+        composerFocused=false
+        Task {
+            await coach.chat(text,client:client,engine:engine,library:library,
+                             journal:journal,profile:athleteProfile,
+                             strength:strengthTracker,sleep:sleep)
+        }
+    }
+
     private var chatSection: some View {
         VStack(alignment:.leading,spacing:16) {
             HStack {
@@ -1059,11 +1135,15 @@ struct PaceCoachScreen: View {
                 }
             }
             if coach.conversation.isEmpty {
-                Text("Écris au coach ici. Ses analyses de séance validées apparaîtront aussi automatiquement.")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                    .padding(.vertical,13)
+                VStack(alignment:.leading,spacing:9) {
+                    Label("Que veux-tu savoir ?",systemImage:"bubble.left")
+                        .font(.headline)
+                    Text("Pose une question sur une séance, ta progression ou le programme. Les bilans validés arriveront ici automatiquement.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .padding(.vertical,16)
             } else {
-                ForEach(coach.conversation.suffix(24)) { message in
+                ForEach(coach.conversation.suffix(100)) { message in
                     let isMine=message.speaker == "Moi"
                     HStack(alignment:.bottom,spacing:9) {
                         if isMine { Spacer(minLength:36) }
@@ -1104,32 +1184,16 @@ struct PaceCoachScreen: View {
                 }
                 .padding(13)
             }
-            HStack(alignment:.bottom,spacing:10) {
-                TextField("Écrire au coach…",text:$question,axis:.vertical)
-                    .lineLimit(1...5)
-                    .textInputAutocapitalization(.sentences)
-                    .padding(.horizontal,14).padding(.vertical,12)
-                    .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:19))
-                    .accessibilityLabel("Message au coach")
-                Button {
-                    let text=question.trimmingCharacters(in:.whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    question=""
-                    Task {
-                        await coach.chat(text,client:client,engine:engine,library:library,
-                                         journal:journal,profile:athleteProfile,
-                                         strength:strengthTracker,sleep:sleep)
-                    }
-                } label: {
-                    Image(systemName:"arrow.up.circle.fill")
-                        .font(.system(size:35))
-                        .foregroundStyle(PaceColors.teal)
-                }
-                .disabled(coach.isLoading ||
-                          question.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("Envoyer le message")
+            if !coach.error.isEmpty {
+                Label(coach.error,systemImage:"exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .padding(13)
+                    .frame(maxWidth:.infinity,alignment:.leading)
+                    .modifier(PaceGlassCardSurface(cornerRadius:14))
+                    .accessibilityAddTraits(.updatesFrequently)
             }
-            .padding(.top,9)
+            Color.clear.frame(height:1).id("coach-chat-end")
         }
     }
 
