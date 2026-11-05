@@ -64,6 +64,7 @@ struct ProgressScreen: View {
                 PaceProgressEvidencePanel(snapshot: evidence,
                                           runningGoal: athleteProfile.profile?.runningGoal)
                 BodyMetricsSection()
+                PaceStrengthProgressSection()
                 if healthSignals.accessRequested {
                     PaceCard {
                         DisclosureGroup {
