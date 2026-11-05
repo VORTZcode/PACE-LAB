@@ -4,8 +4,8 @@ import Foundation
 /// training-adherence engine. All date matching uses the athlete's local day.
 @MainActor enum PaceTrainingAdherenceAdapter {
     static func snapshot(library: PaceLibrary, engine: HealthSyncEngine,
-                         runLinks: PaceRunWorkoutLinks = .shared,
-                         strengthLinks: PaceStrengthWorkoutLinks = .shared) -> PaceTrainingAdherenceSnapshot {
+                         runLinks: PaceRunWorkoutLinks,
+                         strengthLinks: PaceStrengthWorkoutLinks) -> PaceTrainingAdherenceSnapshot {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current

@@ -562,7 +562,8 @@ enum PaceSessionReviewState {
         }
         if shareRunSummaries && shareSessionNotes {
             let adherence = PaceTrainingAdherenceAdapter.snapshot(
-                library: library, engine: engine)
+                library: library, engine: engine,
+                runLinks: .shared, strengthLinks: .shared)
             pieces.append(adherence.coachSummary)
         }
         if shareSessionNotes && shareRunSummaries {

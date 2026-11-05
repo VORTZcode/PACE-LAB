@@ -46,7 +46,7 @@ import SwiftUI
             byDay = next
             error = nil
         } catch {
-            error = "Impossible de sauvegarder l'association. Aucun statut n'a changé."
+            self.error = "Impossible de sauvegarder l'association. Aucun statut n'a changé."
         }
     }
 
@@ -59,7 +59,7 @@ import SwiftUI
             byDay = next
             error = nil
         } catch {
-            error = "Impossible de retirer l'association. Elle reste inchangée."
+            self.error = "Impossible de retirer l'association. Elle reste inchangée."
         }
     }
 }
