@@ -4,6 +4,7 @@ import SwiftUI
 /// Joins a confirmed Apple Health workout to the user's manually entered strength sets.
 /// Existing strength and HealthKit files are never rewritten by this link.
 @MainActor final class PaceStrengthWorkoutLinks: ObservableObject {
+    static let shared = PaceStrengthWorkoutLinks()
     @Published private(set) var byDay: [String:String] = [:]
     @Published private(set) var error: String?
     private let url: URL
