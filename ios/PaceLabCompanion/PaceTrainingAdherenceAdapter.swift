@@ -5,7 +5,7 @@ import Foundation
 @MainActor enum PaceTrainingAdherenceAdapter {
     static func snapshot(library: PaceLibrary, engine: HealthSyncEngine,
                          runLinks: PaceRunWorkoutLinks = .shared,
-                         strengthLinks: PaceStrengthWorkoutLinks) -> PaceTrainingAdherenceSnapshot {
+                         strengthLinks: PaceStrengthWorkoutLinks = .shared) -> PaceTrainingAdherenceSnapshot {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
