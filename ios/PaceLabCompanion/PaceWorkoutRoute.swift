@@ -51,6 +51,15 @@ struct PaceRouteTrack {
         duration = max(1, fixes.last!.timestamp.timeIntervalSince(fixes.first!.timestamp))
     }
 
+    /// Stable direction across a section of real track, not between adjacent
+    /// noisy points. GPS itself is left untouched.
+    func cameraCourse(at fraction: Double) -> CLLocationDirection? {
+        let window = min(18.0, max(8.0, duration / 240))
+        let left = frame(at: max(0, fraction - window / duration)).coordinate
+        let right = frame(at: min(1, fraction + window / duration)).coordinate
+        return PaceFlightMotion.bearing(from: left, to: right)
+    }
+
     func frame(at fraction: Double) -> PaceRouteFrame {
         let p = min(1, max(0, fraction))
         let elapsed = duration * p
@@ -97,11 +106,20 @@ struct PaceRouteTrack {
         guard let uuid = UUID(uuidString: workoutID), HKHealthStore.isHealthDataAvailable()
         else { state = .unavailable; return }
         do {
-            // HealthKit may silently return no route if read permission was denied.
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                store.requestAuthorization(toShare: [], read: [HKSeriesType.workoutRoute()]) { _, error in
-                    if let error { continuation.resume(throwing: error) }
-                    else { continuation.resume() }
+            // Never prompt for GPS access when opening an activity. The iOS 27
+            // exception in a previous route-only authorization request crashed
+            // the entire activity screen. First try a normal read: HealthKit
+            // returns an empty result when access has not been granted.
+            // Explicit user action (retry) is required before asking for GPS.
+            if retry {
+                // Routes are child samples of HKWorkout: request parent and
+                // child read types together, never any write permission.
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    let reads: Set<HKObjectType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute()]
+                    store.requestAuthorization(toShare: [], read: reads) { _, error in
+                        if let error { continuation.resume(throwing: error) }
+                        else { continuation.resume() }
+                    }
                 }
             }
             let workout: HKWorkout? = await withCheckedContinuation { continuation in
@@ -168,6 +186,10 @@ struct PaceRouteMap: UIViewRepresentable {
         var previousProgress = -1.0
         var lastDrawnProgress = -1.0
         var recenterToken = -1
+        var isPlayback = false
+        var cameraHeading: Double?
+        var cameraCenter: CLLocationCoordinate2D?
+        var lastCameraTick: TimeInterval?
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             let renderer = MKPolylineRenderer(overlay: overlay)
@@ -175,8 +197,9 @@ struct PaceRouteMap: UIViewRepresentable {
                 renderer.strokeColor = UIColor(red: 0.06, green: 0.61, blue: 0.52, alpha: 1)
                 renderer.lineWidth = 7
             } else {
-                renderer.strokeColor = UIColor(red: 0.10, green: 0.51, blue: 0.46, alpha: 0.33)
-                renderer.lineWidth = 4.5
+                renderer.strokeColor = UIColor(red: 0.06, green: 0.59, blue: 0.52,
+                    alpha: isPlayback ? 0.32 : 0.94)
+                renderer.lineWidth = isPlayback ? 4 : 5.5
             }
             renderer.lineJoin = .round
             renderer.lineCap = .round
@@ -213,6 +236,7 @@ struct PaceRouteMap: UIViewRepresentable {
     }
     func updateUIView(_ map: MKMapView, context: Context) {
         let coordinator = context.coordinator
+        coordinator.isPlayback = progress != nil
         if coordinator.trackID != track.fixes.first?.timestamp {
             coordinator.trackID = track.fixes.first?.timestamp
             let coordinates = track.fixes.map(\.location)
@@ -220,6 +244,9 @@ struct PaceRouteMap: UIViewRepresentable {
             if let old = coordinator.completedRoute { map.removeOverlay(old) }
             coordinator.completedRoute = nil
             coordinator.lastDrawnProgress = -1
+            coordinator.cameraHeading = nil
+            coordinator.cameraCenter = nil
+            coordinator.lastCameraTick = nil
             map.removeAnnotations(map.annotations)
             let line = MKPolyline(coordinates: coordinates, count: coordinates.count)
             map.addOverlay(line)
@@ -232,7 +259,8 @@ struct PaceRouteMap: UIViewRepresentable {
                                   animated: false)
         }
         let fraction = progress ?? 0
-        let shouldMove = coordinator.previousProgress != fraction
+        let previousFraction = coordinator.previousProgress
+        let shouldMove = previousFraction != fraction
         let shouldReset = coordinator.recenterToken != recenterToken
         if shouldMove || shouldReset {
             coordinator.recenterToken = recenterToken
@@ -254,9 +282,30 @@ struct PaceRouteMap: UIViewRepresentable {
                 coordinator.lastDrawnProgress = fraction
             }
             if followCamera {
-                let camera = MKMapCamera(lookingAtCenter: current.coordinate,
-                                         fromDistance: max(800, min(1900, track.totalDistance / 3)),
-                                         pitch: 54, heading: current.heading)
+                let uptime = ProcessInfo.processInfo.systemUptime
+                let dt = coordinator.lastCameraTick.map {
+                    min(0.25, max(0.012, uptime - $0))
+                } ?? 0.1
+                coordinator.lastCameraTick = uptime
+                // A deliberate scrub jumps directly to the chosen location.
+                // Normal playback gently follows the track without abrupt yaw.
+                let seek = shouldReset || previousFraction < 0 ||
+                    abs(fraction - previousFraction) > 0.024
+                let lookAhead = min(6, track.duration * 0.003)
+                let targetCenter = track.frame(
+                    at: min(1, fraction + lookAhead / track.duration)).coordinate
+                let desiredHeading = track.cameraCourse(at: fraction) ??
+                    coordinator.cameraHeading ?? current.heading
+                coordinator.cameraHeading = PaceFlightMotion.heading(
+                    previous: coordinator.cameraHeading,
+                    desired: desiredHeading, seconds: dt, snap: seek)
+                coordinator.cameraCenter = PaceFlightMotion.center(
+                    previous: coordinator.cameraCenter, desired: targetCenter,
+                    seconds: dt, snap: seek)
+                let camera = MKMapCamera(
+                    lookingAtCenter: coordinator.cameraCenter ?? current.coordinate,
+                    fromDistance: max(870, min(1700, track.totalDistance / 3)),
+                    pitch: 52, heading: coordinator.cameraHeading ?? desiredHeading)
                 map.setCamera(camera, animated: false)
             } else if shouldReset, let route = coordinator.route {
                 map.setVisibleMapRect(route.boundingMapRect,
@@ -271,21 +320,36 @@ struct PaceRouteSection: View {
     let workout: WorkoutPayload
     @StateObject private var reader = PaceWorkoutRouteReader()
     @State private var showReplay = false
+    @State private var showFullMap = false
+
+    private var readableDistance: String {
+        guard let track = reader.track else { return "" }
+        return String(format: "%.2f", track.totalDistance / 1000)
+            .replacingOccurrences(of: ".", with: ",")
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            PaceSectionTitle(title: "Parcours", subtitle: "Apple Santé")
+        VStack(alignment: .leading, spacing: 11) {
             switch reader.state {
             case .idle, .loading:
-                PaceCard { HStack { ProgressView(); Text("Chargement du parcours GPS…").font(.subheadline) } }
+                RoundedRectangle(cornerRadius: 26)
+                    .fill(PaceColors.surface)
+                    .frame(height: 190)
+                    .overlay {
+                        VStack(spacing: 10) {
+                            ProgressView()
+                            Text("Chargement du tracé Apple Santé")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
             case .unavailable:
                 PaceCard {
-                    VStack(alignment: .leading, spacing: 9) {
-                        Label("Aucun tracé GPS accessible", systemImage: "map")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Parcours GPS indisponible", systemImage: "map")
                             .font(.subheadline.weight(.semibold))
-                        Text("Certaines séances n'enregistrent pas de parcours. Tu peux vérifier l'accès aux itinéraires dans Santé.")
+                        Text("Aucun itinéraire n’est accessible pour cette séance. L’accès Apple Santé est peut-être à autoriser.")
                             .font(.footnote).foregroundStyle(.secondary)
-                        Button("Actualiser l'accès au parcours") {
+                        Button("Autoriser les itinéraires GPS") {
                             Task { await reader.load(workoutID: workout.source_uuid, retry: true) }
                         }
                         .font(.footnote.weight(.medium))
@@ -293,49 +357,121 @@ struct PaceRouteSection: View {
                 }
             case .error(let message):
                 PaceCard {
-                    Text("Parcours indisponible : \(message)")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Button("Réessayer") {
-                        Task { await reader.load(workoutID: workout.source_uuid, retry: true) }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Impossible de charger le parcours", systemImage: "exclamationmark.triangle")
+                            .font(.subheadline.weight(.semibold))
+                        Text(message).font(.footnote).foregroundStyle(.secondary)
+                        Button("Réessayer") {
+                            Task { await reader.load(workoutID: workout.source_uuid, retry: true) }
+                        }
                     }
                 }
             case .ready:
                 if let route = reader.track {
-                    VStack(alignment: .leading, spacing: 0) {
-                        PaceRouteMap(track: route)
-                            .frame(height: 240)
-                            .clipShape(RoundedRectangle(cornerRadius: 19))
-                            .accessibilityLabel("Carte de l'itinéraire de la séance")
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Itinéraire enregistré")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Parcours GPS · \(String(format: "%.2f", route.totalDistance / 1000).replacingOccurrences(of: ".", with: ",")) km")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button { showReplay = true } label: {
-                                Label("Survol 3D", systemImage: "play.fill")
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(PaceColors.teal)
+                    PaceRouteMap(track: route)
+                        .frame(height: 328)
+                        .overlay(alignment: .topLeading) {
+                            Label("PARCOURS GPS", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                                .font(.caption2.weight(.bold))
+                                .tracking(0.65)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(.regularMaterial, in: Capsule())
+                                .padding(15)
+                                .allowsHitTesting(false)
                         }
-                        .padding(.top, 13)
-                    }
-                    .padding(13)
-                    .modifier(PaceGlassCardSurface(cornerRadius: 24))
-                    .sheet(isPresented: $showReplay) {
-                        NavigationStack {
-                            PaceRouteFlyoverScreen(track: route, workout: workout)
+                        .overlay(alignment: .topTrailing) {
+                            Button { showFullMap = true } label: {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(width: 43, height: 43)
+                                    .background(.regularMaterial, in: Circle())
+                            }
+                            .tint(.primary)
+                            .accessibilityLabel("Agrandir la carte du parcours")
+                            .padding(15)
                         }
-                    }
+                        .overlay(alignment: .bottom) {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Ton itinéraire")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("\(readableDistance) km GPS")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 8)
+                                Button { showReplay = true } label: {
+                                    Label("Survol 3D", systemImage: "play.fill")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(PaceColors.teal)
+                                .accessibilityLabel("Lancer le survol 3D de cette activité")
+                            }
+                            .padding(12)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 19))
+                            .padding(13)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 27))
+                        .modifier(PaceGlassCardSurface(cornerRadius: 27))
+                        .sheet(isPresented: $showReplay) {
+                            NavigationStack {
+                                PaceRouteFlyoverScreen(track: route, workout: workout)
+                            }
+                        }
+                        .sheet(isPresented: $showFullMap) {
+                            NavigationStack {
+                                PaceRouteFullMapScreen(track: route, workout: workout)
+                            }
+                        }
                 }
             }
         }
         .task(id: workout.source_uuid) {
             await reader.load(workoutID: workout.source_uuid)
         }
+    }
+}
+
+/// Strava-like map focus without sacrificing native pan, zoom, or replay.
+struct PaceRouteFullMapScreen: View {
+    let track: PaceRouteTrack
+    let workout: WorkoutPayload
+    @Environment(\.dismiss) private var dismiss
+    @State private var showReplay = false
+
+    var body: some View {
+        PaceRouteMap(track: track)
+            .ignoresSafeArea(edges: .bottom)
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ton parcours").font(.subheadline.weight(.semibold))
+                        Text("\(PaceFormat.distance(workout.kilometers, places: 2)) km · \(PaceFormat.duration(workout.duration_seconds))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button { showReplay = true } label: {
+                        Label("Survol 3D", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(PaceColors.teal)
+                }
+                .padding(17)
+                .background(.regularMaterial)
+            }
+            .navigationTitle("Parcours")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showReplay) {
+                NavigationStack {
+                    PaceRouteFlyoverScreen(track: track, workout: workout)
+                }
+            }
     }
 }
 
@@ -421,7 +557,7 @@ struct PaceRouteFlyoverScreen: View {
                 Button("Fermer") { dismiss() }
             }
         }
-        .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { now in
+        .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { now in
             defer { lastTick = now }
             guard isPlaying else { return }
             let elapsed = min(0.25, max(0, now.timeIntervalSince(lastTick ?? now)))

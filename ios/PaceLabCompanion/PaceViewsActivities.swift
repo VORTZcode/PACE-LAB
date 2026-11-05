@@ -195,15 +195,15 @@ struct WorkoutDetailScreen: View {
                     if workout.isRun { PacePill(label: "\(PaceFormat.pace(workout.paceMinutes)) /km", symbol: "speedometer") }
                 }
             }
+            if workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling" {
+                PaceRouteSection(workout: workout)
+                    .id("route-map")
+            }
             if let report = coach.report(for: workout.source_uuid) {
                 PaceSessionReportInlineCard(report: report) {
                     coach.focusWorkoutID = workout.source_uuid
                     showCoach = true
                 }
-            }
-            if workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling" {
-                PaceRouteSection(workout: workout)
-                    .id("route-map")
             }
             RunDynamicsSection(original: workout)
                 .id("heart-chart")
