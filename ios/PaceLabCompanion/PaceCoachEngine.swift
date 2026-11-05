@@ -207,6 +207,9 @@ private struct PaceReviewAttempt: Codable {
     @Published var shareWaist = UserDefaults.standard.bool(forKey:"pace.coach.share-waist") {
         didSet { UserDefaults.standard.set(shareWaist,forKey:"pace.coach.share-waist") }
     }
+    @Published var shareHealthTrends = UserDefaults.standard.bool(forKey:"pace.coach.share-health-trends") {
+        didSet { UserDefaults.standard.set(shareHealthTrends,forKey:"pace.coach.share-health-trends") }
+    }
     @Published var shareNutrition = UserDefaults.standard.bool(forKey:"pace.coach.share-nutrition") {
         didSet { UserDefaults.standard.set(shareNutrition,forKey:"pace.coach.share-nutrition") }
     }
@@ -425,6 +428,7 @@ private struct PaceReviewAttempt: Codable {
         if shareRunSummaries { domains.insert("runs") }
         if shareWeight { domains.insert("weight") }
         if shareWaist { domains.insert("waist") }
+        if shareHealthTrends && PaceHealthSignals.shared.accessRequested { domains.insert("health-trends") }
         if shareNutrition { domains.insert("nutrition") }
         if shareStrengthSets { domains.insert("strength") }
         if shareHeartProfile { domains.insert("heart-profile") }
@@ -534,6 +538,9 @@ private struct PaceReviewAttempt: Codable {
                     missed.map { "\($0.date) : \($0.reason)" +
                         ($0.note.isEmpty ? "" : " (\($0.note))") }.joined(separator: " ; "))
             }
+        }
+        if shareHealthTrends && PaceHealthSignals.shared.accessRequested {
+            pieces.append(PaceHealthSignals.shared.consentedCoachContext)
         }
         if shareWeight, let weight = library.bodyLogs.last(where:{$0.weightKg != nil})?.weightKg {
             pieces.append("Dernier poids déclaré : \(PaceFormat.distance(weight,places:1)) kg. Ne permet pas d'estimer la masse grasse ou musculaire.")
