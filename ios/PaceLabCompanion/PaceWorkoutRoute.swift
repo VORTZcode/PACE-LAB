@@ -318,7 +318,7 @@ struct PaceRouteMap: UIViewRepresentable {
                 if let scene = introProgress ?? outroProgress {
                     let approaching = introProgress != nil
                     let t = min(1, max(0, scene))
-                    let easing = t * t * (3 - 2 * t)
+                    let easing = PaceFlightMotion.minimumJerk(t)
                     let startFrame = track.frame(at: approaching ? 0 : 1)
                     let rectangle = coordinator.route?.boundingMapRect ?? .world
                     let routeCenter = MKMapPoint(x: rectangle.midX, y: rectangle.midY).coordinate
@@ -356,8 +356,15 @@ struct PaceRouteMap: UIViewRepresentable {
                 let seek = shouldReset || previousFraction < 0 ||
                     abs(fraction - previousFraction) > 0.024
                 let lookAhead = min(6, track.duration * 0.003)
-                let targetCenter = track.frame(
-                    at: min(1, fraction + lookAhead / track.duration)).coordinate
+                let targetFraction = min(1, fraction + lookAhead / track.duration)
+                // Sample a short, symmetric temporal window of the recorded
+                // track: the virtual camera no longer reacts to each noisy fix.
+                let window = min(4 / track.duration, 0.008)
+                let targetCenter = PaceFlightMotion.cinematicTarget([
+                    track.frame(at: max(0, targetFraction - window)).coordinate,
+                    track.frame(at: targetFraction).coordinate,
+                    track.frame(at: min(1, targetFraction + window)).coordinate
+                ]) ?? track.frame(at: targetFraction).coordinate
                 // Anticipate the next section, avoiding tiny per-fix GPS wiggles.
                 let aheadFraction = min(1, fraction + min(25 / track.duration, 0.035))
                 let desiredHeading = track.cameraCourse(at: aheadFraction) ??
@@ -379,11 +386,11 @@ struct PaceRouteMap: UIViewRepresentable {
                 let smoothedDistance = PaceFlightMotion.scalar(
                     previous: coordinator.cameraDistance,
                     desired: followDistance * cameraMode.distanceMultiplier,
-                    seconds: dt, response: 0.75, snap: seek)
+                    seconds: dt, response: 1.05, snap: seek)
                 let smoothedPitch = PaceFlightMotion.scalar(
                     previous: coordinator.cameraPitch,
                     desired: Double(adaptivePitch),
-                    seconds: dt, response: 0.85, snap: seek)
+                    seconds: dt, response: 1.15, snap: seek)
                 coordinator.cameraDistance = smoothedDistance
                 coordinator.cameraPitch = smoothedPitch
                 let camera = MKMapCamera(

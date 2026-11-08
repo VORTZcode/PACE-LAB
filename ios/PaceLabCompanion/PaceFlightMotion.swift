@@ -14,6 +14,24 @@ enum PaceFlightMotion {
         return delta > 180 ? delta - 360 : delta
     }
 
+    /// Minimum-jerk interpolation: zero velocity and acceleration at both ends.
+    /// For the cinematic fly-in/fly-out; recorded GPS and replay progress stay untouched.
+    static func minimumJerk(_ progress: Double) -> Double {
+        let t = min(1, max(0, progress))
+        return t * t * t * (t * (t * 6 - 15) + 10)
+    }
+
+    /// Weighted projected centre around a target point. Removes the small
+    /// apparent camera twitch at GPS fixes without altering the drawn route.
+    static func cinematicTarget(_ samples: [CLLocationCoordinate2D]) -> CLLocationCoordinate2D? {
+        guard samples.count == 3,
+              samples.allSatisfy({ CLLocationCoordinate2DIsValid($0) }) else { return nil }
+        let projected = samples.map(MKProjectedPoint.init)
+        return MKProjectedPoint.coordinate(
+            x: projected[0].x * 0.22 + projected[1].x * 0.56 + projected[2].x * 0.22,
+            y: projected[0].y * 0.22 + projected[1].y * 0.56 + projected[2].y * 0.22)
+    }
+
     static func bearing(from start: CLLocationCoordinate2D,
                         to finish: CLLocationCoordinate2D,
                         minimumDistance: Double = 8) -> Double? {
@@ -36,7 +54,7 @@ enum PaceFlightMotion {
                         seconds: TimeInterval, snap: Bool = false) -> Double {
         guard let previous, !snap else { return wrap(desired) }
         let dt = min(0.3, max(0.01, seconds))
-        let alpha = 1 - exp(-dt / 0.65)
+        let alpha = 1 - exp(-dt / 0.84)
         let delta = shortestTurn(from: previous, to: desired)
         let change = max(-78 * dt, min(78 * dt, delta * alpha))
         return wrap(previous + change)
@@ -60,7 +78,7 @@ enum PaceFlightMotion {
                        seconds: TimeInterval, snap: Bool = false) -> CLLocationCoordinate2D {
         guard let previous, !snap else { return desired }
         let dt = min(0.3, max(0.01, seconds))
-        let alpha = 1 - exp(-dt / 0.55)
+        let alpha = 1 - exp(-dt / 0.75)
         let a = MKProjectedPoint(previous)
         let b = MKProjectedPoint(desired)
         let x = a.x + (b.x - a.x) * alpha
