@@ -94,13 +94,24 @@ enum PaceEvidenceEngine {
         // The model must not be its own arithmetic checker. Compare explicit
         // weekly nutrition claims with the actual 14 recipe entries.
         for note in proposedNotes where note.lowercased().contains("kcal") {
-            if let weekly = nutritionClaim(note, pattern:
-                #"(?:repas.{0,65}(?:environ|total|représentent)\s+)([0-9][0-9\s]{3,})\s*kcal"#),
-               abs(weekly - computedKcal) > 50 {
-                concerns.append("Calcul nutritionnel contradictoire : le bilan annonce \(weekly) kcal pour la semaine, mais les 14 repas totalisent \(computedKcal) kcal.")
+            // Weekly and daily claims are different quantities. The previous
+            // broad "repas ... environ N kcal" expression misread an explicitly
+            // daily 2,160 kcal value as a seven-day total and blocked adoption.
+            // Require an actual weekly scope before comparing to all 14 meals.
+            let weeklyPatterns = [
+                #"(?:14\s+repas|repas\s+de\s+la\s+semaine|total\s+hebdomadaire|bilan\s+hebdomadaire).{0,80}?([0-9][0-9\s]{3,})\s*kcal"#,
+                #"repas.{0,65}(?:environ|total|représentent)\s+([0-9][0-9\s]{3,})\s*kcal\s+(?:pour|sur|dans)\s+la\s+semaine"#
+            ]
+            for pattern in weeklyPatterns {
+                if let weekly = nutritionClaim(note, pattern: pattern),
+                   abs(weekly - computedKcal) > 50 {
+                    concerns.append("Calcul nutritionnel contradictoire : le bilan annonce \(weekly) kcal pour la semaine, mais les 14 repas totalisent \(computedKcal) kcal.")
+                    break
+                }
             }
+            // Allow the common wording "2 160 kcal et 150 g de protéines par jour".
             if let daily = nutritionClaim(note, pattern:
-                #"(?:soit|moyenne(?:\s+de)?|environ)\s+([0-9][0-9\s]{2,})\s*kcal\s+par\s+jour"#),
+                #"(?:soit|moyenne(?:\s+de)?|environ)\s+([0-9][0-9\s]{2,})\s*kcal(?:\s+et\s+\d+\s*g\s+de\s+protéines)?\s+par\s+jour"#),
                abs(daily - Int((Double(computedKcal) / 7.0).rounded())) > 10 {
                 concerns.append("Moyenne calorique contradictoire : \(daily) kcal/j annoncées contre \(Int((Double(computedKcal) / 7.0).rounded())) kcal/j calculées.")
             }

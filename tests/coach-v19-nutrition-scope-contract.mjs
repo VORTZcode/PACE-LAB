@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const gate=readFileSync('ios/PaceLabCompanion/PaceEvidenceEngine.swift','utf8');
+assert.ok(gate.includes('let weeklyPatterns = ['));
+assert.ok(gate.includes('repas\\s+de\\s+la\\s+semaine'));
+assert.ok(gate.includes('(?:pour|sur|dans)\\s+la\\s+semaine'));
+assert.ok(gate.includes('(?:\\s+et\\s+\\d+\\s*g\\s+de\\s+protéines)?'));
+assert.ok(gate.includes('abs(weekly - computedKcal) > 50'));
+assert.ok(gate.includes('abs(daily - Int((Double(computedKcal) / 7.0).rounded())) > 10'));
+assert.ok(!gate.includes('repas.{0,65}(?:environ|total|représentent)\\s+)([0-9]'), 'Old ambiguous weekly-scoped regex should be absent');
+console.log('V19 nutrition scope regression contract passed.');
