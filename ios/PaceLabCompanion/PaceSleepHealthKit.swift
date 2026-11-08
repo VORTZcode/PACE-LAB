@@ -16,6 +16,28 @@ import SwiftUI
     private var observer: HKObserverQuery?
     private var lastRefresh: Date?
 
+    func requestAccessAsync() async {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            status = "Apple Santé n'est pas disponible sur cet appareil."
+            return
+        }
+        do {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, Error>) in
+                store.requestAuthorization(toShare: [], read: [type]) { _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                }
+            }
+            monitoringEnabled = true
+            UserDefaults.standard.set(true, forKey: "pace.sleep.healthkit-requested")
+            startObservers()
+            refresh(force: true)
+        } catch {
+            status = "Demande d'accès Sommeil interrompue : \(error.localizedDescription)"
+        }
+    }
+
     func requestAccess() {
         guard HKHealthStore.isHealthDataAvailable() else {
             status = "Apple Santé n'est pas disponible sur cet appareil."

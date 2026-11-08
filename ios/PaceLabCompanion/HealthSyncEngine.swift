@@ -92,6 +92,47 @@ final class HealthSyncEngine: ObservableObject {
             }
         }
     }
+    /// Single sequential HealthKit authorization for the categories this app
+    /// can currently process. Read permission remains fully controlled by iOS.
+    func requestComprehensiveAccess() async {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            status = "HealthKit indisponible sur cet appareil."
+            return
+        }
+        let reads: Set<HKObjectType> = [
+            HKObjectType.workoutType(), HKSeriesType.workoutRoute(),
+            .quantityType(forIdentifier: .heartRate)!,
+            .quantityType(forIdentifier: .distanceWalkingRunning)!,
+            .quantityType(forIdentifier: .activeEnergyBurned)!,
+            .quantityType(forIdentifier: .heartRateRecoveryOneMinute)!,
+            .quantityType(forIdentifier: .runningSpeed)!,
+            .quantityType(forIdentifier: .runningPower)!,
+            .quantityType(forIdentifier: .runningStrideLength)!,
+            .quantityType(forIdentifier: .runningGroundContactTime)!,
+            .quantityType(forIdentifier: .runningVerticalOscillation)!
+        ]
+        do {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, Error>) in
+                healthStore.requestAuthorization(toShare: [], read: reads) { _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                }
+            }
+            advancedEnabled = true
+            UserDefaults.standard.set(true, forKey: "pace.v22.advanced")
+            for key in Array(queue.keys) where queue[key]?.activity_kind == "running" {
+                queue[key]?.advanced_loaded = false
+            }
+            storeQueue()
+            startObservers()
+            await resyncAsync()
+            status = "Demande d'accès aux activités terminée. Les données refusées restent inaccessibles."
+        } catch {
+            status = "Demande Santé interrompue : \(error.localizedDescription)"
+        }
+    }
+
     func requestPermission() {
         guard HKHealthStore.isHealthDataAvailable() else { status = "HealthKit indisponible sur cet appareil."; return }
         let reads: Set<HKObjectType> = [

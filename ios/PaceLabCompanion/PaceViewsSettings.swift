@@ -17,6 +17,19 @@ struct PaceSettingsScreen: View {
                 } icon: {
                     Image(systemName: "heart.text.square.fill").foregroundStyle(PaceColors.teal)
                 }
+                Button {
+                    Task {
+                        await engine.requestComprehensiveAccess()
+                        await sleep.requestAccessAsync()
+                        await healthSignals.requestAccess()
+                    }
+                } label: {
+                    Label("Demander les accès Santé compatibles",
+                          systemImage: "heart.text.clipboard")
+                        .font(.headline)
+                }
+                Text("iOS te présente les autorisations pour les catégories exploitées par PACE LAB : entraînements, tracés et dynamique de course, fréquence cardiaque, sommeil, mesures cardiovasculaires et corporelles. Tu peux refuser une catégorie. Cette demande n'autorise pas automatiquement l'envoi de données à ChatGPT : les réglages de partage du Coach restent distincts.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Actualiser les activités") { engine.resync() }
                 Button("Activer les mesures supplémentaires de l’Apple Watch") { engine.requestAdvancedPermission() }
                 Button(sleep.monitoringEnabled ? "Actualiser le sommeil" : "Autoriser le sommeil") {
@@ -68,7 +81,7 @@ struct PaceSettingsScreen: View {
                 } label: {
                     Label("Quelles données Santé sont exploitées ?", systemImage:"heart.text.clipboard")
                 }
-                Text("Le catalogue distingue les lecteurs intégrés des mesures encore à développer. Il n'affiche pas tes autorisations personnelles.")
+                Text("Le catalogue distingue les lecteurs intégrés des mesures encore à développer. iOS ne révèle pas à l’application quelles lectures Santé ont été refusées.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Bibliothèque locale") {

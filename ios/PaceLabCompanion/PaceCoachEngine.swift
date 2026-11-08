@@ -736,6 +736,13 @@ enum PaceSessionReviewState {
         2. DÉCIDER une cible pour la semaine suivante avec justification spécifique :
            fréquence de chaque sport, minutes de course, durée totale de charge,
            intensité, récupération, cohérence avec les quatre semaines précédentes.
+           Établir la place du programme dans une trajectoire de plusieurs semaines :
+           consolidation, développement aérobie, introduction prudente d'efforts
+           plus rapides, ou allègement. Ne pas programmer uniquement des séances
+           faciles indéfiniment : expliquer quand un travail de qualité deviendra
+           pertinent, à partir des séances effectivement tolérées et du ressenti.
+           Il n'existe pas de séance rapide obligatoire chaque semaine ; décider
+           selon le niveau, la régularité, les douleurs et la récupération.
            Préserver le fil conducteur du programme ; ne changer qu'une dimension
            importante à la fois, sauf raison de sécurité.
         3. CONSTRUIRE sept jours cohérents puis les 14 repas, en vérifiant matériel,
