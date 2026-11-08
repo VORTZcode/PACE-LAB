@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=(f)=>readFileSync('ios/PaceLabCompanion/'+f+'.swift','utf8');
+const home=read('PaceViewsCore'), act=read('PaceViewsActivities'), progress=read('PaceViewsProgress'), plan=read('PaceViewsProgramme'), coach=read('PaceCoachScreen');
+for(const term of ['struct PacePerformanceStage: View','weekRuns.reduce(0) { $0 + $1.kilometers }','calendar.isDate($0.startDate, inSameDayAs: start)','PaceInsightScreen(kind: .week)','PacePerformanceStage(runs: engine.runHistory)','PaceSectionTitle(title: "À toi de jouer"','PaceColors.surface,','PaceColors.porcelain.opacity(0.075)'])assert.ok(home.includes(term),`Home design requirement: ${term}`);
+assert.ok(home.indexOf('PacePerformanceStage(runs: engine.runHistory)') < home.indexOf('PaceLivingCoachCard { destination in'));
+for(const term of ['DERNIÈRE COURSE / GPS','ALLURE MOY.','PaceFormat.heart(workout.hr_average_bpm)','OUVRIR L’ACTIVITÉ ET LE SURVOL 3D','TOUTES TES SORTIES.'])assert.ok(act.includes(term),`Activities design requirement: ${term}`);
+for(const term of ['DISTANCE CUMULÉE /','12 MOIS · VOLUME ENREGISTRÉ','let peak = max(monthSeries.map','yearRuns.reduce(0) { $0 + $1.duration_seconds }'])assert.ok(progress.includes(term),`Progress requirement: ${term}`);
+for(const term of ['PaceSectionTitle(title: "Ta semaine"','ScrollView(.horizontal, showsIndicators: false)','NavigationLink { DayDetailScreen(day: day) } label:','library.completed.contains(day.date)','PaceSectionTitle(title: "Le détail des séances")'])assert.ok(plan.includes(term),`Plan requirement: ${term}`);
+assert.ok(coach.includes('LA SCIENCE DU PROGRÈS.'));
+assert.ok(coach.includes('if activeTab != .chat {'));
+assert.ok(home.includes('PaceGlassTreatment'), 'Floating controls still have native treatment');
+assert.ok(!home.includes('content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))'), 'Data cards must not all use Liquid Glass');
+console.log('V18 structural product redesign contracts: passed');

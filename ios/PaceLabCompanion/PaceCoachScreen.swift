@@ -49,6 +49,38 @@ struct PaceCoachScreen: View {
             ScrollView {
                 LazyVStack(alignment:.leading,spacing:22) {
                     PaceBrandLine(subtitle: "INTELLIGENCE / ENTRAÎNEMENT / PROGRESSION")
+                    if activeTab != .chat {
+                        VStack(alignment: .leading, spacing: 13) {
+                            HStack {
+                                PaceEyebrow(title: "COACH / DONNÉES OBSERVÉES")
+                                Spacer(minLength: 0)
+                                Image(systemName: "brain.head.profile")
+                                    .foregroundStyle(PaceColors.volt)
+                            }
+                            Text("LA SCIENCE DU PROGRÈS.")
+                                .font(.system(size: 24, weight: .black, design: .rounded))
+                                .tracking(-0.8)
+                                .foregroundStyle(PaceColors.porcelain)
+                                .fixedSize(horizontal: false, vertical: true)
+                            HStack(spacing: 15) {
+                                let recent = engine.runHistory.filter {
+                                    $0.startDate >= Date.now.addingTimeInterval(-7 * 86400)
+                                    && $0.startDate <= .now
+                                }
+                                Label("\(recent.count) courses / 7 j", systemImage: "figure.run")
+                                Spacer(minLength: 0)
+                                if coach.pending != nil {
+                                    Label("Plan à examiner", systemImage: "doc.text.magnifyingglass")
+                                        .foregroundStyle(PaceColors.volt)
+                                }
+                            }
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(PaceColors.titanium)
+                        }
+                        .padding(18)
+                        .background(PaceColors.surface,
+                                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
                     if client.planUsageEnabled {
                         if athleteProfile.profile == nil { coachHeader }
                         else if !athleteProfile.shareProfile {

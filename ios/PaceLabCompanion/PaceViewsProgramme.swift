@@ -181,6 +181,57 @@ struct ProgrammeScreen: View {
                         }
                     }
                 }
+                PaceSectionTitle(title: "Ta semaine", subtitle: "Accès rapide")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 9) {
+                        ForEach(library.currentPlan) { day in
+                            let isDone = library.completed.contains(day.date)
+                            let isMissed = library.missedSessions[day.date] != nil
+                            NavigationLink { DayDetailScreen(day: day) } label: {
+                                VStack(alignment: .leading, spacing: 11) {
+                                    HStack {
+                                        Text(String(day.day.prefix(3)).uppercased())
+                                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                            .tracking(1)
+                                        Spacer(minLength: 1)
+                                        if isDone {
+                                            Image(systemName: "checkmark.circle.fill")
+                                        } else if isMissed {
+                                            Image(systemName: "minus.circle.fill")
+                                        }
+                                    }
+                                    .foregroundStyle(isDone ? PaceColors.onVolt : PaceColors.titanium)
+                                    Image(systemName: day.type == "Course" ? "figure.run" :
+                                          day.type == "Musculation" ? "dumbbell.fill" : "leaf.fill")
+                                        .font(.system(size: 23, weight: .medium))
+                                        .foregroundStyle(isDone ? PaceColors.onVolt : PaceColors.volt)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(day.type == "Musculation" ? "MUSCU" : day.type.uppercased())
+                                            .font(.system(size: 9, weight: .black, design: .rounded))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
+                                        Text("\(Int(day.minutes)) MIN")
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                            .monospacedDigit()
+                                    }
+                                    .foregroundStyle(isDone ? PaceColors.onVolt : PaceColors.porcelain)
+                                }
+                                .padding(12)
+                                .frame(width: 110, height: 130, alignment: .topLeading)
+                                .background(isDone ? PaceColors.volt : PaceColors.surface,
+                                            in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                        .strokeBorder(isDone ? PaceColors.volt : PaceColors.volt.opacity(0.15), lineWidth: 1)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(day.day), \(day.title), \(Int(day.minutes)) minutes\(isDone ? ", réalisée" : "")")
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                PaceSectionTitle(title: "Le détail des séances")
                 LazyVStack(spacing: 10) {
                     ForEach(library.currentPlan) { day in
                         let isCurrent = Calendar.current.isDateInToday({

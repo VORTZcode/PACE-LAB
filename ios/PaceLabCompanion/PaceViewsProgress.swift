@@ -91,9 +91,63 @@ struct ProgressScreen: View {
                     }
                     .modifier(PaceGlassTreatment())
                 }
-                HStack(spacing: 10) {
-                    PaceMetric(caption: "Distance totale", value: PaceFormat.distance(engine.totalDistance(year: selectedYear)), suffix: "km", symbol: "figure.run")
-                    PaceMetric(caption: "Courses", value: "\(yearRuns.count)", suffix: "", symbol: "calendar")
+                // Real, year-scoped performance record. Dominant sports
+                // typography precedes the evidence and analytical modules.
+                VStack(alignment: .leading, spacing: 13) {
+                    HStack {
+                        PaceEyebrow(title: "DISTANCE CUMULÉE / \(selectedYear)")
+                        Spacer(minLength: 0)
+                        Image(systemName: "chart.xyaxis.line")
+                            .foregroundStyle(PaceColors.volt)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(PaceFormat.distance(engine.totalDistance(year: selectedYear), places: 1))
+                            .font(.system(size: 55, weight: .black, design: .rounded))
+                            .tracking(-2.5)
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.65)
+                            .lineLimit(1)
+                            .foregroundStyle(PaceColors.porcelain)
+                        Text("KM")
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .tracking(1.6)
+                            .foregroundStyle(PaceColors.volt)
+                    }
+                    HStack(spacing: 17) {
+                        Label("\(yearRuns.count) courses", systemImage: "figure.run")
+                        Text("·")
+                        Label(PaceFormat.duration(yearRuns.reduce(0) { $0 + $1.duration_seconds }),
+                              systemImage: "clock")
+                        Spacer(minLength: 0)
+                    }
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(PaceColors.titanium)
+                    GeometryReader { geo in
+                        HStack(spacing: 3) {
+                            let peak = max(monthSeries.map(\.distance).max() ?? 0, 0.1)
+                            ForEach(monthSeries) { item in
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(item.distance > 0 ? PaceColors.volt : PaceColors.volt.opacity(0.12))
+                                        .frame(height: max(3, geo.size.height * item.distance / peak))
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
+                    .frame(height: 39)
+                    Text("12 MOIS · VOLUME ENREGISTRÉ")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .tracking(1.3)
+                        .foregroundStyle(PaceColors.titanium)
+                }
+                .padding(21)
+                .background(PaceColors.surface,
+                            in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(PaceColors.volt.opacity(0.15), lineWidth: 1)
                 }
                 PaceProgressEvidencePanel(snapshot: evidence,
                                           runningGoal: athleteProfile.profile?.runningGoal)

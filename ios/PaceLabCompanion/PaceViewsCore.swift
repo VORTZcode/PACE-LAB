@@ -84,6 +84,122 @@ struct PaceAthleticHero: View {
     }
 }
 
+/// Actual seven-day distances, not decorative graph data. A connected,
+/// destination-backed performance stage replaces the former decorative motto.
+struct PacePerformanceStage: View {
+    let runs: [WorkoutPayload]
+    private var calendar: Calendar { .current }
+    private var weekStart: Date {
+        calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: .now)) ?? .now
+    }
+    private var weekRuns: [WorkoutPayload] {
+        runs.filter { $0.startDate >= weekStart && $0.startDate <= .now }
+    }
+    private var weekDistance: Double { weekRuns.reduce(0) { $0 + $1.kilometers } }
+    private var weekDuration: Double { weekRuns.reduce(0) { $0 + $1.duration_seconds } }
+    private var dailyBars: [Double] {
+        (0..<7).map { day in
+            guard let start = calendar.date(byAdding: .day, value: day, to: weekStart) else { return 0 }
+            return weekRuns.filter { calendar.isDate($0.startDate, inSameDayAs: start) }
+                .reduce(0) { $0 + $1.kilometers }
+        }
+    }
+    var body: some View {
+        NavigationLink {
+            PaceInsightScreen(kind: .week)
+        } label: {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("ATHLETE / 7 JOURS")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .tracking(2.0)
+                            .foregroundStyle(PaceColors.volt)
+                        Text("LE MOUVEMENT\nEN CHIFFRES.")
+                            .font(.system(size: 29, weight: .black, design: .rounded))
+                            .italic()
+                            .tracking(-1.15)
+                            .foregroundStyle(PaceColors.porcelain)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(PaceColors.volt)
+                        .frame(width: 38, height: 38)
+                        .background(.white.opacity(0.08), in: Circle())
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(PaceFormat.distance(weekDistance, places: 2))
+                        .font(.system(size: 57, weight: .black, design: .rounded))
+                        .tracking(-2.8)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .minimumScaleFactor(0.65)
+                        .lineLimit(1)
+                        .foregroundStyle(PaceColors.porcelain)
+                    Text("KM")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(PaceColors.volt)
+                }
+                HStack(alignment: .bottom, spacing: 7) {
+                    let distances = dailyBars
+                    let largest = max(distances.max() ?? 0, 0.1)
+                    ForEach(0..<7, id: \.self) { index in
+                        VStack(spacing: 8) {
+                            GeometryReader { geo in
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(distances[index] > 0 ? PaceColors.volt : .white.opacity(0.11))
+                                        .frame(height: max(5, geo.size.height * distances[index] / largest))
+                                }
+                            }
+                            .frame(height: 57)
+                            Text(calendar.date(byAdding: .day, value: index, to: weekStart)?
+                                .formatted(.dateTime.weekday(.narrow).locale(Locale(identifier: "fr_FR"))) ?? "")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(PaceColors.titanium)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                HStack(spacing: 14) {
+                    Label("\(weekRuns.count) sorties", systemImage: "figure.run")
+                    Text("•")
+                    Label(PaceFormat.duration(weekDuration), systemImage: "clock")
+                    Spacer(minLength: 0)
+                    Text("ANALYSER")
+                        .tracking(1)
+                        .foregroundStyle(PaceColors.volt)
+                }
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(PaceColors.titanium)
+            }
+            .padding(21)
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(PaceColors.surface)
+                    .overlay(alignment: .topTrailing) {
+                        Circle().fill(PaceColors.volt.opacity(0.09))
+                            .frame(width: 185, height: 185)
+                            .blur(radius: 45)
+                            .offset(x: 65, y: -65)
+                            .clipped()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(PaceColors.volt.opacity(0.15), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Performance des sept derniers jours : \(PaceFormat.distance(weekDistance, places: 2)) kilomètres, \(weekRuns.count) sorties. Voir le détail.")
+    }
+}
+
 struct PaceEyebrow: View {
     let title: String
     var body: some View {
@@ -199,19 +315,20 @@ struct PaceScreen<Content: View>: View {
 
 /// Quiet Liquid Glass for reading surfaces. It intentionally has no interactive
 /// glass response: only buttons and controls should react to touch.
+/// V18: opaque athletic data surfaces. Transparent glass belongs to
+/// floating actions, not every scrollable information card.
 struct PaceGlassCardSurface: ViewModifier {
     var cornerRadius: CGFloat = 22
 
-    @ViewBuilder func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .background(PaceColors.surface.opacity(0.63),
-                            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-        } else {
-            content.background(PaceColors.surface,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
+    func body(content: Content) -> some View {
+        content
+            .background(PaceColors.surface,
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(PaceColors.porcelain.opacity(0.075), lineWidth: 0.75)
+                    .allowsHitTesting(false)
+            }
     }
 }
 
@@ -256,8 +373,9 @@ struct TodayScreen: View {
                     Label("Apple Santé", systemImage: "heart.text.square")
                         .font(.caption.weight(.medium)).foregroundStyle(PaceColors.teal)
                 }
-                PaceAthleticHero()
-                // One clear hero instead of competing cards: the next actionable workout.
+                PacePerformanceStage(runs: engine.runHistory)
+                // One clear actionable workout after a real, clickable performance stage.
+                PaceSectionTitle(title: "À toi de jouer", subtitle: "Prochaine étape")
                 if let day = library.nextDay {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -336,15 +454,6 @@ struct TodayScreen: View {
                     }
                 }
 
-                PaceLivingCoachCard { destination in
-                    switch destination {
-                    case "programme": tabs.selected = .programme
-                    case "plan": tabs.openCoach(.programme)
-                    case "bilans": tabs.openCoach(.bilans)
-                    case "settings": tabs.openCoach(.settings)
-                    default: tabs.openCoach(.discussion)
-                    }
-                }
                 PaceSectionTitle(title: "Votre activité")
                 if let latest = engine.snapshot.first {
                     NavigationLink {
@@ -388,6 +497,15 @@ struct TodayScreen: View {
                         .modifier(PaceGlassCardSurface(cornerRadius: 20))
                     }
                     .buttonStyle(.plain)
+                }
+                PaceLivingCoachCard { destination in
+                    switch destination {
+                    case "programme": tabs.selected = .programme
+                    case "plan": tabs.openCoach(.programme)
+                    case "bilans": tabs.openCoach(.bilans)
+                    case "settings": tabs.openCoach(.settings)
+                    default: tabs.openCoach(.discussion)
+                    }
                 }
                 HStack(spacing: 10) {
                     NavigationLink {

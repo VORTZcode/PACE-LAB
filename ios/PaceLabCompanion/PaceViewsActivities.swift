@@ -70,6 +70,12 @@ struct ActivitiesScreen: View {
     var body: some View {
         NavigationStack {
             PaceScreen(title: "Activités") {
+                VStack(alignment: .leading, spacing: 5) {
+                    PaceEyebrow(title: "JOURNAL / PERFORMANCE")
+                    Text("TOUTES TES SORTIES.")
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .tracking(-0.65)
+                }
                 if let featuredRun {
                     PaceFeaturedRunCard(workout: featuredRun)
                 }
@@ -716,80 +722,100 @@ struct StrengthWorkoutDetailScreen: View {
 
 /// Only the most recent run asks HealthKit for a route thumbnail. No hidden
 /// per-row GPS reads, no fabricated trace, and no share with the AI service.
+/// Editorial activity feature driven exclusively by the saved workout.
+/// The route is available on the destination detail screen, never fabricated here.
 private struct PaceFeaturedRunCard: View {
     let workout: WorkoutPayload
     var body: some View {
         NavigationLink {
             WorkoutDetailScreen(workout: workout)
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .topLeading) {
-                    LinearGradient(colors: [
-                        PaceColors.teal.opacity(0.26), PaceColors.surface,
-                        PaceColors.teal.opacity(0.10)
-                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    // Editorial hero: no live MapKit view in a scrolling list.
-                    // The actual GPS track is displayed in WorkoutDetailScreen.
-                    VStack(alignment: .leading, spacing: 8) {
-                        Spacer(minLength: 0)
-                        Text(PaceFormat.distance(workout.kilometers, places: 2))
-                            .font(.system(size: 56, weight: .light, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                        HStack(spacing: 9) {
-                            Text("KILOMÈTRES")
-                                .font(.caption2.weight(.bold))
-                                .tracking(2)
-                            Image(systemName: "arrow.up.right")
-                            Text("VOIR LE PARCOURS")
-                                .font(.caption2.weight(.bold))
-                                .tracking(0.7)
-                        }
-                        .foregroundStyle(PaceColors.teal)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 27)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    Label("DERNIÈRE COURSE", systemImage: "figure.run")
-                        .font(.caption2.weight(.bold))
-                        .tracking(0.7)
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(14)
-                }
-                .frame(height: 138)
-                .clipped()
-                HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
+                        Text("DERNIÈRE COURSE / GPS")
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .tracking(1.65)
+                            .foregroundStyle(PaceColors.volt)
                         Text(PaceFormat.fullDate(workout.startDate).capitalized)
-                            .font(.caption).foregroundStyle(.secondary)
-                        Text(PaceFormat.distance(workout.kilometers, places: 2) + " km")
-                            .font(.system(.title2, design: .rounded, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .monospacedDigit()
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(PaceColors.titanium)
                     }
-                    Spacer(minLength: 4)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(PaceFormat.pace(workout.paceMinutes) + " /km")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text(PaceFormat.duration(workout.duration_seconds))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    Spacer(minLength: 8)
                     Image(systemName: "arrow.up.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(PaceColors.teal)
-                        .padding(.leading, 4)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(PaceColors.onVolt)
+                        .frame(width: 37, height: 37)
+                        .background(PaceColors.volt, in: Circle())
                 }
-                .padding(16)
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(PaceFormat.distance(workout.kilometers, places: 2))
+                        .font(.system(size: 65, weight: .black, design: .rounded))
+                        .tracking(-3.1)
+                        .monospacedDigit()
+                        .foregroundStyle(PaceColors.porcelain)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text("KM")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .tracking(1.3)
+                        .foregroundStyle(PaceColors.volt)
+                }
+                Rectangle()
+                    .fill(PaceColors.volt)
+                    .frame(height: 3)
+                    .clipShape(Capsule())
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ALLURE MOY.")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .tracking(1)
+                            .foregroundStyle(PaceColors.titanium)
+                        Text(PaceFormat.pace(workout.paceMinutes) + " /km")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(PaceColors.porcelain)
+                    }
+                    Spacer(minLength: 6)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("DURÉE")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .tracking(1)
+                            .foregroundStyle(PaceColors.titanium)
+                        Text(PaceFormat.duration(workout.duration_seconds))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(PaceColors.porcelain)
+                    }
+                    Spacer(minLength: 6)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("FC MOY.")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .tracking(1)
+                            .foregroundStyle(PaceColors.titanium)
+                        Text(PaceFormat.heart(workout.hr_average_bpm))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(PaceColors.porcelain)
+                    }
+                }
+                HStack(spacing: 7) {
+                    Image(systemName: "map.fill")
+                    Text("OUVRIR L’ACTIVITÉ ET LE SURVOL 3D")
+                        .tracking(0.7)
+                }
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(PaceColors.volt)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .modifier(PaceGlassCardSurface(cornerRadius: 24))
+            .padding(21)
+            .background(PaceColors.surface,
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(PaceColors.volt.opacity(0.22), lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Dernière course, \(PaceFormat.distance(workout.kilometers, places: 2)) kilomètres. Ouvrir la fiche.")
+        .accessibilityLabel("Dernière course, \(PaceFormat.distance(workout.kilometers, places: 2)) kilomètres. Ouvrir l'activité.")
     }
 }
