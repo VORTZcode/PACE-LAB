@@ -221,7 +221,12 @@ struct PaceCoachScreen: View {
                 Button("Adopter") {
                     guard let pending = coach.pending else { return }
                     let evidence = PaceEvidenceEngine.evaluate(engine.runHistory)
-                    let concerns = PaceEvidenceEngine.review(plan:pending,baseline:evidence,profile:athleteProfile.profile)
+                    let lastWeek = Date().addingTimeInterval(-7 * 86400)
+                    let actualStrength = engine.snapshot.filter {
+                        $0.activity_kind == "strength" && $0.startDate >= lastWeek && $0.startDate <= .now
+                    }.count
+                    let concerns = PaceEvidenceEngine.review(plan:pending,baseline:evidence,
+                        profile:athleteProfile.profile,observedStrengthLast7:actualStrength)
                     guard concerns.isEmpty,
                           pending.adjustmentRationale?.isEmpty == false,
                           pending.evidenceNotes?.isEmpty == false else {

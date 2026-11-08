@@ -75,7 +75,8 @@ enum PaceEvidenceEngine {
 
     /// Safety gate, not a validated universal training rule; protects against unexplained jumps.
     static func review(plan:PaceAICoachDraft,baseline:PaceTrainingEvidence,
-                       profile:PaceAthleteProfile? = nil) -> [String] {
+                       profile:PaceAthleteProfile? = nil,
+                       observedStrengthLast7:Int? = nil) -> [String] {
         var concerns:[String] = []
         let runs = plan.training.filter { $0.type == "Course" }
         if runs.isEmpty { concerns.append("Aucune course planifiée malgré l’objectif de course.") }
@@ -102,6 +103,24 @@ enum PaceEvidenceEngine {
         }
         if runs.contains(where:{ $0.effortCategory == nil }) {
             concerns.append("Intensité prévue absente : impossible d’évaluer la répartition des efforts.")
+        }
+        // A distance labelled as total walking + running is not a running-distance
+        // target. A reviewer cannot compare it with Apple Health running mileage.
+        if runs.contains(where: { day in
+            let wording = day.instructions.lowercased()
+            return wording.contains("marche comprise") ||
+                   wording.contains("marche incluse") ||
+                   wording.contains("distance de l’ensemble") ||
+                   wording.contains("distance totale, marche")
+        }) {
+            concerns.append("Au moins une distance de course inclut la marche : séparer les kilomètres réellement courus de la marche avant toute comparaison.")
+        }
+        if let observedStrengthLast7, observedStrengthLast7 >= 0 {
+            let proposed = plan.training.filter { $0.type == "Musculation" }.count
+            if proposed > observedStrengthLast7 && observedStrengthLast7 > 0 &&
+                (plan.adjustmentRationale ?? "").lowercased().contains("conserver les") {
+                concerns.append("Le bilan annonce une fréquence de musculation conservée alors que le nombre de séances proposées dépasse celui réellement effectué.")
+            }
         }
         let values = runs.compactMap(\.plannedDistanceKm)
         if let biggest = values.max(),baseline.longestRun28Days > 0,

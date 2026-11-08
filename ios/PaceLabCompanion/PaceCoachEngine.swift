@@ -728,6 +728,25 @@ enum PaceSessionReviewState {
         let instructions = """
         Tu es le coach sportif personnel de PACE LAB. Réponds en français.
         Tu proposes un projet de plan ; tu n'agis jamais sur l'application directement.
+        MÉTHODE IMPÉRATIVE, avant de produire le JSON final :
+        1. ÉTABLIR les faits vérifiables de la semaine : courses (km et minutes
+           séparés des marches), renforcement réellement enregistré, séances manquées,
+           douleur et RPE connus, sommeil disponible et incertitudes. Les cases cochées
+           seules ne prouvent pas qu'une séance a eu lieu.
+        2. DÉCIDER une cible pour la semaine suivante avec justification spécifique :
+           fréquence de chaque sport, minutes de course, durée totale de charge,
+           intensité, récupération, cohérence avec les quatre semaines précédentes.
+           Préserver le fil conducteur du programme ; ne changer qu'une dimension
+           importante à la fois, sauf raison de sécurité.
+        3. CONSTRUIRE sept jours cohérents puis les 14 repas, en vérifiant matériel,
+           charge récupérable, repos, nutrition et préférences confirmées.
+        4. S'AUDITER : rechercher contradictons entre chiffres et justifications,
+           confusion course/marche, progression excessive ou réduction arbitraire,
+           nombre de séances incohérent, deux jours exigeants proches, quantités
+           alimentaires non justifiées. Corriger AVANT la sortie.
+        Inscrire dans evidenceNotes les faits et incertitudes, et dans
+        adjustmentRationale la décision chiffrée avec les options écartées.
+        Ne pas afficher les étapes intermédiaires : produire UNIQUEMENT le JSON final.
         Utilise explicitement le profil confirmé, le volume sur 28 jours, la tendance sur
         56 jours uniquement si elle est exploitable, le nombre de courses et la difficulté
         ressentie lorsqu'elle est effectivement renseignée. Ne déduis jamais un effort
@@ -795,7 +814,32 @@ enum PaceSessionReviewState {
         let date = DateFormatter()
         date.locale = Locale(identifier:"en_US_POSIX")
         date.dateFormat = "yyyy-MM-dd"
-        let input = "Début du programme : \(date.string(from:tomorrow)).\n" + contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep)
+        let analysisDate = Date()
+        let pastSevenDays = analysisDate.addingTimeInterval(-7 * 86400)
+        let observed = engine.snapshot.filter {
+            $0.startDate >= pastSevenDays && $0.startDate <= analysisDate
+        }
+        let recentRuns = observed.filter { $0.isRun }
+        let recentWalking = observed.filter { $0.activity_kind == "walking" }
+        let recentStrength = observed.filter { $0.activity_kind == "strength" }
+        let runMinutes = recentRuns.reduce(0.0) { $0 + $1.duration_seconds / 60 }
+        let walkMinutes = recentWalking.reduce(0.0) { $0 + $1.duration_seconds / 60 }
+        let strengthMinutes = recentStrength.reduce(0.0) { $0 + $1.duration_seconds / 60 }
+        let runKm = recentRuns.reduce(0.0) { $0 + max(0, $1.kilometers) }
+        let walkKm = recentWalking.reduce(0.0) { $0 + max(0, $1.kilometers) }
+        let measuredSummary = """
+        BILAN HEBDOMADAIRE DÉTERMINISTE (fenêtre glissante de 7 jours) :
+        \(recentRuns.count) courses ; \(PaceFormat.distance(runKm,places:2)) km de COURSE et \(Int(runMinutes)) min de course enregistrée.
+        \(recentWalking.count) marches ; \(PaceFormat.distance(walkKm,places:2)) km de MARCHE et \(Int(walkMinutes)) min de marche enregistrée.
+        \(shareStrengthSets ? "\(recentStrength.count) séances de renforcement et \(Int(strengthMinutes)) min enregistrées." : "Données de renforcement non autorisées pour partage.")
+        Les distances des marches ne sont JAMAIS ajoutées à la distance courue.
+        Les durées proviennent de séances Apple Santé et ne mesurent pas une
+        fatigue physiologique individuelle. Les activités non enregistrées ou
+        non synchronisées peuvent manquer.
+        """
+        let input = "Début du programme : \(date.string(from:tomorrow)).\n" +
+            measuredSummary + "\n" +
+            contextPreview(engine:engine,library:library,journal:journal,profile:profile,strength:strength,sleep:sleep)
         do {
             let text = try await client.answer(instructions:instructions,input:input)
             let draft = try PaceAICoachDraft.extract(from:text)
@@ -804,7 +848,12 @@ enum PaceSessionReviewState {
                 throw PaceChatError.invalid("Le programme n'explique pas ses sources ni la raison des ajustements.")
             }
             let baseline = PaceEvidenceEngine.evaluate(engine.runHistory)
-            let concerns = PaceEvidenceEngine.review(plan:draft,baseline:baseline,profile:profile?.profile)
+            let lastWeek = Date().addingTimeInterval(-7 * 86400)
+            let actualStrength = engine.snapshot.filter {
+                $0.activity_kind == "strength" && $0.startDate >= lastWeek && $0.startDate <= .now
+            }.count
+            let concerns = PaceEvidenceEngine.review(plan:draft,baseline:baseline,
+                profile:profile?.profile,observedStrengthLast7:actualStrength)
             evidenceConcerns = concerns
             if !concerns.isEmpty {
                 throw PaceChatError.invalid("Proposition non validée : " + concerns.joined(separator:" · ") +

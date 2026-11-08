@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const coach=readFileSync('ios/PaceLabCompanion/PaceCoachEngine.swift','utf8');
+const evidence=readFileSync('ios/PaceLabCompanion/PaceEvidenceEngine.swift','utf8');
+const screen=readFileSync('ios/PaceLabCompanion/PaceCoachScreen.swift','utf8');
+for(const phrase of ['MÉTHODE IMPÉRATIVE','1. ÉTABLIR','2. DÉCIDER','3. CONSTRUIRE','4. S\'AUDITER','recentWalking','recentStrength','runKm','walkKm','Les distances des marches ne sont JAMAIS ajoutées']) assert.ok(coach.includes(phrase),phrase);
+assert.ok(evidence.includes('marche comprise'));
+assert.ok(evidence.includes('observedStrengthLast7'));
+assert.ok(coach.includes('observedStrengthLast7:actualStrength'));
+assert.ok(screen.includes('observedStrengthLast7:actualStrength'));
+console.log('V9 coach decision-stage and validation source contracts passed');
