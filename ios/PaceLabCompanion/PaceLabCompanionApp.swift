@@ -94,7 +94,8 @@ struct PaceLabCompanionApp: App {
                     .tabItem { Label("Nutrition", systemImage: "fork.knife") }
                     .tag(PacePrimaryTab.nutrition)
             }
-            .tint(PaceColors.teal)
+            .tint(PaceColors.volt)
+            .preferredColorScheme(.dark)
             .environmentObject(tabs)
             .environmentObject(engine)
             .environmentObject(library)

@@ -53,7 +53,7 @@ struct NutritionScreen: View {
                             } label: {
                                 Text(String(name.prefix(3)).capitalized)
                                     .font(.subheadline.weight(selected == name ? .semibold : .regular))
-                                    .foregroundStyle(selected == name ? Color.white : Color.primary)
+                                    .foregroundStyle(selected == name ? PaceColors.onVolt : Color.primary)
                                     .padding(.horizontal, 15)
                                     .padding(.vertical, 11)
                                     .background(selected == name ? PaceColors.teal : PaceColors.surface, in: Capsule())

@@ -1,14 +1,87 @@
 import SwiftUI
 import Charts
 
-/// PACE LAB 4.0 design tokens: a single visual rhythm across all major screens.
+/// PACE-LAB / ATHLETIC PRECISION — shared spacing, type and surfaces.
 enum PaceDesign {
     static let screenInset: CGFloat = 19
-    static let sectionSpacing: CGFloat = 23
-    static let cardRadius: CGFloat = 24
-    static let compactRadius: CGFloat = 18
+    static let sectionSpacing: CGFloat = 24
+    static let cardRadius: CGFloat = 20
+    static let compactRadius: CGFloat = 16
     static let cardInset: CGFloat = 19
     static let rowMinHeight: CGFloat = 52
+}
+
+/// The brand monogram is deliberately vector-native: sharp P motion mark,
+/// consistent on every device size, without adding external font dependencies.
+struct PaceBrandMark: View {
+    var side: CGFloat = 34
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
+                .fill(PaceColors.volt)
+            Text("P")
+                .font(.system(size: side * 0.75, weight: .black, design: .rounded))
+                .italic()
+                .foregroundStyle(PaceColors.onVolt)
+                .offset(x: -side * 0.015, y: -side * 0.02)
+        }
+        .frame(width: side, height: side)
+        .accessibilityLabel("PACE-LAB")
+    }
+}
+
+struct PaceBrandLine: View {
+    var subtitle: String = "PRECISION / PERFORMANCE / PROGRESSION"
+    var body: some View {
+        HStack(spacing: 10) {
+            PaceBrandMark(side: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("PACE—LAB")
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .tracking(-0.45)
+                    .foregroundStyle(PaceColors.porcelain)
+                Text(subtitle)
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .tracking(1.0)
+                    .foregroundStyle(PaceColors.titanium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Distinctive athletic headline used only on the home screen.
+/// It contains no synthetic performance metrics or training promises.
+struct PaceAthleticHero: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("RUN")
+                    .foregroundStyle(PaceColors.porcelain)
+                Text("BEYOND.")
+                    .foregroundStyle(PaceColors.volt)
+            }
+            .font(.system(size: 38, weight: .black, design: .rounded))
+            .italic()
+            .tracking(-2.1)
+            .minimumScaleFactor(0.8)
+            .lineLimit(1)
+            Spacer(minLength: 0)
+            Image(systemName: "figure.run")
+                .font(.system(size: 32, weight: .ultraLight))
+                .foregroundStyle(PaceColors.volt)
+                .frame(width: 58, height: 58)
+                .background(PaceColors.volt.opacity(0.095),
+                            in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("RUN BEYOND. PACE-LAB, performance sportive")
+    }
 }
 
 struct PaceEyebrow: View {
@@ -16,7 +89,7 @@ struct PaceEyebrow: View {
     var body: some View {
         Text(title.uppercased())
             .font(.system(.caption2, design: .rounded, weight: .bold))
-            .tracking(1.25)
+            .tracking(1.6)
             .foregroundStyle(PaceColors.teal)
             .accessibilityAddTraits(.isHeader)
     }
@@ -37,7 +110,7 @@ struct PaceSectionTitle: View {
     var subtitle: String? = nil
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.system(.title3, design: .rounded, weight: .semibold))
+            Text(title).font(.system(.title3, design: .rounded, weight: .bold))
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             if let subtitle { Text(subtitle).font(.footnote).foregroundStyle(.secondary) }
@@ -56,7 +129,7 @@ struct PaceMetric: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(PaceColors.teal)
             VStack(alignment: .leading, spacing: 4) {
-                Text(value).font(.system(.title2, design: .rounded, weight: .semibold))
+                Text(value).font(.system(.title2, design: .rounded, weight: .black))
                     .monospacedDigit()
                     + Text(" " + suffix).font(.subheadline.weight(.regular)).foregroundStyle(.secondary)
                 Text(caption).font(.caption).foregroundStyle(.secondary)
@@ -108,6 +181,8 @@ struct PaceScreen<Content: View>: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: PaceDesign.sectionSpacing) {
+                PaceBrandLine()
+                    .padding(.bottom, 3)
                 content
             }
             .padding(.horizontal, PaceDesign.screenInset)
@@ -118,7 +193,7 @@ struct PaceScreen<Content: View>: View {
         }
         .background(PaceColors.base)
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -129,9 +204,12 @@ struct PaceGlassCardSurface: ViewModifier {
 
     @ViewBuilder func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+            content
+                .background(PaceColors.surface.opacity(0.63),
+                            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
         } else {
-            content.background(.regularMaterial,
+            content.background(PaceColors.surface,
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
@@ -178,6 +256,7 @@ struct TodayScreen: View {
                     Label("Apple Santé", systemImage: "heart.text.square")
                         .font(.caption.weight(.medium)).foregroundStyle(PaceColors.teal)
                 }
+                PaceAthleticHero()
                 // One clear hero instead of competing cards: the next actionable workout.
                 if let day = library.nextDay {
                     VStack(alignment: .leading, spacing: 10) {
@@ -226,7 +305,8 @@ struct TodayScreen: View {
                             .padding(.vertical, 5)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(PaceColors.teal)
+                        .tint(PaceColors.volt)
+                        .foregroundStyle(PaceColors.onVolt)
                         .controlSize(.large)
                     }
                     .padding(17)

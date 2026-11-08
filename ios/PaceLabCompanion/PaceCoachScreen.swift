@@ -48,6 +48,7 @@ struct PaceCoachScreen: View {
             ScrollViewReader { chatScroll in
             ScrollView {
                 LazyVStack(alignment:.leading,spacing:22) {
+                    PaceBrandLine(subtitle: "INTELLIGENCE / ENTRAÎNEMENT / PROGRESSION")
                     if client.planUsageEnabled {
                         if athleteProfile.profile == nil { coachHeader }
                         else if !athleteProfile.shareProfile {
@@ -168,7 +169,7 @@ struct PaceCoachScreen: View {
                 navigateToCoachDestination(destination)
             }
             .navigationTitle("Coach")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement:.topBarTrailing) {
                     if client.planUsageEnabled {

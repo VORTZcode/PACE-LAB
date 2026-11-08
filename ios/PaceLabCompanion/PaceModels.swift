@@ -374,16 +374,22 @@ enum PaceFormat {
     static func fullDate(_ date: Date) -> String { date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().locale(Locale(identifier: "fr_FR"))) }
 }
 
+/// PACE-LAB V17 — Athletic Precision. One palette for every native module.
 enum PaceColors {
-    static let teal = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-        ? UIColor(red: 0.36, green: 0.80, blue: 0.71, alpha: 1)
-        : UIColor(red: 0.10, green: 0.43, blue: 0.38, alpha: 1)
-    })
-    static let base = Color(uiColor: .systemGroupedBackground)
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
-    static let muted = Color(uiColor: .secondaryLabel)
+    /// Signature Volt Lime, matching the approved athletic brand direction.
+    static let volt = Color(red: 0.78, green: 1.00, blue: 0.21)
+    /// Compatibility alias — existing graphs/buttons adopt the same identity.
+    static let teal = volt
+    static let base = Color(red: 0.055, green: 0.079, blue: 0.090)
+    static let surface = Color(red: 0.095, green: 0.126, blue: 0.143)
+    static let elevated = Color(red: 0.127, green: 0.161, blue: 0.177)
+    static let porcelain = Color(red: 0.965, green: 0.972, blue: 0.959)
+    static let titanium = Color(red: 0.68, green: 0.73, blue: 0.73)
+    static let muted = titanium
+    /// High contrast when a button is filled with lime.
+    static let onVolt = Color(red: 0.055, green: 0.079, blue: 0.090)
 }
+
 
 extension HealthSyncEngine {
     var runHistory: [WorkoutPayload] { snapshot.filter(\.isRun) }

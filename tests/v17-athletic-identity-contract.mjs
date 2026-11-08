@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=x=>readFileSync('ios/PaceLabCompanion/'+x+'.swift','utf8');
+const palette=read('PaceModels'), design=read('PaceViewsCore'), app=read('PaceLabCompanionApp'), coach=read('PaceCoachScreen'), nutrition=read('PaceViewsNutrition'), route=read('PaceWorkoutRoute');
+for(const t of ['static let volt = Color(red: 0.78, green: 1.00, blue: 0.21)','static let teal = volt','static let onVolt','static let base = Color(red: 0.055','static let surface = Color(red: 0.095'])assert.ok(palette.includes(t),`Missing brand token: ${t}`);
+for(const t of ['struct PaceBrandMark: View','struct PaceBrandLine: View','struct PaceAthleticHero: View','Text("BEYOND.")','PaceAthleticHero()','PaceBrandLine()','PaceGlassCardSurface','PaceColors.onVolt']) assert.ok(design.includes(t),`Missing shared brand UI: ${t}`);
+assert.ok(coach.includes('PaceBrandLine(subtitle: "INTELLIGENCE / ENTRAÎNEMENT / PROGRESSION")'));
+assert.ok(app.includes('.preferredColorScheme(.dark)'));
+assert.ok(nutrition.includes('selected == name ? PaceColors.onVolt : Color.primary'));
+assert.ok(route.includes('UIColor(red: 0.78, green: 1.00, blue: 0.21'));
+assert.ok(route.includes('HKWorkoutRouteQuery(route: sample)'));
+console.log('V17 shared athletic identity and contrast contracts passed.');

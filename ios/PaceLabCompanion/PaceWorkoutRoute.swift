@@ -218,10 +218,10 @@ struct PaceRouteMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             let renderer = MKPolylineRenderer(overlay: overlay)
             if let played = completedRoute, let line = overlay as? MKPolyline, played === line {
-                renderer.strokeColor = UIColor(red: 0.16, green: 0.93, blue: 0.79, alpha: 0.97)
+                renderer.strokeColor = UIColor(red: 0.78, green: 1.00, blue: 0.21, alpha: 0.98)
                 renderer.lineWidth = isPlayback ? 3.4 : 4.1
             } else {
-                renderer.strokeColor = UIColor(red: 0.45, green: 0.91, blue: 0.80,
+                renderer.strokeColor = UIColor(red: 0.78, green: 1.00, blue: 0.21,
                     alpha: isPlayback ? 0.38 : 0.90)
                 renderer.lineWidth = isPlayback ? 1.6 : 3.3
             }
@@ -234,7 +234,7 @@ struct PaceRouteMap: UIViewRepresentable {
             let view = MKAnnotationView(annotation: annotation, reuseIdentifier: "pace-route-position")
             view.frame = CGRect(x: 0, y: 0, width: 13, height: 13)
             view.layer.cornerRadius = 6.5
-            view.layer.backgroundColor = UIColor.systemTeal.cgColor
+            view.layer.backgroundColor = UIColor(red: 0.78, green: 1.00, blue: 0.21, alpha: 1).cgColor
             view.layer.borderColor = UIColor.white.cgColor
             view.layer.borderWidth = 2
             view.layer.shadowColor = UIColor.black.cgColor
