@@ -128,9 +128,15 @@ enum PaceEvidenceEngine {
             concerns.append("La plus longue sortie proposée dépasse de plus de 10 % la plus longue sortie enregistrée sur 28 jours. Seuil prudent de revue inspiré d’une étude de cohorte, pas une règle individuelle validée.")
         }
         let total = values.reduce(0,+)
-        if let weekly = baseline.baselineWeeklyKm,weekly > 1,
-           total > weekly * 1.35 {
-            concerns.append("Le volume proposé dépasse de plus de 35 % le volume hebdomadaire observé. Revoir avec le coureur avant adoption.")
+        // The 28-day average can be artificially low after illness or a return
+        // to training. Compare with both the medium-term average and last 7 days.
+        // The 35% and 10% values are review triggers, not injury-risk laws.
+        if let weekly = baseline.baselineWeeklyKm, weekly > 1 {
+            let recent = baseline.currentSevenDaysKm
+            let upperReference = max(weekly, recent)
+            if total > weekly * 1.35 && total > upperReference * 1.10 {
+                concerns.append("Le volume proposé dépasse à la fois la moyenne de 28 jours et le volume couru ces 7 derniers jours. Réexaminer la progression.")
+            }
         }
         let sorted = plan.training.sorted { $0.date < $1.date }
         for pair in zip(sorted,sorted.dropFirst()) {

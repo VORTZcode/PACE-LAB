@@ -855,12 +855,15 @@ enum PaceSessionReviewState {
             let concerns = PaceEvidenceEngine.review(plan:draft,baseline:baseline,
                 profile:profile?.profile,observedStrengthLast7:actualStrength)
             evidenceConcerns = concerns
-            if !concerns.isEmpty {
-                throw PaceChatError.invalid("Proposition non validée : " + concerns.joined(separator:" · ") +
-                    " Aucun remplacement n'a été effectué.")
-            }
+            // Preserve even a flagged draft for review, but never apply it.
             pending = draft
-            if let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data,forKey:storeKey) }
+            if let data = try? JSONEncoder().encode(draft) {
+                UserDefaults.standard.set(data,forKey:storeKey)
+            }
+            if !concerns.isEmpty {
+                throw PaceChatError.invalid("Proposition à revoir : " + concerns.joined(separator:" · ") +
+                    " Elle a été conservée pour examen, sans être appliquée.")
+            }
             // A weekly draft does not mark an unreviewed workout as reviewed.
         } catch { self.error = error.localizedDescription }
         isLoading = false
