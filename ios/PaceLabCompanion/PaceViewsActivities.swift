@@ -728,10 +728,29 @@ private struct PaceFeaturedRunCard: View {
                         PaceColors.teal.opacity(0.26), PaceColors.surface,
                         PaceColors.teal.opacity(0.10)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    Image(systemName: "figure.run")
-                        .font(.system(size: 56, weight: .ultraLight))
-                        .foregroundStyle(PaceColors.teal.opacity(0.55))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Editorial hero: no live MapKit view in a scrolling list.
+                    // The actual GPS track is displayed in WorkoutDetailScreen.
+                    VStack(alignment: .leading, spacing: 8) {
+                        Spacer(minLength: 0)
+                        Text(PaceFormat.distance(workout.kilometers, places: 2))
+                            .font(.system(size: 56, weight: .light, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                        HStack(spacing: 9) {
+                            Text("KILOMÈTRES")
+                                .font(.caption2.weight(.bold))
+                                .tracking(2)
+                            Image(systemName: "arrow.up.right")
+                            Text("VOIR LE PARCOURS")
+                                .font(.caption2.weight(.bold))
+                                .tracking(0.7)
+                        }
+                        .foregroundStyle(PaceColors.teal)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 27)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     Label("DERNIÈRE COURSE", systemImage: "figure.run")
                         .font(.caption2.weight(.bold))
                         .tracking(0.7)

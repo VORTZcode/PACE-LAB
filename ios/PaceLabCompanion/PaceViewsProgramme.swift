@@ -748,6 +748,7 @@ struct DayDetailScreen: View {
                     }
                     .background(PaceColors.base.ignoresSafeArea())
                     .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if focusedStrengthInput == nil {
                         HStack(spacing: 12) {
                             Image(systemName: "timer")
                                 .font(.title2)
@@ -799,6 +800,7 @@ struct DayDetailScreen: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial)
+                        }
                     }
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
@@ -824,10 +826,6 @@ struct DayDetailScreen: View {
                             .disabled(exercises.last?.id == ex.id)
                             .accessibilityLabel("Exercice suivant")
                         }
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Terminé") { focusedStrengthInput = nil }
-                        }
                     }
                 }
             }
@@ -837,7 +835,7 @@ struct DayDetailScreen: View {
             Color.clear.contentShape(Rectangle())
                 .onTapGesture { focusedStrengthInput = nil }
         }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
