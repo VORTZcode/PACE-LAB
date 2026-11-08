@@ -1084,6 +1084,23 @@ struct PaceCoachScreen: View {
                     Label(draft.title,systemImage:"sparkles")
                         .font(.headline).foregroundStyle(PaceColors.teal)
                     Text(draft.summary).font(.subheadline)
+                    if coach.shareRunSummaries {
+                        let cycle = PaceCyclePlanner.assess(runs:engine.runHistory,
+                            notes:coach.shareSessionNotes ? journal.notes : [:],
+                            history:coach.acceptedPlans)
+                        VStack(alignment:.leading,spacing:5) {
+                            Label("Phase observée : \(cycle.phase.rawValue)", systemImage:"chart.line.uptrend.xyaxis")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(PaceColors.teal)
+                            Text(cycle.reasons.joined(separator:" · "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\(cycle.eligibleWeeks)/4 semaines avec au moins deux courses · \(cycle.feedbackCoverage)/\(cycle.comparableRuns) ressentis complets")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:14))
+                    }
                     let totalEnergy = draft.meals.reduce(0) { $0 + $1.kcal }
                     let totalProtein = draft.meals.reduce(0) { $0 + $1.protein }
                     Text("Nutrition calculée : \(Int((Double(totalEnergy) / 7).rounded())) kcal/j · \(Int((Double(totalProtein) / 7).rounded())) g de protéines/j (estimations)")

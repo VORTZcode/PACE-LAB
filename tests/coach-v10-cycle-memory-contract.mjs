@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const coach=readFileSync('ios/PaceLabCompanion/PaceCoachEngine.swift','utf8');
+const screen=readFileSync('ios/PaceLabCompanion/PaceCoachScreen.swift','utf8');
+for(const content of ['enum PaceCyclePlanner','PaceLongitudinalRules.calculate','case recovery =','case consolidation =','case development =','case qualityReview =','eligible < 3','validNotes < max','history.filter','PaceCyclePlanner.assess(runs:engine.runHistory','var decisionReason: String? = nil','record.decisionReason = draft.adjustmentRationale','acceptedPlans.prefix(4)']) assert.ok(coach.includes(content),content);
+assert.ok(screen.includes('Phase observée'));
+assert.ok(screen.includes('cycle.eligibleWeeks'));
+assert.ok(screen.includes('coach.shareSessionNotes ? journal.notes : [:]'));
+assert.ok(!coach.includes('autoriser automatiquement les séances rapides'));
+console.log('V10 longitudinal cycle and decision memory contracts passed');

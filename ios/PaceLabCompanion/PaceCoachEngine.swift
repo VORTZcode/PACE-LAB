@@ -161,6 +161,8 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
     var observedKm: Double?
     var observedFeedback: Int?
     var reviewedAt: Date?
+    // Optional for backward compatibility with already accepted weeks.
+    var decisionReason: String? = nil
 
     var summary: String {
         if let observedRuns, let observedKm {
@@ -175,7 +177,76 @@ struct PaceAcceptedPlanRecord: Codable, Identifiable {
         "volume prévu \(String(format: "%.1f", plannedKm)) km sur \(plannedRuns) courses, " +
         "\(plannedStrength) séances de renforcement, référence 28j " +
         "\(String(format: "%.1f", baseline28Km)) km. Observation après la semaine : \(summary) " +
+        "Justification de la décision : \(decisionReason ?? "non conservée dans cette ancienne version"). " +
         "Ne pas déduire une performance ou un diagnostic d'une différence entre prévu et observé."
+    }
+}
+
+/// Decision-oriented four-week context. This is not a diagnosis or a
+/// readiness score. It states what is observed and which progression is still
+/// uncertain, instead of allowing the model to invent a "fitness phase".
+struct PaceCycleAssessment {
+    enum Phase: String {
+        case recovery = "Récupération"
+        case consolidation = "Consolidation"
+        case development = "Développement aérobie"
+        case qualityReview = "Évaluer une séance de qualité"
+    }
+    let phase: Phase
+    let reasons: [String]
+    let eligibleWeeks: Int
+    let comparableRuns: Int
+    let feedbackCoverage: Int
+    let latestWeekKm: Double
+    let priorWeeksKm: [Double]
+
+    var promptContext: String {
+        """
+        PHASE DU CYCLE (audit local des 28 derniers jours ; décision de planification non médicale) : \(phase.rawValue).
+        Faits : \(comparableRuns) courses sur quatre semaines, \(eligibleWeeks)/4 semaines comportant au moins deux courses, \(feedbackCoverage)/\(comparableRuns) courses avec RPE et gêne renseignés.
+        Distances des quatre semaines de la plus récente à la plus ancienne : \(priorWeeksKm.map { String(format: "%.1f", $0) }.joined(separator: " / ")) km.
+        Justifications : \(reasons.joined(separator: " ; ")).
+        Ceci est un avis de cycle, pas une prescription automatique. Vérifier douleur, régularité, qualité des données et récupération ; ne jamais imposer une intensité sur la seule base de ce texte.
+        """
+    }
+}
+
+enum PaceCyclePlanner {
+    static func assess(runs: [WorkoutPayload], notes: [String: PaceSessionNote],
+                       history: [PaceAcceptedPlanRecord], now: Date = .now) -> PaceCycleAssessment {
+        let longitudinal = PaceLongitudinalRules.calculate(runs: runs, notes: notes, now: now)
+        let weeks = Array(longitudinal.weeklyKmNewestFirst.prefix(4))
+        let weeklyCounts = Array(longitudinal.weeklyRunsNewestFirst.prefix(4))
+        let eligible = weeklyCounts.filter { $0 >= 2 }.count
+        let validNotes = longitudinal.feedbackCount28
+        let totalRuns = longitudinal.recent28Runs
+        let reasons: [String]
+        let phase: PaceCycleAssessment.Phase
+        // A self-reported high effort or discomfort prevents a proposed
+        // intensity step. Absence of a pain entry does not mean pain = 0.
+        if (longitudinal.recent7MaximumDiscomfort ?? 0) >= 4 ||
+            longitudinal.recent7HighEffort >= 2 {
+            phase = .recovery
+            reasons = ["Ressenti récent inhabituellement exigeant ou gêne déclarée", "Privilégier la vérification des symptômes et la récupération"]
+        } else if eligible < 3 || totalRuns < 8 {
+            phase = .consolidation
+            reasons = ["Régularité insuffisamment démontrée sur les quatre semaines", "Préserver les jours d'entraînement sans ajouter automatiquement de vitesse"]
+        } else if validNotes < max(3,totalRuns / 2) {
+            phase = .development
+            reasons = ["Fréquence observée, mais retours RPE et gêne trop incomplets pour justifier une nouvelle intensité", "Rendre les séances faciles répétables et recueillir les ressentis"]
+        } else {
+            let positive = history.filter { $0.reviewedAt != nil && $0.observedFeedback != nil && $0.observedFeedback! >= 2 }
+            if positive.isEmpty {
+                phase = .development
+                reasons = ["Historique de semaines acceptées encore trop court pour vérifier les décisions précédentes", "Répéter une charge tolérable et suivre la réponse"]
+            } else {
+                phase = .qualityReview
+                reasons = ["Régularité et retours suffisants pour envisager une séance de qualité", "Vérifier la récupération et ne modifier qu'une dimension avant décision"]
+            }
+        }
+        return .init(phase:phase,reasons:reasons,eligibleWeeks:eligible,
+                     comparableRuns:totalRuns,feedbackCoverage:validNotes,
+                     latestWeekKm:weeks.first ?? 0,priorWeeksKm:weeks)
     }
 }
 
@@ -349,13 +420,15 @@ enum PaceSessionReviewState {
               let lastDay = formatter.date(from:last.date),
               let end = Calendar.current.date(byAdding:.day,value:1,to:lastDay) else { return }
         let runDays = sorted.filter { $0.type == "Course" }
-        let record = PaceAcceptedPlanRecord(
+        var record = PaceAcceptedPlanRecord(
             id:UUID(),acceptedAt:.now,start:start,endExclusive:end,
             plannedRuns:runDays.count,
             plannedStrength:sorted.filter { $0.type == "Musculation" }.count,
             plannedKm:runDays.compactMap(\.plannedDistanceKm).reduce(0,+),
             baseline28Km:baseline.distance28Days,
             observedRuns:nil,observedKm:nil,observedFeedback:nil,reviewedAt:nil)
+        // Keep the actual decision behind this plan; do not infer causality.
+        record.decisionReason = draft.adjustmentRationale.map { String($0.prefix(1500)) }
         acceptedPlans.insert(record,at:0)
         acceptedPlans = Array(acceptedPlans.prefix(12))
         persistAcceptedPlans()
@@ -529,7 +602,9 @@ enum PaceSessionReviewState {
             pieces.append(PaceLivingCoachRules.calculate(runs:engine.runHistory,notes:sharedNotes).promptContext)
             pieces.append(PaceLongitudinalRules.calculate(runs:engine.runHistory,
                 notes:sharedNotes).promptContext)
-            if let historical = acceptedPlans.first {
+            pieces.append(PaceCyclePlanner.assess(runs:engine.runHistory,
+                notes:sharedNotes,history:acceptedPlans).promptContext)
+            for historical in acceptedPlans.prefix(4) {
                 pieces.append(historical.promptContext)
             }
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
@@ -751,6 +826,11 @@ enum PaceSessionReviewState {
            confusion course/marche, progression excessive ou réduction arbitraire,
            nombre de séances incohérent, deux jours exigeants proches, quantités
            alimentaires non justifiées. Corriger AVANT la sortie.
+        Prendre en compte la PHASE DU CYCLE fournie dans les mesures locales :
+        l'utiliser comme hypothèse à confirmer, et justifier explicitement tout
+        choix d'intensité qui s'en écarte. Ne pas augmenter toutes les dimensions
+        en même temps. L'objectif à long terme reste une contrainte stratégique,
+        pas une allure demandée aujourd'hui.
         Inscrire dans evidenceNotes les faits et incertitudes, et dans
         adjustmentRationale la décision chiffrée avec les options écartées.
         Ne pas afficher les étapes intermédiaires : produire UNIQUEMENT le JSON final.
