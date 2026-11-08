@@ -307,7 +307,7 @@ struct PaceBodyLog: Identifiable, Codable {
         return draft.meals.sorted { ($0.date, $0.meal) < ($1.date, $1.meal) }.map { $0.asRecipe() }
     }
     func acceptCoachDraft(_ draft: PaceAICoachDraft) throws {
-        try draft.validate()
+        try draft.validate(startDateRule: .approveTodayOrTomorrow)
         let data = try JSONEncoder().encode(draft)
         UserDefaults.standard.set(data,forKey:"pace.coach.approved")
         activeCoachDraft = draft

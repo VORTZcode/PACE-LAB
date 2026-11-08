@@ -46,7 +46,12 @@ struct PaceAICoachDraft: Codable, Identifiable {
         try draft.validate()
         return draft
     }
-    func validate() throws {
+    enum StartDateRule {
+        case generatedTomorrow
+        case approveTodayOrTomorrow
+    }
+
+    func validate(startDateRule: StartDateRule = .generatedTomorrow) throws {
         guard title.count <= 100, summary.count <= 1800,
               training.count == 7, meals.count == 14,
               Set(training.map(\.date)).count == 7,
@@ -60,9 +65,22 @@ struct PaceAICoachDraft: Codable, Identifiable {
         let normalized = training.sorted { $0.date < $1.date }
         var calendar = Calendar(identifier:.gregorian)
         calendar.timeZone = .current
-        let tomorrow = calendar.date(byAdding:.day,value:1,to:calendar.startOfDay(for:.now))!
-        guard normalized.first?.date == formatter.string(from:tomorrow) else {
-            throw PaceChatError.invalid("Le nouveau programme doit commencer demain.")
+        let today = formatter.string(from: calendar.startOfDay(for: .now))
+        let tomorrow = formatter.string(from:
+            calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now))!)
+        let starts = normalized.first?.date
+        switch startDateRule {
+        case .generatedTomorrow:
+            guard starts == tomorrow else {
+                throw PaceChatError.invalid("Le nouveau programme doit commencer demain.")
+            }
+        case .approveTodayOrTomorrow:
+            // A generated, locally saved proposal must remain adoptable after
+            // midnight on its first day. Never shift sessions or permit a plan
+            // with a date already in the past.
+            guard starts == today || starts == tomorrow else {
+                throw PaceChatError.invalid("La première journée de ce programme est dépassée ou trop éloignée. Prépare une proposition actualisée.")
+            }
         }
         for (index,day) in normalized.enumerated() {
             guard let parsed = formatter.date(from:day.date), formatter.string(from:parsed) == day.date,
