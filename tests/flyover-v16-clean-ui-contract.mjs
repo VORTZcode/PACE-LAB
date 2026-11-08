@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const route=readFileSync('ios/PaceLabCompanion/PaceWorkoutRoute.swift','utf8');
+assert.ok(route.includes('private let values: [Double] = [0.5, 1, 2, 4]'));
+assert.ok(route.includes('selection = values[(current + 1) % values.count]'));
+assert.ok(route.includes('Section("Caméra")') && route.includes('Section("Affichage")'));
+assert.ok(route.includes('Button { cinemaMode.toggle()') || route.includes('cinemaMode.toggle()'));
+assert.ok(route.includes('withAnimation(.easeInOut(duration: 0.3))'));
+assert.ok(route.includes('Options de caméra et d\'affichage'));
+assert.ok(route.includes('PaceFlyoverSpeedControl(selection: $playbackSpeed)'));
+assert.ok(route.includes('if !cinemaMode {'));
+assert.ok(!route.includes('ForEach(values, id: \\.self)'), 'Old four-button strip must be gone');
+console.log('V16 compact flyover UI contracts passed');

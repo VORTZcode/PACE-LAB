@@ -578,38 +578,25 @@ enum PaceFlyoverCameraMode: String, CaseIterable {
     }
 }
 
+/// One calm, tactile speed control; no four-button strip over the landscape.
 struct PaceFlyoverSpeedControl: View {
     @Binding var selection: Double
     private let values: [Double] = [0.5, 1, 2, 4]
 
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(values, id: \.self) { value in
-                Button {
-                    selection = value
-                } label: {
-                    Text(String(format: "%g×", value))
-                        .font(.system(size: 13, weight: selection == value ? .bold : .medium,
-                                      design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(selection == value ? .black : .white.opacity(0.78))
-                        .frame(minWidth: 35, minHeight: 43)
-                        .background {
-                            if selection == value {
-                                Capsule().fill(Color.white)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Vitesse \(String(format: "%g", value)) fois")
-                .accessibilityAddTraits(selection == value ? .isSelected : [])
-            }
+        Button {
+            let current = values.firstIndex(of: selection) ?? 1
+            selection = values[(current + 1) % values.count]
+        } label: {
+            Text(String(format: "%g×", selection))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .frame(minWidth: 54, minHeight: 44)
+                .background(.white.opacity(0.12), in: Capsule())
         }
-        .padding(4)
-        .background(.black.opacity(0.44), in: Capsule())
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Vitesse du survol")
+        .buttonStyle(.plain)
+        .accessibilityLabel("Vitesse du survol : \(String(format: "%g", selection)) fois. Toucher pour modifier")
     }
 }
 
@@ -702,46 +689,48 @@ struct PaceRouteFlyoverScreen: View {
                 .padding(.top, 14)
                 HStack(spacing: 10) {
                     Menu {
-                        ForEach(PaceFlyoverCameraMode.allCases, id: \.self) { mode in
-                            Button(mode.rawValue, systemImage: mode == cameraMode ? "checkmark" : "video") {
-                                cameraMode = mode
-                                freeCamera = false
-                                recenterToken += 1
+                        Section("Caméra") {
+                            ForEach(PaceFlyoverCameraMode.allCases, id: \.self) { mode in
+                                Button(mode.rawValue, systemImage: mode == cameraMode ? "checkmark" : "video") {
+                                    cameraMode = mode
+                                    freeCamera = false
+                                    recenterToken += 1
+                                }
+                            }
+                        }
+                        Section("Affichage") {
+                            Button(showTelemetry ? "Masquer les statistiques" : "Afficher les statistiques",
+                                   systemImage: "chart.bar") { showTelemetry.toggle() }
+                            Button(freeCamera ? "Reprendre le suivi" : "Explorer la carte",
+                                   systemImage: "hand.draw") {
+                                freeCamera.toggle()
+                                if !freeCamera { recenterToken += 1 }
                             }
                         }
                     } label: {
-                        Label(cameraMode.rawValue, systemImage: "video.fill")
+                        Label(cameraMode.rawValue, systemImage: "camera.aperture")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
                             .padding(.horizontal, 13)
-                            .frame(height: 39)
-                            .background(.black.opacity(0.48), in: Capsule())
+                            .frame(height: 42)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
+                    .accessibilityLabel("Options de caméra et d'affichage")
                     Spacer(minLength: 0)
-                    Button { cinemaMode.toggle() } label: {
-                        Image(systemName: cinemaMode ? "rectangle.expand.vertical" : "viewfinder")
-                            .frame(width: 43, height: 39)
-                            .background(.black.opacity(0.48), in: Capsule())
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) { cinemaMode.toggle() }
+                    } label: {
+                        Label(cinemaMode ? "Commandes" : "Cinéma",
+                              systemImage: cinemaMode ? "rectangle.expand.vertical" : "viewfinder")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 12)
+                            .frame(height: 42)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
                     .accessibilityLabel(cinemaMode ? "Afficher les commandes" : "Mode cinéma sans commandes")
-                    Button { showTelemetry.toggle() } label: {
-                        Image(systemName: showTelemetry ? "chart.bar.fill" : "chart.bar")
-                            .frame(width: 43, height: 39)
-                            .background(.black.opacity(0.48), in: Capsule())
-                    }
-                    .accessibilityLabel(showTelemetry ? "Masquer les statistiques" : "Afficher les statistiques")
-                    Button {
-                        freeCamera.toggle()
-                        if !freeCamera { recenterToken += 1 }
-                    } label: {
-                        Image(systemName: freeCamera ? "location.north.fill" : "hand.draw.fill")
-                            .frame(width: 43, height: 39)
-                            .background(.black.opacity(0.48), in: Capsule())
-                    }
-                    .accessibilityLabel(freeCamera ? "Reprendre le suivi de la caméra" : "Explorer librement la carte")
                 }
-                .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 19)
-                .padding(.top, 13)
+                .padding(.top, 12)
                 Spacer()
                 if stage == .intro || stage == .outro || stage == .finished {
                     Text(stage == .intro ? "REDÉCOUVRIR LE PARCOURS" : "LE PARCOURS EN ENTIER")
@@ -815,25 +804,17 @@ struct PaceRouteFlyoverScreen: View {
                         .foregroundStyle(.black)
                         Spacer(minLength: 0)
                         PaceFlyoverSpeedControl(selection: $playbackSpeed)
-                        Button { freeCamera = false; recenterToken += 1 } label: {
-                            Image(systemName: "location.north.line.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 41, height: 41)
-                                .background(.white.opacity(0.13), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Recentrer la caméra")
+
                     }
                 }
                 .padding(.horizontal, 17)
                 .padding(.top, 14)
                 .padding(.bottom, 12)
-                .background(.ultraThinMaterial.opacity(0.85),
-                            in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(.ultraThinMaterial.opacity(0.75),
+                            in: RoundedRectangle(cornerRadius: 23, style: .continuous))
                 .environment(\.colorScheme, .dark)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 23)
                         .strokeBorder(.white.opacity(0.12), lineWidth: 0.75)
                 }
                 .padding(.horizontal, 12)
