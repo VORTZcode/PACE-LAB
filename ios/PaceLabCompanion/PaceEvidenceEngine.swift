@@ -73,11 +73,39 @@ enum PaceEvidenceEngine {
                      currentSevenDaysKm:last7,dataQuality:quality,analysis:interpretation)
     }
 
+    private static func nutritionClaim(_ text: String, pattern: String) -> Int? {
+        guard let regex = try? NSRegularExpression(pattern: pattern,
+                                                       options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: text,
+                  range: NSRange(text.startIndex..<text.endIndex, in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        let digits = String(text[range]).filter(\.isNumber)
+        return Int(digits)
+    }
+
     /// Safety gate, not a validated universal training rule; protects against unexplained jumps.
     static func review(plan:PaceAICoachDraft,baseline:PaceTrainingEvidence,
                        profile:PaceAthleteProfile? = nil,
                        observedStrengthLast7:Int? = nil) -> [String] {
         var concerns:[String] = []
+        let computedKcal = plan.meals.reduce(0) { $0 + $1.kcal }
+        let computedProtein = plan.meals.reduce(0) { $0 + $1.protein }
+        let proposedNotes = plan.evidenceNotes ?? []
+        // The model must not be its own arithmetic checker. Compare explicit
+        // weekly nutrition claims with the actual 14 recipe entries.
+        for note in proposedNotes where note.lowercased().contains("kcal") {
+            if let weekly = nutritionClaim(note, pattern:
+                #"(?:repas.{0,65}(?:environ|total|représentent)\s+)([0-9][0-9\s]{3,})\s*kcal"#),
+               abs(weekly - computedKcal) > 50 {
+                concerns.append("Calcul nutritionnel contradictoire : le bilan annonce \(weekly) kcal pour la semaine, mais les 14 repas totalisent \(computedKcal) kcal.")
+            }
+            if let daily = nutritionClaim(note, pattern:
+                #"(?:soit|moyenne(?:\s+de)?|environ)\s+([0-9][0-9\s]{2,})\s*kcal\s+par\s+jour"#),
+               abs(daily - Int((Double(computedKcal) / 7.0).rounded())) > 10 {
+                concerns.append("Moyenne calorique contradictoire : \(daily) kcal/j annoncées contre \(Int((Double(computedKcal) / 7.0).rounded())) kcal/j calculées.")
+            }
+        }
+        if computedProtein == 0 { concerns.append("Aucun apport protéique indiqué dans les repas.") }
         let runs = plan.training.filter { $0.type == "Course" }
         if runs.isEmpty { concerns.append("Aucune course planifiée malgré l’objectif de course.") }
         if let profile {

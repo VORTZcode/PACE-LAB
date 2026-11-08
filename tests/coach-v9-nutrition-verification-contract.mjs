@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const gate=readFileSync('ios/PaceLabCompanion/PaceEvidenceEngine.swift','utf8');
+const screen=readFileSync('ios/PaceLabCompanion/PaceCoachScreen.swift','utf8');
+assert.match(gate,/let computedKcal = plan\.meals\.reduce\(0\)/);
+assert.match(gate,/abs\(weekly - computedKcal\) > 50/);
+assert.match(gate,/Moyenne calorique contradictoire/);
+assert.match(screen,/let totalEnergy = draft\.meals\.reduce\(0\)/);
+assert.match(screen,/Nutrition calculée/);
+const energy=[1080,1120,1100,1050,1080,1120,1100,1080,1090,1110,1060,1100,1120,1080];
+assert.equal(energy.reduce((a,b)=>a+b,0),15290);
+assert.notEqual(energy.reduce((a,b)=>a+b,0),15390);
+console.log('Nutrition independent arithmetic check and UI contract passed');

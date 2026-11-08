@@ -1084,6 +1084,11 @@ struct PaceCoachScreen: View {
                     Label(draft.title,systemImage:"sparkles")
                         .font(.headline).foregroundStyle(PaceColors.teal)
                     Text(draft.summary).font(.subheadline)
+                    let totalEnergy = draft.meals.reduce(0) { $0 + $1.kcal }
+                    let totalProtein = draft.meals.reduce(0) { $0 + $1.protein }
+                    Text("Nutrition calculée : \(Int((Double(totalEnergy) / 7).rounded())) kcal/j · \(Int((Double(totalProtein) / 7).rounded())) g de protéines/j (estimations)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(PaceColors.teal)
                     Text("Pourquoi ce programme ?")
                         .font(.subheadline.weight(.semibold))
                     Text(draft.adjustmentRationale ?? "Justification indisponible")
