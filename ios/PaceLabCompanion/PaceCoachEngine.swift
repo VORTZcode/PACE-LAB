@@ -740,6 +740,21 @@ enum PaceSessionReviewState {
         Pour toute course : indique plannedDistanceKm (kilomètres réalistes) et effortCategory
         parmi facile/modéré/intense ; jamais plusieurs sorties intenses d'affilée.
         Évite de dépasser le volume et la sortie la plus longue du mois sans justification.
+        Raisonner à partir du travail RÉELLEMENT observé, pas simplement des cases cochées :
+        séparer courses, marches et musculation dans les totaux et comparer les DURÉES
+        réellement réalisées aux durées proposées, en plus du kilométrage de course.
+        plannedDistanceKm désigne uniquement la course (hors marche d'échauffement
+        et récupération). Si le coureur peut marcher, ne pas promettre un kilométrage.
+        Distinguer fréquence préférée et fréquence effectivement tolérée.
+        Après deux séances de renforcement effectuées, une troisième journée ne doit
+        pas être ajoutée mécaniquement : elle peut être facultative, courte et peu
+        intense si le profil la souhaite, avec justification de la charge totale.
+        Prévoir la récupération après une journée longue combinant course et marche.
+        Éviter les diminutions brutales de volume sans signal concret (fatigue,
+        douleurs, maladie, charge récente), autant que les augmentations brusques.
+        Une séance réussie n'autorise pas à elle seule d'accélérer l'objectif à long terme.
+        Si les notes de difficulté existent, citer leurs valeurs réelles et signaler
+        séparément les sorties dont le ressenti manque.
         Tes références méthodologiques : individualisation FITT, majorité du travail aérobique
         à faible intensité lorsque approprié, renforcement pour préserver le muscle.
         Les études ne fournissent PAS de règle universelle d'augmentation hebdomadaire de 10 %.
@@ -759,6 +774,11 @@ enum PaceSessionReviewState {
         charge uniquement si elle est connue ou exprimée comme variable.
         Chaque repas contient ingrédients en grammes, préparation et valeurs nutritionnelles
         estimées. Respecte le profil et ne propose pas de repas supplémentaires non demandés.
+        Ne présente jamais des calories proposées comme un besoin individuel démontré.
+        Indique dans evidenceNotes l'apport énergétique quotidien moyen du projet,
+        le caractère estimatif et les données manquantes pour personnaliser le déficit.
+        Si besoin, recommander une réévaluation selon faim, fatigue et évolution
+        mesurée du poids plutôt que figer les portions d'une semaine à l'autre.
         Aucun régime extrême, pas de prescription de perte de poids rapide.
         Renvoie UNIQUEMENT un objet JSON valide sans markdown :
         {"title":"...","summary":"...","training":[{"date":"YYYY-MM-DD",

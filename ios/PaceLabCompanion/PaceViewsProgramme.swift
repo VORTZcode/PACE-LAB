@@ -233,9 +233,11 @@ struct ProgrammeScreen: View {
                                             .font(.caption.weight(.medium))
                                             .foregroundStyle(.orange)
                                     }
-                                    if day.type == "Musculation" && library.activeCoachDraft == nil &&
-                                       library.missedSessions[day.date] == nil {
-                                        let exercises = library.programme.force.filter { $0.day == day.day }
+                                    if day.type == "Musculation" && library.missedSessions[day.date] == nil {
+                                        let exercises = library.activeCoachDraft?.training
+                                            .first(where: { $0.date == day.date && $0.type == "Musculation" })
+                                            .map { PaceDraftStrengthExtractor.extract(from: $0.instructions, weekday: day.day) }
+                                            ?? library.programme.force.filter { $0.day == day.day }
                                         Text("\(strengthTracker.completedSets(day: day.date, exercises: exercises)) / \(strengthTracker.totalSets(exercises: exercises)) séries validées")
                                             .font(.caption2.weight(.medium))
                                             .foregroundStyle(PaceColors.teal)
@@ -272,6 +274,43 @@ struct ProgrammeScreen: View {
     }
 }
 
+// Read-only bridge for legacy AI plans that store strength sets as prose.
+// Never infer a load: only the prescribed numerical rep/time targets are extracted.
+// Keeping dated exercise IDs avoids mixing sessions from different weeks.
+private enum PaceDraftStrengthExtractor {
+    static func extract(from instructions: String, weekday: String) -> [PaceExercise] {
+        guard let bodyRange = instructions.range(of: "Corps de séance", options: .caseInsensitive) else { return [] }
+        let remainder = String(instructions[bodyRange.upperBound...])
+        let bodyStart = remainder.firstIndex(of: ":").map { remainder.index(after: $0) } ?? remainder.startIndex
+        let body = String(remainder[bodyStart...])
+        let exercisePart = body.components(separatedBy: "Repos ").first ?? body
+        let pattern = #"^(.+?)\s+(\d+)\s*[×x]\s*(\d+)(?:\s*[-à]\s*(\d+))?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
+        return exercisePart.split(separator: ";").compactMap { raw -> PaceExercise? in
+            let item = String(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            let range = NSRange(item.startIndex..<item.endIndex, in: item)
+            guard let match = regex.firstMatch(in: item, range: range),
+                  let nameRange = Range(match.range(at: 1), in: item),
+                  let countRange = Range(match.range(at: 2), in: item),
+                  let repsRange = Range(match.range(at: 3), in: item),
+                  let sets = Int(item[countRange]), let reps = Int(item[repsRange]),
+                  (1...8).contains(sets), (1...120).contains(reps) else { return nil }
+            let name = String(item[nameRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name.count >= 3 else { return nil }
+            let tail = String(item[Range(match.range, in: item)!.upperBound...]).lowercased()
+            let isTimed = tail.contains("second") || tail.contains(" sec")
+            let weight = tail.contains("kg")
+            let loadExpected = weight || name.lowercased().contains("haltère")
+            return PaceExercise(day: weekday, block: "Programme coach", name: name, sets: sets,
+                reps: isTimed ? "\(reps) s" : String(reps),
+                tempo: isTimed ? "Isométrique" : "Contrôlé",
+                rest: 75, rir: 3, tips: item, easier: "Réduire l'amplitude ou la charge si nécessaire.",
+                harder: "Conserver l'exécution et progresser seulement après récupération.",
+                measurement_unit: isTimed ? "seconds" : "repetitions", load_expected: loadExpected)
+        }
+    }
+}
+
 struct DayDetailScreen: View {
     @EnvironmentObject var engine: HealthSyncEngine
     @EnvironmentObject var library: PaceLibrary
@@ -282,54 +321,11 @@ struct DayDetailScreen: View {
     @State private var confirmFinish = false
     @State private var showMissedEditor = false
     @State private var presentedExerciseID: String?
-    @State private var exerciseDetailTab = 0
-    @State private var restEnd: Date?
-    @State private var restExerciseID: String?
-    @State private var restSetNumber: Int?
-    @FocusState private var focusedStrengthInput: PaceStrengthInput?
-
-    @ViewBuilder
-    private func exerciseTabButton(_ title: String, tab: Int) -> some View {
-        Button {
-            focusedStrengthInput = nil
-            withAnimation(.easeInOut(duration: 0.16)) { exerciseDetailTab = tab }
-        } label: {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
-                .frame(height: 37)
-                .foregroundStyle(exerciseDetailTab == tab ? .white : .secondary)
-                .background(exerciseDetailTab == tab ? PaceColors.teal : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func navigateExercise(from current: PaceExercise, direction: Int) {
-        guard let index = exercises.firstIndex(where: { $0.id == current.id }),
-              exercises.indices.contains(index + direction) else { return }
-        focusedStrengthInput = nil
-        exerciseDetailTab = 0
-        presentedExerciseID = exercises[index + direction].id
-    }
-
-    private func onStrengthSetChanged(exercise: PaceExercise, index: Int, completed: Bool) {
-        focusedStrengthInput = nil
-        if completed && index < exercise.sets {
-            restExerciseID = exercise.id
-            restSetNumber = index
-            restEnd = Date().addingTimeInterval(max(0,exercise.rest))
-        } else {
-            restEnd = nil
-            restExerciseID = nil
-            restSetNumber = nil
-        }
-    }
-
     private var exercises: [PaceExercise] {
-        guard library.activeCoachDraft == nil else { return [] }
+        if let approved = library.activeCoachDraft,
+           let strengthDay = approved.training.first(where: { $0.date == day.date && $0.type == "Musculation" }) {
+            return PaceDraftStrengthExtractor.extract(from: strengthDay.instructions, weekday: day.day)
+        }
         return library.programme.force.filter { $0.day == day.day }
     }
     private var dayActivities: [WorkoutPayload] {
@@ -477,11 +473,7 @@ struct DayDetailScreen: View {
                     PaceCard {
                         VStack(alignment: .leading, spacing: 0) {
                             Button {
-                                focusedStrengthInput = nil
-                                withAnimation(.easeInOut(duration: 0.22)) {
-                                    exerciseDetailTab = 0
-                                    presentedExerciseID = ex.id
-                                }
+                                presentedExerciseID = ex.id
                             } label: {
                                 HStack(spacing: 13) {
                                     Text("\(index + 1)")
@@ -633,217 +625,23 @@ struct DayDetailScreen: View {
             set: { if !$0 { presentedExerciseID = nil } }
         )) {
             if let ex = exercises.first(where: { $0.id == presentedExerciseID }) {
-                NavigationStack {
-                    GeometryReader { viewport in
-                        let guide = PaceMovementGuide.forExercise(ex)
-                        let artworkHeight = max(125, min(ex.sets > 4 ? 155 : 210, viewport.size.height * 0.31))
-                        VStack(alignment: .leading, spacing: 11) {
-                            HStack(alignment: .top, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(day.day.uppercased() + " · MUSCULATION")
-                                        .font(.caption2.weight(.semibold))
-                                        .tracking(1.3)
-                                        .foregroundStyle(PaceColors.teal)
-                                    Text(ex.name)
-                                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                                        .lineLimit(2)
-                                        .minimumScaleFactor(0.86)
-                                    Text(guide.focus)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "figure.strengthtraining.functional")
-                                    .font(.system(size: 28, weight: .ultraLight))
-                                    .foregroundStyle(PaceColors.teal)
-                                    .frame(width: 54, height: 54)
-                                    .background(PaceColors.teal.opacity(0.09),
-                                                in: RoundedRectangle(cornerRadius: 17))
-                            }
-                            .padding(.top, 4)
-
-                            Group {
-                                if exerciseDetailTab == 0 {
-                                    PaceExerciseVisual(figure: guide.figure, imageHeight: artworkHeight - 45)
-                                        .id(ex.id)
-                                } else if exerciseDetailTab == 1 {
-                                    VStack(alignment: .leading, spacing: 9) {
-                                        ForEach(Array(guide.steps.enumerated()), id: \.offset) { step in
-                                            HStack(alignment: .top, spacing: 9) {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundStyle(PaceColors.teal)
-                                                Text(step.element)
-                                                    .font(.subheadline)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                        }
-                                    }
-                                    .padding(13)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                    .background(PaceColors.surface,
-                                                in: RoundedRectangle(cornerRadius: 18))
-                                } else {
-                                    VStack(alignment: .leading, spacing: 14) {
-                                        Label("Plus facile", systemImage: "arrow.down.right")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(PaceColors.teal)
-                                        Text(ex.easier).font(.subheadline)
-                                        Divider().opacity(0.45)
-                                        Label("Plus difficile", systemImage: "arrow.up.right")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(PaceColors.teal)
-                                        Text(ex.harder).font(.subheadline)
-                                    }
-                                    .padding(14)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                    .background(PaceColors.surface,
-                                                in: RoundedRectangle(cornerRadius: 18))
-                                }
-                            }
-                            .frame(height: artworkHeight)
-
-                            HStack(spacing: 3) {
-                                exerciseTabButton("Démonstration", tab: 0)
-                                exerciseTabButton("Conseils", tab: 1)
-                                exerciseTabButton("Variantes", tab: 2)
-                            }
-                            .padding(4)
-                            .background(PaceColors.surface,
-                                        in: RoundedRectangle(cornerRadius: 15))
-
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("Séries")
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                                Spacer()
-                                Text("\(strengthTracker.completedSets(day: day.date, exercise: ex)) / \(ex.sets) · \(ex.reps)")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.top, 3)
-
-                            ScrollView(.vertical, showsIndicators: false) {
-                                VStack(spacing: 1) {
-                                    ForEach(1...max(ex.sets, 1), id: \.self) { setNumber in
-                                        PaceStrengthSetRow(dayDate: day.date, exercise: ex,
-                                                           setNumber: setNumber, focus: $focusedStrengthInput,
-                                                           didToggle: { completed in
-                                            onStrengthSetChanged(exercise: ex, index: setNumber,
-                                                                 completed: completed)
-                                        })
-                                        .id(ex.id + ":" + String(setNumber))
-                                        if setNumber < max(ex.sets, 1) {
-                                            Divider().padding(.leading, 32).opacity(0.35)
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 8)
-                            }
-                            .background(PaceColors.surface,
-                                        in: RoundedRectangle(cornerRadius: 17))
-                            .frame(maxHeight: .infinity, alignment: .top)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 4)
-                    }
-                    .background(PaceColors.base.ignoresSafeArea())
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        if focusedStrengthInput == nil {
-                        HStack(spacing: 12) {
-                            Image(systemName: "timer")
-                                .font(.title2)
-                                .foregroundStyle(PaceColors.teal)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("RÉCUPÉRATION")
-                                    .font(.caption2.weight(.bold))
-                                    .tracking(1.1)
-                                    .foregroundStyle(.secondary)
-                                if restExerciseID == ex.id, let end = restEnd {
-                                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                                        let remaining = max(0, Int(ceil(end.timeIntervalSince(context.date))))
-                                        Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
-                                            .font(.system(size: 27, weight: .bold, design: .rounded))
-                                            .monospacedDigit()
-                                    }
-                                } else {
-                                    Text(String(format: "%02d:%02d", Int(ex.rest) / 60, Int(ex.rest) % 60))
-                                        .font(.system(size: 27, weight: .bold, design: .rounded))
-                                        .monospacedDigit()
-                                }
-                            }
-                            Spacer()
-                            Button {
-                                if restExerciseID == ex.id, restEnd != nil {
-                                    restEnd = nil
-                                    restExerciseID = nil
-                                    restSetNumber = nil
-                                } else {
-                                    restExerciseID = ex.id
-                                    restSetNumber = nil
-                                    restEnd = Date().addingTimeInterval(max(1, ex.rest))
-                                }
-                            } label: {
-                                Image(systemName: restExerciseID == ex.id && restEnd != nil
-                                      ? "stop.fill" : "play.fill")
-                                    .font(.headline)
-                                    .foregroundStyle(.white)
-                                    .frame(width: 54, height: 48)
-                                    .background(PaceColors.teal,
-                                                in: RoundedRectangle(cornerRadius: 15))
-                            }
-                            .accessibilityLabel(restExerciseID == ex.id && restEnd != nil
-                                                ? "Arrêter le minuteur" : "Démarrer la récupération")
-                        }
-                        .padding(15)
-                        .background(PaceColors.surface,
-                                    in: RoundedRectangle(cornerRadius: 22))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial)
+                PaceStrengthFlowScreen(
+                    dayDate: day.date, exercise: ex,
+                    onClose: { presentedExerciseID = nil },
+                    onNext: {
+                        if let index = exercises.firstIndex(where: { $0.id == ex.id }),
+                           exercises.indices.contains(index + 1) {
+                            presentedExerciseID = exercises[index + 1].id
+                        } else {
+                            presentedExerciseID = nil
                         }
                     }
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("Fermer", systemImage: "xmark") {
-                                focusedStrengthInput = nil
-                                presentedExerciseID = nil
-                            }
-                        }
-                        ToolbarItemGroup(placement: .topBarTrailing) {
-                            Button {
-                                navigateExercise(from: ex, direction: -1)
-                            } label: {
-                                Image(systemName: "chevron.left")
-                            }
-                            .disabled(exercises.first?.id == ex.id)
-                            .accessibilityLabel("Exercice précédent")
-
-                            Button {
-                                navigateExercise(from: ex, direction: 1)
-                            } label: {
-                                Image(systemName: "chevron.right")
-                            }
-                            .disabled(exercises.last?.id == ex.id)
-                            .accessibilityLabel("Exercice suivant")
-                        }
-                    }
-                }
+                )
+                .environmentObject(strengthTracker)
+                .id(ex.id)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .background {
-            Color.clear.contentShape(Rectangle())
-                .onTapGesture { focusedStrengthInput = nil }
-        }
-        .scrollDismissesKeyboard(.immediately)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Terminé") { focusedStrengthInput = nil }
-                    .font(.body.weight(.semibold))
-                    .tint(PaceColors.teal)
-            }
-        }
         .confirmationDialog("Toutes les séries ne sont pas cochées.",
                             isPresented: $confirmFinish, titleVisibility: .visible) {
             Button("Terminer la séance malgré tout") {
@@ -856,117 +654,333 @@ struct DayDetailScreen: View {
     }
 }
 
-private enum PaceStrengthInput: Hashable {
-    case repetitions(String, Int)
-    case load(String, Int)
-}
 
-/// Dedicated full-width inputs prevent accidental taps on adjacent controls.
-/// Local editing state keeps the keyboard focused while the private store saves each keystroke.
-private struct PaceStrengthSetRow: View {
+// A focused, one-set-at-a-time editor. Existing per-set persistence is untouched.
+private struct PaceStrengthFlowScreen: View {
     @EnvironmentObject private var tracker: PaceStrengthTracker
     let dayDate: String
     let exercise: PaceExercise
-    let setNumber: Int
-    let focus: FocusState<PaceStrengthInput?>.Binding
-    let didToggle: (Bool) -> Void
-    @State private var repetitionsText = ""
-    @State private var loadText = ""
+    let onClose: () -> Void
+    let onNext: () -> Void
 
-    private var entry: PaceStrengthSet {
-        tracker.entry(day: dayDate, exerciseID: exercise.id, set: setNumber)
+    @State private var activeSet = 1
+    @State private var reps = ""
+    @State private var kilograms = ""
+    @State private var showingGuide = false
+    @State private var resting = false
+    @State private var restDeadline: Date?
+    @State private var pausedSeconds: TimeInterval?
+    @State private var completedExercise = false
+    @FocusState private var field: StrengthField?
+    private enum StrengthField: Hashable { case repetitions, kilograms }
+
+    private var numberOfSets: Int { max(1, exercise.sets) }
+    private var current: PaceStrengthSet {
+        tracker.entry(day: dayDate, exerciseID: exercise.id, set: activeSet)
     }
-    private var completed: Bool { entry.completed }
+    private var validReps: Bool {
+        guard let value = Int(reps), value > 0 else { return false }
+        return value <= 999
+    }
+    private var validLoad: Bool {
+        guard exercise.tracksLoad else { return true }
+        guard !kilograms.isEmpty else { return true } // Bodyweight / unknown load is allowed.
+        guard let value = Double(kilograms.replacingOccurrences(of: ",", with: ".")) else { return false }
+        return value >= 0 && value.isFinite
+    }
+    private var isCurrentCompleted: Bool { current.completed }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(String(format: "%02d", setNumber))
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(completed ? PaceColors.teal : .secondary)
-                .frame(width: 30)
-
-            inputField(title: exercise.isTimed ? "SECONDES" : "RÉPÉTITIONS",
-                       placeholder: exercise.reps,
-                       text: $repetitionsText,
-                       kind: .repetitions(exercise.id, setNumber),
-                       keyboard: .numberPad,
-                       accessibility: exercise.isTimed
-                           ? "Durée en secondes, série \(setNumber)"
-                           : "Répétitions, série \(setNumber)")
-            if exercise.tracksLoad {
-                inputField(title: "KG",
-                           placeholder: "—",
-                           text: $loadText,
-                           kind: .load(exercise.id, setNumber),
-                           keyboard: .decimalPad,
-                           accessibility: "Charge en kilogrammes, série \(setNumber)")
+        NavigationStack {
+            Group {
+                if resting {
+                    recoveryScreen
+                } else if completedExercise {
+                    doneScreen
+                } else {
+                    editorScreen
+                }
             }
-            Button {
-                focus.wrappedValue = nil
-                let next = !completed
-                tracker.setCompleted(next, day: dayDate,
-                                     exerciseID: exercise.id, set: setNumber)
-                didToggle(next)
-            } label: {
-                Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 29, weight: .light))
-                    .foregroundStyle(completed ? PaceColors.teal : .secondary)
-                    .frame(width: 44, height: 48)
-                    .contentShape(Rectangle())
+            .background(PaceColors.base.ignoresSafeArea())
+            .navigationTitle("Musculation")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Fermer", systemImage: "xmark") { field = nil; onClose() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Conseils", systemImage: "info.circle") { field = nil; showingGuide = true }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Terminé") { field = nil }
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Série \(setNumber) : \(completed ? "validée, toucher pour annuler" : "toucher pour valider")")
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 5)
-        .background(completed ? PaceColors.teal.opacity(0.045) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            repetitionsText = entry.repetitions
-            loadText = entry.weightKg
-        }
-        .onChange(of: repetitionsText) { _, newValue in
-            tracker.setRepetitions(newValue, day: dayDate,
-                                   exerciseID: exercise.id, set: setNumber)
-        }
-        .onChange(of: loadText) { _, newValue in
-            tracker.setWeight(newValue, day: dayDate,
-                              exerciseID: exercise.id, set: setNumber)
+            .sheet(isPresented: $showingGuide) { guideSheet }
+            .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { date in
+                if resting, let deadline = restDeadline, date >= deadline {
+                    advanceAfterRest()
+                }
+            }
+            .onAppear { chooseFirstUnfinished() }
         }
     }
 
-    private func inputField(title: String, placeholder: String,
-                            text: Binding<String>, kind: PaceStrengthInput,
-                            keyboard: UIKeyboardType, accessibility: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(.secondary)
-            TextField(placeholder, text: text)
-                .keyboardType(keyboard)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, minHeight: 42)
-                .padding(.horizontal, 9)
-                .background(PaceColors.base.opacity(0.65),
-                            in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(focus.wrappedValue == kind ?
-                                      PaceColors.teal.opacity(0.75) : .clear, lineWidth: 1.5)
+    private var editorScreen: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 7) {
+                Text(exercise.name)
+                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                Text("Série \(activeSet) sur \(numberOfSets)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(1...numberOfSets, id: \.self) { number in
+                        Button {
+                            field = nil
+                            activeSet = number
+                            loadSet(number)
+                        } label: {
+                            Image(systemName: tracker.entry(day: dayDate, exerciseID: exercise.id, set: number).completed
+                                  ? "checkmark.circle.fill" : "\(number).circle.fill")
+                                .font(.system(size: 29))
+                                .foregroundStyle(number == activeSet ? PaceColors.teal :
+                                    tracker.entry(day: dayDate, exerciseID: exercise.id, set: number).completed ? .green : .secondary)
+                                .frame(minWidth: 45, minHeight: 45)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Série \(number)")
+                    }
                 }
-                .focused(focus, equals: kind)
-                .accessibilityLabel(accessibility)
-                .submitLabel(.done)
+            }
+            if field == nil {
+                PaceExerciseVisual(figure: PaceMovementGuide.forExercise(exercise).figure,
+                                   imageHeight: 145)
+                    .frame(height: 177)
+                    .clipShape(RoundedRectangle(cornerRadius: 19))
+                    .overlay(alignment: .bottomTrailing) {
+                        Button { showingGuide = true } label: {
+                            Label("Voir les conseils", systemImage: "info.circle.fill")
+                                .font(.caption.weight(.medium))
+                                .padding(10)
+                                .background(.regularMaterial, in: Capsule())
+                        }
+                        .padding(9)
+                    }
+            }
+
+            HStack(spacing: 12) {
+                metricField(title: exercise.isTimed ? "Secondes" : "Répétitions",
+                            value: $reps, focus: .repetitions, keyboard: .numberPad, unit: nil)
+                if exercise.tracksLoad {
+                    metricField(title: "Charge", value: $kilograms,
+                                focus: .kilograms, keyboard: .decimalPad, unit: "kg")
+                }
+            }
+            if !validReps {
+                Text(exercise.isTimed ? "Indique la durée réalisée en secondes." : "Indique les répétitions réellement effectuées.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if isCurrentCompleted {
+                Text("Série déjà validée · tu peux modifier ses valeurs.")
+                    .font(.footnote).foregroundStyle(PaceColors.teal)
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: saveAndAdvance) {
+                Label(isCurrentCompleted ? "Enregistrer les modifications" : "Valider la série",
+                      systemImage: "checkmark")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+            .disabled(!validReps || !validLoad)
+            .padding(.horizontal, 20).padding(.vertical, 10)
+            .background(PaceColors.base)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func metricField(title: String, value: Binding<String>,
+                             focus: StrengthField, keyboard: UIKeyboardType, unit: String?) -> some View {
+        VStack(spacing: 12) {
+            Text(title).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                TextField("—", text: value)
+                    .keyboardType(keyboard)
+                    .font(.system(size: 43, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .focused($field, equals: focus)
+                    .accessibilityLabel(title)
+                if let unit {
+                    Text(unit).font(.headline).foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 66)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(PaceColors.surface, in: RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(field == focus ? PaceColors.teal : .clear, lineWidth: 2)
+        }
+    }
+
+    private var recoveryScreen: some View {
+        VStack(spacing: 26) {
+            Spacer()
+            Text("Récupération").font(.title.bold())
+            TimelineView(.periodic(from: .now, by: 0.5)) { time in
+                let remaining = max(0, pausedSeconds ?? restDeadline?.timeIntervalSince(time.date) ?? 0)
+                let fraction = min(1, remaining / max(1, exercise.rest))
+                ZStack {
+                    Circle().stroke(PaceColors.teal.opacity(0.13), lineWidth: 17)
+                    Circle().trim(from: 0, to: fraction)
+                        .stroke(PaceColors.teal, style: StrokeStyle(lineWidth: 17, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 8) {
+                        Text(String(format: "%d:%02d", Int(ceil(remaining)) / 60,
+                                    Int(ceil(remaining)) % 60))
+                            .font(.system(size: 66, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text("Avant la série \(min(activeSet + 1, numberOfSets))")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 264, height: 264)
+            }
+            HStack(spacing: 12) {
+                Button("+ 30 s") {
+                    if let deadline = restDeadline { restDeadline = deadline.addingTimeInterval(30) }
+                    else { pausedSeconds = (pausedSeconds ?? 0) + 30 }
+                }
+                .buttonStyle(.bordered)
+                Button {
+                    if let deadline = restDeadline {
+                        pausedSeconds = max(0, deadline.timeIntervalSinceNow)
+                        restDeadline = nil
+                    } else {
+                        restDeadline = Date().addingTimeInterval(pausedSeconds ?? exercise.rest)
+                        pausedSeconds = nil
+                    }
+                } label: {
+                    Label(restDeadline == nil ? "Reprendre" : "Pause",
+                          systemImage: restDeadline == nil ? "play.fill" : "pause.fill")
+                }
+                .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+                Button("Passer") { advanceAfterRest() }
+                    .buttonStyle(.bordered)
+            }
+            Spacer()
+            Text("Série suivante · \(exercise.name)")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer(minLength: 10)
+        }
+        .padding(24)
+    }
+
+    private var doneScreen: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 78)).foregroundStyle(PaceColors.teal)
+            Text("Exercice terminé").font(.largeTitle.bold())
+            Text("\(numberOfSets) séries prévues · \(exercise.name)")
+                .foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Spacer()
+            Button("Revoir les séries") {
+                activeSet = numberOfSets
+                loadSet(activeSet)
+                completedExercise = false
+            }
+            .buttonStyle(.bordered)
+            Button(action: onNext) {
+                Label("Exercice suivant ou terminer", systemImage: "arrow.right")
+                    .font(.headline).frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.borderedProminent).tint(PaceColors.teal)
+        }
+        .padding(24)
+    }
+
+    private var guideSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    PaceExerciseVisual(figure: PaceMovementGuide.forExercise(exercise).figure,
+                                       imageHeight: 220)
+                    Text(PaceMovementGuide.forExercise(exercise).focus)
+                        .font(.headline)
+                    ForEach(Array(PaceMovementGuide.forExercise(exercise).steps.enumerated()),
+                            id: \.offset) { item in
+                        Label(item.element, systemImage: "checkmark.circle")
+                    }
+                    Text("Variante facile : \(exercise.easier)")
+                    Text("Variante difficile : \(exercise.harder)")
+                }
+                .padding()
+            }
+            .navigationTitle("Conseils")
+            .toolbar { Button("Fermer") { showingGuide = false } }
+        }
+    }
+
+    private func chooseFirstUnfinished() {
+        let next = (1...numberOfSets).first {
+            !tracker.entry(day: dayDate, exerciseID: exercise.id, set: $0).completed
+        }
+        activeSet = next ?? numberOfSets
+        completedExercise = next == nil
+        loadSet(activeSet)
+    }
+
+    private func loadSet(_ index: Int) {
+        let stored = tracker.entry(day: dayDate, exerciseID: exercise.id, set: index)
+        let preceding = index > 1 ? tracker.entry(day: dayDate, exerciseID: exercise.id, set: index - 1) : PaceStrengthSet()
+        reps = stored.repetitions.isEmpty ? preceding.repetitions : stored.repetitions
+        kilograms = stored.weightKg.isEmpty ? preceding.weightKg : stored.weightKg
+    }
+
+    private func saveAndAdvance() {
+        guard validReps && validLoad else { return }
+        field = nil
+        tracker.setRepetitions(reps, day: dayDate, exerciseID: exercise.id, set: activeSet)
+        if exercise.tracksLoad {
+            tracker.setWeight(kilograms, day: dayDate, exerciseID: exercise.id, set: activeSet)
+        }
+        if current.completed {
+            // An already completed set is edited without starting recovery again.
+            chooseFirstUnfinished()
+            return
+        }
+        tracker.setCompleted(true, day: dayDate, exerciseID: exercise.id, set: activeSet)
+        if activeSet < numberOfSets {
+            resting = true
+            restDeadline = Date().addingTimeInterval(max(0, exercise.rest))
+            pausedSeconds = nil
+            if exercise.rest <= 0 { advanceAfterRest() }
+        } else {
+            completedExercise = true
+        }
+    }
+
+    private func advanceAfterRest() {
+        resting = false
+        restDeadline = nil
+        pausedSeconds = nil
+        activeSet = min(numberOfSets, activeSet + 1)
+        loadSet(activeSet)
     }
 }
-
 
 /// Records an absence honestly; it is not an Apple Health workout or a completed session.
 private struct PaceMissedSessionEditor: View {
