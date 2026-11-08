@@ -177,6 +177,9 @@ struct PaceRouteMap: UIViewRepresentable {
     var progress: Double? = nil
     var followCamera = false
     var recenterToken = 0
+    var introProgress: Double? = nil
+    var outroProgress: Double? = nil
+    var cameraMode: PaceFlyoverCameraMode = .follow
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var marker = PaceRouteMarker()
@@ -190,6 +193,8 @@ struct PaceRouteMap: UIViewRepresentable {
         var cameraHeading: Double?
         var cameraCenter: CLLocationCoordinate2D?
         var lastCameraTick: TimeInterval?
+        var lastIntroProgress: Double?
+        var lastOutroProgress: Double?
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             let renderer = MKPolylineRenderer(overlay: overlay)
@@ -265,7 +270,11 @@ struct PaceRouteMap: UIViewRepresentable {
         let previousFraction = coordinator.previousProgress
         let shouldMove = previousFraction != fraction
         let shouldReset = coordinator.recenterToken != recenterToken
-        if shouldMove || shouldReset {
+        let sceneMoved = coordinator.lastIntroProgress != introProgress ||
+            coordinator.lastOutroProgress != outroProgress
+        if shouldMove || shouldReset || sceneMoved {
+            coordinator.lastIntroProgress = introProgress
+            coordinator.lastOutroProgress = outroProgress
             coordinator.recenterToken = recenterToken
             coordinator.previousProgress = fraction
             let current = track.frame(at: fraction)
@@ -285,6 +294,34 @@ struct PaceRouteMap: UIViewRepresentable {
                 coordinator.lastDrawnProgress = fraction
             }
             if followCamera {
+                if let scene = introProgress ?? outroProgress {
+                    let approaching = introProgress != nil
+                    let t = min(1, max(0, scene))
+                    let easing = t * t * (3 - 2 * t)
+                    let startFrame = track.frame(at: approaching ? 0 : 1)
+                    let rectangle = coordinator.route?.boundingMapRect ?? .world
+                    let routeCenter = MKMapPoint(x: rectangle.midX, y: rectangle.midY).coordinate
+                    let start = approaching ? routeCenter : startFrame.coordinate
+                    let end = approaching ? startFrame.coordinate : routeCenter
+                    let center = CLLocationCoordinate2D(
+                        latitude: start.latitude + (end.latitude - start.latitude) * easing,
+                        longitude: start.longitude + (end.longitude - start.longitude) * easing)
+                    let wideDistance = max(6500.0, min(26000.0, track.totalDistance * 2.0))
+                    let closeDistance = max(850.0, min(1700.0, track.totalDistance / 3))
+                    let zoom = approaching
+                        ? wideDistance * pow(closeDistance / wideDistance, easing)
+                        : closeDistance * pow(wideDistance / closeDistance, easing)
+                    let direction = track.cameraCourse(at: approaching ? 0 : 1) ?? startFrame.heading
+                    let heading = PaceFlightMotion.wrap(direction + (approaching ? 26 * (1 - easing) : 24 * easing))
+                    let pitch = approaching ? 28 + 27 * easing : 55 - 30 * easing
+                    let camera = MKMapCamera(lookingAtCenter: center,
+                                             fromDistance: zoom, pitch: pitch, heading: heading)
+                    map.setCamera(camera, animated: false)
+                    coordinator.cameraCenter = approaching ? end : nil
+                    coordinator.cameraHeading = heading
+                    coordinator.lastCameraTick = nil
+                    return
+                }
                 let uptime = ProcessInfo.processInfo.systemUptime
                 let dt = coordinator.lastCameraTick.map {
                     min(0.25, max(0.012, uptime - $0))
@@ -305,10 +342,11 @@ struct PaceRouteMap: UIViewRepresentable {
                 coordinator.cameraCenter = PaceFlightMotion.center(
                     previous: coordinator.cameraCenter, desired: targetCenter,
                     seconds: dt, snap: seek)
+                let defaultDistance = max(870.0, min(1700.0, track.totalDistance / 3))
                 let camera = MKMapCamera(
                     lookingAtCenter: coordinator.cameraCenter ?? current.coordinate,
-                    fromDistance: max(870, min(1700, track.totalDistance / 3)),
-                    pitch: 52, heading: coordinator.cameraHeading ?? desiredHeading)
+                    fromDistance: defaultDistance * cameraMode.distanceMultiplier,
+                    pitch: cameraMode.pitch, heading: coordinator.cameraHeading ?? desiredHeading)
                 map.setCamera(camera, animated: false)
             } else if shouldReset, let route = coordinator.route {
                 map.setVisibleMapRect(route.boundingMapRect,
@@ -477,6 +515,19 @@ struct PaceRouteFullMapScreen: View {
 
 /// Always-visible speed choices: avoids the iOS context menu that was
 /// visible but intermittently unselectable over the updating MapKit view.
+enum PaceFlyoverCameraMode: String, CaseIterable {
+    case follow = "Suivi"
+    case panorama = "Panorama"
+    case overhead = "Verticale"
+
+    var distanceMultiplier: Double {
+        switch self { case .follow: 1; case .panorama: 2.0; case .overhead: 1.45 }
+    }
+    var pitch: CGFloat {
+        switch self { case .follow: 55; case .panorama: 64; case .overhead: 15 }
+    }
+}
+
 struct PaceFlyoverSpeedControl: View {
     @Binding var selection: Double
     private let values: [Double] = [0.5, 1, 2, 4]
@@ -521,18 +572,43 @@ struct PaceRouteFlyoverScreen: View {
     @State private var playbackSpeed = 1.0
     @State private var lastTick: Date?
     @State private var recenterToken = 0
+    @State private var stage: PaceFlightScene = .intro
+    @State private var sceneProgress = 0.0
+    @State private var cameraMode: PaceFlyoverCameraMode = .follow
+    @State private var freeCamera = false
+    @State private var showTelemetry = true
+
+    private enum PaceFlightScene { case intro, chase, outro, finished }
 
     private var current: PaceRouteFrame { track.frame(at: fraction) }
     private var playbackSeconds: Double { 75 / playbackSpeed }
     private var progressDistance: String {
         PaceFormat.distance(current.distanceMeters / 1000, places: 2)
     }
+    /// Moving 45-second window of the recorded GPS route, not an inferred
+    /// physiological threshold and not a claim of instantaneous speed.
+    private var routePace: String {
+        guard current.elapsedSeconds >= 45 else { return "—" }
+        let before = track.frame(at: max(0, fraction - 45 / track.duration))
+        let deltaKm = (current.distanceMeters - before.distanceMeters) / 1000
+        guard deltaKm >= 0.025 else { return "—" }
+        let minutesPerKm = 0.75 / deltaKm
+        guard minutesPerKm >= 2 && minutesPerKm <= 30 else { return "—" }
+        return PaceFormat.pace(minutesPerKm)
+    }
+    private var gpsAltitude: String {
+        guard current.elevation.isFinite, (-400...8000).contains(current.elevation) else { return "—" }
+        return "\(Int(current.elevation.rounded())) m"
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             PaceRouteMap(track: track, progress: fraction,
-                         followCamera: true, recenterToken: recenterToken)
+                         followCamera: !freeCamera, recenterToken: recenterToken,
+                         introProgress: stage == .intro ? sceneProgress : nil,
+                         outroProgress: stage == .outro ? sceneProgress : (stage == .finished ? 1 : nil),
+                         cameraMode: cameraMode)
                 .ignoresSafeArea()
 
             // Optical depth without hiding the photographic surroundings.
@@ -573,10 +649,46 @@ struct PaceRouteFlyoverScreen: View {
                 }
                 .padding(.horizontal, 19)
                 .padding(.top, 14)
-
+                HStack(spacing: 10) {
+                    Menu {
+                        ForEach(PaceFlyoverCameraMode.allCases, id: \.self) { mode in
+                            Button(mode.rawValue, systemImage: mode == cameraMode ? "checkmark" : "video") {
+                                cameraMode = mode
+                                freeCamera = false
+                                recenterToken += 1
+                            }
+                        }
+                    } label: {
+                        Label(cameraMode.rawValue, systemImage: "video.fill")
+                            .padding(.horizontal, 13)
+                            .frame(height: 39)
+                            .background(.black.opacity(0.48), in: Capsule())
+                    }
+                    Spacer(minLength: 0)
+                    Button { showTelemetry.toggle() } label: {
+                        Image(systemName: showTelemetry ? "chart.bar.fill" : "chart.bar")
+                            .frame(width: 43, height: 39)
+                            .background(.black.opacity(0.48), in: Capsule())
+                    }
+                    .accessibilityLabel(showTelemetry ? "Masquer les statistiques" : "Afficher les statistiques")
+                    Button {
+                        freeCamera.toggle()
+                        if !freeCamera { recenterToken += 1 }
+                    } label: {
+                        Image(systemName: freeCamera ? "location.north.fill" : "hand.draw.fill")
+                            .frame(width: 43, height: 39)
+                            .background(.black.opacity(0.48), in: Capsule())
+                    }
+                    .accessibilityLabel(freeCamera ? "Reprendre le suivi de la caméra" : "Explorer librement la carte")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 19)
+                .padding(.top, 13)
                 Spacer()
 
                 VStack(spacing: 14) {
+                    if showTelemetry {
                     HStack(alignment: .firstTextBaseline) {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
                             Text(progressDistance)
@@ -598,9 +710,47 @@ struct PaceRouteFlyoverScreen: View {
                         }
                     }
                     .foregroundStyle(.white)
+                    HStack(spacing: 14) {
+                        VStack(alignment:.leading,spacing:3) {
+                            Text("ALLURE GPS · 45 S")
+                                .font(.system(size:9,weight:.bold,design:.rounded))
+                                .tracking(1)
+                                .foregroundStyle(.white.opacity(0.58))
+                            Text(routePace == "—" ? "—" : routePace + " /km")
+                                .font(.system(size:15,weight:.semibold,design:.rounded))
+                                .monospacedDigit()
+                        }
+                        Spacer()
+                        VStack(alignment:.trailing,spacing:3) {
+                            Text("ALTITUDE GPS")
+                                .font(.system(size:9,weight:.bold,design:.rounded))
+                                .tracking(1)
+                                .foregroundStyle(.white.opacity(0.58))
+                            Text(gpsAltitude)
+                                .font(.system(size:15,weight:.semibold,design:.rounded))
+                                .monospacedDigit()
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    }
+                    if stage == .intro {
+                        Text("DÉCOUVREZ VOTRE PARCOURS")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.3)
+                            .foregroundStyle(.white)
+                    } else if stage == .outro || stage == .finished {
+                        Text("VOTRE PARCOURS, EN ENTIER")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.3)
+                            .foregroundStyle(.white)
+                    }
 
                     Slider(value: $fraction, in: 0...1, onEditingChanged: { editing in
-                        if editing { isPlaying = false }
+                        if editing {
+                            isPlaying = false
+                            stage = .chase
+                            sceneProgress = 0
+                        }
                     })
                     .tint(.white)
                     .accessibilityLabel("Position dans le parcours")
@@ -608,7 +758,12 @@ struct PaceRouteFlyoverScreen: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            if fraction >= 1 { fraction = 0 }
+                            if fraction >= 1 {
+                                fraction = 0
+                                stage = .intro
+                                sceneProgress = 0
+                                freeCamera = false
+                            }
                             isPlaying.toggle()
                             lastTick = .now
                         } label: {
@@ -626,7 +781,7 @@ struct PaceRouteFlyoverScreen: View {
                         PaceFlyoverSpeedControl(selection: $playbackSpeed)
 
                         Spacer(minLength: 0)
-                        Button { recenterToken += 1 } label: {
+                        Button { freeCamera = false; recenterToken += 1 } label: {
                             Image(systemName: "location.north.line.fill")
                                 .font(.system(size: 18, weight: .semibold))
                                 .foregroundStyle(.white)
@@ -658,8 +813,25 @@ struct PaceRouteFlyoverScreen: View {
             defer { lastTick = now }
             guard isPlaying else { return }
             let elapsed = min(0.25, max(0, now.timeIntervalSince(lastTick ?? now)))
-            fraction = min(1, fraction + elapsed / playbackSeconds)
-            if fraction >= 1 { isPlaying = false }
+            switch stage {
+            case .intro:
+                sceneProgress = min(1, sceneProgress + elapsed / 4.5)
+                if sceneProgress >= 1 {
+                    stage = .chase
+                    sceneProgress = 0
+                }
+            case .chase:
+                fraction = min(1, fraction + elapsed / playbackSeconds)
+                if fraction >= 1 {
+                    stage = .outro
+                    sceneProgress = 0
+                }
+            case .outro:
+                sceneProgress = min(1, sceneProgress + elapsed / 5)
+                if sceneProgress >= 1 { stage = .finished; isPlaying = false }
+            case .finished:
+                isPlaying = false
+            }
         }
     }
 }

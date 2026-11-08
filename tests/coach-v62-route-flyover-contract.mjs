@@ -33,7 +33,7 @@ assert.ok(route.includes('Pause') && route.includes('Lire'));
 assert.ok(route.includes('recenterToken += 1'));
 assert.ok(route.includes('PaceFlyoverSpeedControl(selection: $playbackSpeed)'));
 assert.ok(route.includes('selection = value'), 'Speed choices must directly update playback state');
-assert.ok(route.includes('if fraction >= 1 { isPlaying = false }'));
+assert.ok(route.includes('if fraction >= 1 {') && route.includes('stage = .outro') && route.includes('case .finished:'), 'Playback completes with a 3D reveal before stopping');
 assert.ok(route.includes('case .unavailable:'));
 assert.ok(route.includes('Parcours GPS indisponible'));
 assert.ok(activity.includes('PaceRouteSection(workout: workout)'));
