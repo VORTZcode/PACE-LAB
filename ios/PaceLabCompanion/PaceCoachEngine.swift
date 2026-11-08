@@ -250,6 +250,81 @@ enum PaceCyclePlanner {
     }
 }
 
+/// Conservative comparison between two sufficiently similar recorded runs.
+/// It is an observation, never proof of an underlying physiological adaptation.
+struct PaceComparableRunResult {
+    let beforeDate: Date
+    let afterDate: Date
+    let beforeKm: Double
+    let afterKm: Double
+    let beforeMinutesPerKm: Double
+    let afterMinutesPerKm: Double
+    let beforeRPE: Int
+    let afterRPE: Int
+    let averageHRBefore: Double?
+    let averageHRAfter: Double?
+    let distanceRelativeDifference: Double
+    let paceRelativeChange: Double
+
+    var description: String {
+        let speedText = paceRelativeChange < -0.025 ? "allure enregistrée plus rapide" :
+            paceRelativeChange > 0.025 ? "allure enregistrée plus lente" : "allure enregistrée comparable"
+        let hr = (averageHRBefore != nil && averageHRAfter != nil) ?
+            "; FC moyenne \(Int(averageHRBefore!.rounded())) → \(Int(averageHRAfter!.rounded())) bpm" :
+            "; FC moyenne non comparable"
+        return "Deux courses de distance voisine (\(String(format: "%.2f", beforeKm)) et \(String(format: "%.2f", afterKm)) km) à \(Int(afterDate.timeIntervalSince(beforeDate) / 86400)) jours d'intervalle : " +
+            "\(PaceFormat.pace(beforeMinutesPerKm)) → \(PaceFormat.pace(afterMinutesPerKm))/km, " +
+            "RPE \(beforeRPE) → \(afterRPE), \(speedText)\(hr). " +
+            "Les différences de terrain, météo, sommeil et intensité ne sont pas contrôlées : ceci n'est pas la preuve d'un progrès physiologique."
+    }
+}
+
+enum PaceProgressComparator {
+    static func evaluate(runs: [WorkoutPayload], notes: [String:PaceSessionNote],
+                         now: Date = .now) -> PaceComparableRunResult? {
+        let lower = now.addingTimeInterval(-56 * 86400)
+        var unique: [String:WorkoutPayload] = [:]
+        for run in runs where run.isRun && !run.source_uuid.isEmpty &&
+            run.startDate >= lower && run.startDate <= now &&
+            run.kilometers.isFinite && run.kilometers >= 2 &&
+            run.duration_seconds.isFinite && run.duration_seconds > 0 &&
+            run.endDate >= run.startDate && run.endDate <= now {
+            unique[run.source_uuid] = run
+        }
+        let valid = unique.values.filter { run in
+            guard let note = notes[run.source_uuid],
+                  let effort = note.effort, let pain = note.pain,
+                  (1...10).contains(effort), (0...3).contains(pain),
+                  let pace = run.paceMinutes else { return false }
+            return pace >= 3 && pace <= 20
+        }.sorted { $0.startDate < $1.startDate }
+        guard valid.count >= 2 else { return nil }
+        // Prefer the most recent pair that is at least a week apart and
+        // differs by less than 10% in distance, with closely matched RPE.
+        for after in valid.reversed() {
+            let matches = valid.filter { before in
+                let days = after.startDate.timeIntervalSince(before.startDate)/86400
+                return days >= 7 && days <= 42 &&
+                    abs(before.kilometers - after.kilometers) / max(before.kilometers,after.kilometers) <= 0.10 &&
+                    abs((notes[before.source_uuid]?.effort ?? 0) - (notes[after.source_uuid]?.effort ?? 0)) <= 1
+            }
+            guard let before = matches.last,
+                  let firstPace = before.paceMinutes,
+                  let lastPace = after.paceMinutes,
+                  let firstRPE = notes[before.source_uuid]?.effort,
+                  let lastRPE = notes[after.source_uuid]?.effort else { continue }
+            return .init(beforeDate:before.startDate,afterDate:after.startDate,
+                beforeKm:before.kilometers,afterKm:after.kilometers,
+                beforeMinutesPerKm:firstPace,afterMinutesPerKm:lastPace,
+                beforeRPE:firstRPE,afterRPE:lastRPE,
+                averageHRBefore:before.hr_average_bpm,averageHRAfter:after.hr_average_bpm,
+                distanceRelativeDifference:abs(before.kilometers-after.kilometers)/before.kilometers,
+                paceRelativeChange:(lastPace-firstPace)/firstPace)
+        }
+        return nil
+    }
+}
+
 /// Attempt metadata contains no health values, only activity UUID and retry timing.
 private struct PaceReviewAttempt: Codable {
     var count: Int
@@ -610,6 +685,13 @@ enum PaceSessionReviewState {
             pieces.append(PaceEvidenceEngine.evaluate(engine.runHistory).promptContext)
             pieces.append(PaceCoachTelemetry.recentTrends(engine.runHistory))
             pieces.append(PaceProgressEvidence.snapshot(engine.runHistory).coachEvidenceContext)
+            if let comparison = PaceProgressComparator.evaluate(
+                runs:engine.runHistory,notes:sharedNotes) {
+                pieces.append("COMPARAISON CONTRÔLÉE DE DEUX COURSES (indicative) : " + comparison.description)
+            } else {
+                pieces.append("COMPARAISON DE PROGRESSION : pas de paire de courses suffisamment similaires avec RPE et gêne renseignés à au moins 7 jours d'intervalle. Ne pas annoncer un gain physiologique démontré.")
+            }
+
             if let memory = priorAnalysisContext(profile:profile,excluding:workoutID,engine:engine) {
                 pieces.append(memory)
             }

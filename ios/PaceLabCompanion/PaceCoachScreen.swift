@@ -1100,6 +1100,21 @@ struct PaceCoachScreen: View {
                         }
                         .padding(12)
                         .background(PaceColors.surface,in:RoundedRectangle(cornerRadius:14))
+                        if let comparison = PaceProgressComparator.evaluate(runs:engine.runHistory,
+                            notes:coach.shareSessionNotes ? journal.notes : [:]) {
+                            DisclosureGroup("Comparaison de deux courses similaires") {
+                                Text(comparison.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .tint(PaceColors.teal)
+                        } else {
+                            Label("Progression : comparaison insuffisante (RPE et gêne à compléter).",
+                                  systemImage:"info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     let totalEnergy = draft.meals.reduce(0) { $0 + $1.kcal }
                     let totalProtein = draft.meals.reduce(0) { $0 + $1.protein }
