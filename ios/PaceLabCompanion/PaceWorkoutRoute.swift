@@ -199,12 +199,12 @@ struct PaceRouteMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             let renderer = MKPolylineRenderer(overlay: overlay)
             if let played = completedRoute, let line = overlay as? MKPolyline, played === line {
-                renderer.strokeColor = UIColor(red: 0.06, green: 0.61, blue: 0.52, alpha: 1)
-                renderer.lineWidth = 7
+                renderer.strokeColor = UIColor(red: 0.16, green: 0.93, blue: 0.79, alpha: 0.97)
+                renderer.lineWidth = isPlayback ? 3.4 : 4.1
             } else {
-                renderer.strokeColor = UIColor(red: 0.06, green: 0.59, blue: 0.52,
-                    alpha: isPlayback ? 0.32 : 0.94)
-                renderer.lineWidth = isPlayback ? 4 : 5.5
+                renderer.strokeColor = UIColor(red: 0.45, green: 0.91, blue: 0.80,
+                    alpha: isPlayback ? 0.38 : 0.90)
+                renderer.lineWidth = isPlayback ? 1.6 : 3.3
             }
             renderer.lineJoin = .round
             renderer.lineCap = .round
@@ -213,14 +213,14 @@ struct PaceRouteMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard annotation is PaceRouteMarker else { return nil }
             let view = MKAnnotationView(annotation: annotation, reuseIdentifier: "pace-route-position")
-            view.frame = CGRect(x: 0, y: 0, width: 18, height: 18)
-            view.layer.cornerRadius = 9
+            view.frame = CGRect(x: 0, y: 0, width: 13, height: 13)
+            view.layer.cornerRadius = 6.5
             view.layer.backgroundColor = UIColor.systemTeal.cgColor
             view.layer.borderColor = UIColor.white.cgColor
-            view.layer.borderWidth = 3
+            view.layer.borderWidth = 2
             view.layer.shadowColor = UIColor.black.cgColor
-            view.layer.shadowOpacity = 0.25
-            view.layer.shadowRadius = 4
+            view.layer.shadowOpacity = 0.35
+            view.layer.shadowRadius = 7
             view.layer.shadowOffset = .zero
             return view
         }
@@ -307,7 +307,7 @@ struct PaceRouteMap: UIViewRepresentable {
                         latitude: start.latitude + (end.latitude - start.latitude) * easing,
                         longitude: start.longitude + (end.longitude - start.longitude) * easing)
                     let wideDistance = max(6500.0, min(26000.0, track.totalDistance * 2.0))
-                    let closeDistance = max(850.0, min(1700.0, track.totalDistance / 3))
+                    let closeDistance = max(500.0, min(940.0, track.totalDistance / 7))
                     let zoom = approaching
                         ? wideDistance * pow(closeDistance / wideDistance, easing)
                         : closeDistance * pow(wideDistance / closeDistance, easing)
@@ -334,7 +334,9 @@ struct PaceRouteMap: UIViewRepresentable {
                 let lookAhead = min(6, track.duration * 0.003)
                 let targetCenter = track.frame(
                     at: min(1, fraction + lookAhead / track.duration)).coordinate
-                let desiredHeading = track.cameraCourse(at: fraction) ??
+                // Anticipate the next section, avoiding tiny per-fix GPS wiggles.
+                let aheadFraction = min(1, fraction + min(25 / track.duration, 0.035))
+                let desiredHeading = track.cameraCourse(at: aheadFraction) ??
                     coordinator.cameraHeading ?? current.heading
                 coordinator.cameraHeading = PaceFlightMotion.heading(
                     previous: coordinator.cameraHeading,
@@ -342,11 +344,18 @@ struct PaceRouteMap: UIViewRepresentable {
                 coordinator.cameraCenter = PaceFlightMotion.center(
                     previous: coordinator.cameraCenter, desired: targetCenter,
                     seconds: dt, snap: seek)
-                let defaultDistance = max(870.0, min(1700.0, track.totalDistance / 3))
+                // A close but restrained aerial perspective. Pull back gently
+                // before a bend so the runner remains readable in context.
+                let defaultDistance = max(500.0, min(940.0, track.totalDistance / 7))
+                let nearHeading = track.cameraCourse(at: fraction) ?? desiredHeading
+                let turn = abs(PaceFlightMotion.shortestTurn(from: nearHeading, to: desiredHeading))
+                let bend = min(1, turn / 75)
+                let followDistance = defaultDistance * (1 + 0.30 * bend)
+                let adaptivePitch = max(20, cameraMode.pitch - CGFloat(bend * 7))
                 let camera = MKMapCamera(
                     lookingAtCenter: coordinator.cameraCenter ?? current.coordinate,
-                    fromDistance: defaultDistance * cameraMode.distanceMultiplier,
-                    pitch: cameraMode.pitch, heading: coordinator.cameraHeading ?? desiredHeading)
+                    fromDistance: followDistance * cameraMode.distanceMultiplier,
+                    pitch: adaptivePitch, heading: coordinator.cameraHeading ?? desiredHeading)
                 map.setCamera(camera, animated: false)
             } else if shouldReset, let route = coordinator.route {
                 map.setVisibleMapRect(route.boundingMapRect,
@@ -613,13 +622,13 @@ struct PaceRouteFlyoverScreen: View {
 
             // Optical depth without hiding the photographic surroundings.
             VStack(spacing: 0) {
-                LinearGradient(colors: [.black.opacity(0.61), .clear],
+                LinearGradient(colors: [.black.opacity(0.47), .clear],
                                startPoint: .top, endPoint: .bottom)
-                    .frame(height: 220)
+                    .frame(height: 175)
                 Spacer()
-                LinearGradient(colors: [.clear, .black.opacity(0.72)],
+                LinearGradient(colors: [.clear, .black.opacity(0.38)],
                                startPoint: .top, endPoint: .bottom)
-                    .frame(height: 240)
+                    .frame(height: 185)
             }
             .ignoresSafeArea()
             .allowsHitTesting(false)
@@ -686,65 +695,46 @@ struct PaceRouteFlyoverScreen: View {
                 .padding(.horizontal, 19)
                 .padding(.top, 13)
                 Spacer()
-
-                VStack(spacing: 14) {
+                if stage == .intro || stage == .outro || stage == .finished {
+                    Text(stage == .intro ? "REDÉCOUVRIR LE PARCOURS" : "LE PARCOURS EN ENTIER")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .tracking(1.7)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                        .shadow(color: .black.opacity(0.8), radius: 8)
+                }
+                VStack(alignment: .leading, spacing: 12) {
                     if showTelemetry {
-                    HStack(alignment: .firstTextBaseline) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
                             Text(progressDistance)
-                                .font(.system(size: 38, weight: .semibold, design: .rounded))
+                                .font(.system(size: 32, weight: .semibold, design: .rounded))
                                 .monospacedDigit()
+                                .contentTransition(.numericText())
                             Text("km")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.72))
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.74))
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text("TEMPS ÉCOULÉ")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .tracking(1)
+                                    .foregroundStyle(.white.opacity(0.65))
+                                Text(PaceFormat.duration(current.elapsedSeconds))
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                            }
                         }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("SUR LE PARCOURS")
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
-                                .tracking(1.2)
-                                .foregroundStyle(.white.opacity(0.66))
-                            Text(PaceFormat.duration(current.elapsedSeconds))
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .monospacedDigit()
+                        .foregroundStyle(.white)
+                        HStack(spacing: 8) {
+                            Label(routePace == "—" ? "Allure —" : routePace + " /km",
+                                  systemImage: "speedometer")
+                            Spacer()
+                            Label(gpsAltitude, systemImage: "mountain.2")
                         }
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.79))
                     }
-                    .foregroundStyle(.white)
-                    HStack(spacing: 14) {
-                        VStack(alignment:.leading,spacing:3) {
-                            Text("ALLURE GPS · 45 S")
-                                .font(.system(size:9,weight:.bold,design:.rounded))
-                                .tracking(1)
-                                .foregroundStyle(.white.opacity(0.58))
-                            Text(routePace == "—" ? "—" : routePace + " /km")
-                                .font(.system(size:15,weight:.semibold,design:.rounded))
-                                .monospacedDigit()
-                        }
-                        Spacer()
-                        VStack(alignment:.trailing,spacing:3) {
-                            Text("ALTITUDE GPS")
-                                .font(.system(size:9,weight:.bold,design:.rounded))
-                                .tracking(1)
-                                .foregroundStyle(.white.opacity(0.58))
-                            Text(gpsAltitude)
-                                .font(.system(size:15,weight:.semibold,design:.rounded))
-                                .monospacedDigit()
-                        }
-                    }
-                    .foregroundStyle(.white)
-                    }
-                    if stage == .intro {
-                        Text("DÉCOUVREZ VOTRE PARCOURS")
-                            .font(.caption.weight(.bold))
-                            .tracking(1.3)
-                            .foregroundStyle(.white)
-                    } else if stage == .outro || stage == .finished {
-                        Text("VOTRE PARCOURS, EN ENTIER")
-                            .font(.caption.weight(.bold))
-                            .tracking(1.3)
-                            .foregroundStyle(.white)
-                    }
-
                     Slider(value: $fraction, in: 0...1, onEditingChanged: { editing in
                         if editing {
                             isPlaying = false
@@ -755,8 +745,7 @@ struct PaceRouteFlyoverScreen: View {
                     .tint(.white)
                     .accessibilityLabel("Position dans le parcours")
                     .accessibilityValue("\(Int((fraction * 100).rounded())) pour cent")
-
-                    HStack(spacing: 12) {
+                    HStack(spacing: 11) {
                         Button {
                             if fraction >= 1 {
                                 fraction = 0
@@ -769,40 +758,34 @@ struct PaceRouteFlyoverScreen: View {
                         } label: {
                             Label(isPlaying ? "Pause" : "Lire",
                                   systemImage: isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .frame(minWidth: 91, minHeight: 43)
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .frame(minWidth: 87, minHeight: 41)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.white)
                         .foregroundStyle(.black)
-
                         Spacer(minLength: 0)
-
                         PaceFlyoverSpeedControl(selection: $playbackSpeed)
-
-                        Spacer(minLength: 0)
                         Button { freeCamera = false; recenterToken += 1 } label: {
                             Image(systemName: "location.north.line.fill")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .frame(width: 43, height: 43)
-                                .background(.black.opacity(0.44), in: Circle())
+                                .frame(width: 41, height: 41)
+                                .background(.white.opacity(0.13), in: Circle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Recentrer la caméra")
                     }
-                    Text("Imagerie Apple Plans · détails 3D selon couverture")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
                 }
                 .padding(.horizontal, 17)
-                .padding(.top, 18)
-                .padding(.bottom, 13)
-                .background(.black.opacity(0.68),
-                            in: RoundedRectangle(cornerRadius: 27, style: .continuous))
+                .padding(.top, 14)
+                .padding(.bottom, 12)
+                .background(.ultraThinMaterial.opacity(0.85),
+                            in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .environment(\.colorScheme, .dark)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 27)
-                        .strokeBorder(.white.opacity(0.16), lineWidth: 0.7)
+                    RoundedRectangle(cornerRadius: 24)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 0.75)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
