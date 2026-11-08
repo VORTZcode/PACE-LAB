@@ -42,6 +42,18 @@ enum PaceFlightMotion {
         return wrap(previous + change)
     }
 
+    /// Critically simple exponential camera easing: applied only to virtual
+    /// camera height/pitch. Scrubbing is immediate, normal playback is smooth.
+    static func scalar(previous: Double?, desired: Double,
+                       seconds: TimeInterval, response: Double = 0.75,
+                       snap: Bool = false) -> Double {
+        guard desired.isFinite else { return previous ?? 0 }
+        guard let previous, previous.isFinite, !snap else { return desired }
+        let dt = min(0.3, max(0.01, seconds))
+        let alpha = 1 - exp(-dt / max(0.05, response))
+        return previous + (desired - previous) * alpha
+    }
+
     /// Low-pass the virtual camera *position*, not the athlete's GPS trace.
     static func center(previous: CLLocationCoordinate2D?,
                        desired: CLLocationCoordinate2D,

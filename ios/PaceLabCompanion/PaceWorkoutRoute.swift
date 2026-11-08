@@ -24,6 +24,23 @@ struct PaceRouteTrack {
     let duration: TimeInterval
     var totalDistance: CLLocationDistance { distances.last ?? 0 }
 
+    /// Physical footprint of the actual route (not kilometres accumulated).
+    /// A looping 7 km course may cover a square of only 1–2 km: using total
+    /// distance for the introduction made the map look like an orbit shot.
+    var footprintMeters: CLLocationDistance {
+        guard let first = fixes.first else { return 0 }
+        var north = first.location.latitude, south = north
+        var east = first.location.longitude, west = east
+        for point in fixes {
+            north = max(north, point.location.latitude)
+            south = min(south, point.location.latitude)
+            east = max(east, point.location.longitude)
+            west = min(west, point.location.longitude)
+        }
+        return CLLocation(latitude: north, longitude: east)
+            .distance(from: CLLocation(latitude: south, longitude: west))
+    }
+
     init?(locations: [CLLocation]) {
         let ordered = locations
             .filter { CLLocationCoordinate2DIsValid($0.coordinate) &&
@@ -193,6 +210,8 @@ struct PaceRouteMap: UIViewRepresentable {
         var cameraHeading: Double?
         var cameraCenter: CLLocationCoordinate2D?
         var lastCameraTick: TimeInterval?
+        var cameraDistance: Double?
+        var cameraPitch: Double?
         var lastIntroProgress: Double?
         var lastOutroProgress: Double?
 
@@ -255,6 +274,8 @@ struct PaceRouteMap: UIViewRepresentable {
             coordinator.cameraHeading = nil
             coordinator.cameraCenter = nil
             coordinator.lastCameraTick = nil
+            coordinator.cameraDistance = nil
+            coordinator.cameraPitch = nil
             map.removeAnnotations(map.annotations)
             let line = MKPolyline(coordinates: coordinates, count: coordinates.count)
             map.addOverlay(line)
@@ -306,7 +327,8 @@ struct PaceRouteMap: UIViewRepresentable {
                     let center = CLLocationCoordinate2D(
                         latitude: start.latitude + (end.latitude - start.latitude) * easing,
                         longitude: start.longitude + (end.longitude - start.longitude) * easing)
-                    let wideDistance = max(6500.0, min(26000.0, track.totalDistance * 2.0))
+                    // Fit the route's spatial footprint, not kilometres run.
+                    let wideDistance = max(1400.0, min(7600.0, track.footprintMeters * 2.6))
                     let closeDistance = max(500.0, min(940.0, track.totalDistance / 7))
                     let zoom = approaching
                         ? wideDistance * pow(closeDistance / wideDistance, easing)
@@ -320,6 +342,8 @@ struct PaceRouteMap: UIViewRepresentable {
                     coordinator.cameraCenter = approaching ? end : nil
                     coordinator.cameraHeading = heading
                     coordinator.lastCameraTick = nil
+                    coordinator.cameraDistance = zoom
+                    coordinator.cameraPitch = pitch
                     return
                 }
                 let uptime = ProcessInfo.processInfo.systemUptime
@@ -352,10 +376,20 @@ struct PaceRouteMap: UIViewRepresentable {
                 let bend = min(1, turn / 75)
                 let followDistance = defaultDistance * (1 + 0.30 * bend)
                 let adaptivePitch = max(20, cameraMode.pitch - CGFloat(bend * 7))
+                let smoothedDistance = PaceFlightMotion.scalar(
+                    previous: coordinator.cameraDistance,
+                    desired: followDistance * cameraMode.distanceMultiplier,
+                    seconds: dt, response: 0.75, snap: seek)
+                let smoothedPitch = PaceFlightMotion.scalar(
+                    previous: coordinator.cameraPitch,
+                    desired: Double(adaptivePitch),
+                    seconds: dt, response: 0.85, snap: seek)
+                coordinator.cameraDistance = smoothedDistance
+                coordinator.cameraPitch = smoothedPitch
                 let camera = MKMapCamera(
                     lookingAtCenter: coordinator.cameraCenter ?? current.coordinate,
-                    fromDistance: followDistance * cameraMode.distanceMultiplier,
-                    pitch: adaptivePitch, heading: coordinator.cameraHeading ?? desiredHeading)
+                    fromDistance: smoothedDistance,
+                    pitch: smoothedPitch, heading: coordinator.cameraHeading ?? desiredHeading)
                 map.setCamera(camera, animated: false)
             } else if shouldReset, let route = coordinator.route {
                 map.setVisibleMapRect(route.boundingMapRect,
@@ -586,6 +620,7 @@ struct PaceRouteFlyoverScreen: View {
     @State private var cameraMode: PaceFlyoverCameraMode = .follow
     @State private var freeCamera = false
     @State private var showTelemetry = true
+    @State private var cinemaMode = false
 
     private enum PaceFlightScene { case intro, chase, outro, finished }
 
@@ -674,6 +709,12 @@ struct PaceRouteFlyoverScreen: View {
                             .background(.black.opacity(0.48), in: Capsule())
                     }
                     Spacer(minLength: 0)
+                    Button { cinemaMode.toggle() } label: {
+                        Image(systemName: cinemaMode ? "rectangle.expand.vertical" : "viewfinder")
+                            .frame(width: 43, height: 39)
+                            .background(.black.opacity(0.48), in: Capsule())
+                    }
+                    .accessibilityLabel(cinemaMode ? "Afficher les commandes" : "Mode cinéma sans commandes")
                     Button { showTelemetry.toggle() } label: {
                         Image(systemName: showTelemetry ? "chart.bar.fill" : "chart.bar")
                             .frame(width: 43, height: 39)
@@ -704,6 +745,7 @@ struct PaceRouteFlyoverScreen: View {
                         .padding(.bottom, 12)
                         .shadow(color: .black.opacity(0.8), radius: 8)
                 }
+                if !cinemaMode {
                 VStack(alignment: .leading, spacing: 12) {
                     if showTelemetry {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -789,6 +831,24 @@ struct PaceRouteFlyoverScreen: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
+                } else {
+                    HStack(spacing: 12) {
+                        Text(progressDistance + " km")
+                            .font(.system(size: 21, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Spacer()
+                        Button { isPlaying.toggle(); lastTick = .now } label: {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(width: 44, height: 44)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .accessibilityLabel(isPlaying ? "Mettre en pause" : "Reprendre la lecture")
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 18)
+                }
             }
         }
         .preferredColorScheme(.dark)
