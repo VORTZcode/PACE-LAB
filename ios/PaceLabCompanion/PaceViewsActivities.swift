@@ -252,28 +252,91 @@ struct WorkoutDetailScreen: View {
     var body: some View {
         ScrollViewReader { navigator in
         PaceScreen(title: "Séance") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(workout.cadenceLabel.uppercased())
-                    .font(.caption2.weight(.bold)).tracking(1.3).foregroundStyle(PaceColors.teal)
-                Text(PaceFormat.fullDate(workout.startDate).capitalized)
-                    .font(.title2.weight(.semibold))
-                Text(workout.endDate.formatted(.dateTime.hour().minute()))
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack {
+                    PaceEyebrow(title: "ACTIVITÉ / \(workout.cadenceLabel)")
+                    Spacer()
+                    Text("APPLE WATCH")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(PaceColors.titanium)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(PaceFormat.distance(workout.kilometers, places: 2))
-                        .font(.system(size: 54, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text("km").font(.title3).foregroundStyle(.secondary)
+                        .font(.system(size: 57, weight: .black, design: .rounded))
+                        .tracking(-2.5)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                    Text("KM")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .foregroundStyle(PaceColors.volt)
                 }
                 HStack(spacing: 12) {
-                    PacePill(label: PaceFormat.duration(workout.duration_seconds), symbol: "clock")
-                    if workout.isRun { PacePill(label: "\(PaceFormat.pace(workout.paceMinutes)) /km", symbol: "speedometer") }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("DURÉE")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(PaceColors.titanium)
+                        Text(PaceFormat.duration(workout.duration_seconds))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    Spacer(minLength: 2)
+                    if workout.isRun {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ALLURE")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(PaceColors.titanium)
+                            Text(PaceFormat.pace(workout.paceMinutes) + " /km")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                        }
+                        Spacer(minLength: 2)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("FC MOY.")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(PaceColors.titanium)
+                        Text(PaceFormat.heart(workout.hr_average_bpm))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
                 }
+                Text(PaceFormat.fullDate(workout.startDate).capitalized)
+                    .font(.caption)
+                    .foregroundStyle(PaceColors.titanium)
             }
             if workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling" {
                 PaceRouteSection(workout: workout)
                     .id("route-map")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Button { withAnimation { navigator.scrollTo("route-map", anchor: .top) } } label: {
+                        Label("Parcours", systemImage: "map")
+                    }
+                    .disabled(!(workout.isRun || workout.activity_kind == "walking" || workout.activity_kind == "cycling"))
+                    Button {
+                        showAdvancedMetrics = true
+                        withAnimation { navigator.scrollTo("heart-chart", anchor: .top) }
+                    } label: {
+                        Label("Analyses", systemImage: "waveform.path.ecg")
+                    }
+                    Button {
+                        showIntervals = true
+                        withAnimation { navigator.scrollTo("run-intervals", anchor: .top) }
+                    } label: {
+                        Label("Intervalles", systemImage: "list.number")
+                    }
+                    Button {
+                        withAnimation { navigator.scrollTo("journal", anchor: .top) }
+                    } label: {
+                        Label("Ressenti", systemImage: "square.and.pencil")
+                    }
+                }
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .buttonStyle(.bordered)
+                .tint(PaceColors.volt)
             }
             if let report = coach.report(for: workout.source_uuid) {
                 PaceSessionReportInlineCard(report: report) {

@@ -2,6 +2,7 @@ import SwiftUI
 import HealthKit
 import MapKit
 import CoreLocation
+import Charts
 
 // GPS stays in HealthKit / the iPhone process. It is never included in Coach prompts.
 struct PaceRouteFix {
@@ -197,6 +198,8 @@ struct PaceRouteMap: UIViewRepresentable {
     var introProgress: Double? = nil
     var outroProgress: Double? = nil
     var cameraMode: PaceFlyoverCameraMode = .follow
+    /// Inspection moves the marker but does not redraw a partial replay route.
+    var inspectionFraction: Double? = nil
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var marker = PaceRouteMarker()
@@ -287,7 +290,12 @@ struct PaceRouteMap: UIViewRepresentable {
                                   edgePadding: UIEdgeInsets(top: 35, left: 32, bottom: 35, right: 32),
                                   animated: false)
         }
-        let fraction = progress ?? 0
+        if progress == nil, let previous = coordinator.completedRoute {
+            map.removeOverlay(previous)
+            coordinator.completedRoute = nil
+            coordinator.lastDrawnProgress = -1
+        }
+        let fraction = progress ?? inspectionFraction ?? 0
         let previousFraction = coordinator.previousProgress
         let shouldMove = previousFraction != fraction
         let shouldReset = coordinator.recenterToken != recenterToken
@@ -412,6 +420,7 @@ struct PaceRouteSection: View {
     @StateObject private var reader = PaceWorkoutRouteReader()
     @State private var showReplay = false
     @State private var showFullMap = false
+    @State private var inspectedMinute: Double? = nil
 
     private var readableDistance: String {
         guard let track = reader.track else { return "" }
@@ -459,8 +468,11 @@ struct PaceRouteSection: View {
                 }
             case .ready:
                 if let route = reader.track {
-                    PaceRouteMap(track: route)
-                        .frame(height: 360)
+                    PaceRouteMap(track: route,
+                                 inspectionFraction: inspectedMinute.map {
+                                     min(1, max(0, $0 * 60 / route.duration))
+                                 })
+                        .frame(height: 355)
                         .overlay(alignment: .topLeading) {
                             Label("ITINÉRAIRE · SATELLITE", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                                 .font(.caption2.weight(.bold))
@@ -514,11 +526,116 @@ struct PaceRouteSection: View {
                                 PaceRouteFullMapScreen(track: route, workout: workout)
                             }
                         }
+                    PaceRouteInspectionTimeline(
+                        workout: workout, track: route,
+                        inspectedMinute: $inspectedMinute)
                 }
             }
         }
         .task(id: workout.source_uuid) {
             await reader.load(workoutID: workout.source_uuid)
+        }
+    }
+}
+
+/// A time-aligned inspection of real recorded heart samples and GPS fixes.
+/// No inference or synthetic HR values between missing sensor measurements.
+private struct PaceRouteInspectionTimeline: View {
+    let workout: WorkoutPayload
+    let track: PaceRouteTrack
+    @Binding var inspectedMinute: Double?
+
+    private var timeline: PaceHeartTimeline.Result? {
+        PaceHeartTimeline.prepare(start: workout.started_at,
+            end: workout.ended_at,
+            samples: workout.heart_rate_series.map { ($0.timestamp, $0.bpm) })
+    }
+    private var nearest: PaceHeartTimeline.Point? {
+        guard let inspectedMinute, let points = timeline?.points,
+              let point = points.min(by: {
+                  abs($0.minute - inspectedMinute) < abs($1.minute - inspectedMinute)
+              }), abs(point.minute - inspectedMinute) <= 0.9 else { return nil }
+        return point
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("EXPLORER LA SÉANCE")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(1.4)
+                        .foregroundStyle(PaceColors.volt)
+                    Text("Touchez un instant pour le retrouver sur la carte")
+                        .font(.caption)
+                        .foregroundStyle(PaceColors.titanium)
+                }
+                Spacer(minLength: 6)
+                if inspectedMinute != nil {
+                    Button("Effacer") { inspectedMinute = nil }
+                        .font(.caption.weight(.semibold))
+                        .tint(PaceColors.volt)
+                }
+            }
+            if let timeline, timeline.points.count >= 2 {
+                Chart(timeline.points) { point in
+                    LineMark(
+                        x: .value("Minute", point.minute),
+                        y: .value("Fréquence cardiaque", point.bpm),
+                        series: .value("Segment mesuré", point.segment))
+                    .foregroundStyle(PaceColors.volt)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                    if let inspectedMinute {
+                        RuleMark(x: .value("Moment sélectionné", inspectedMinute))
+                            .foregroundStyle(PaceColors.porcelain.opacity(0.7))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    }
+                }
+                .chartYScale(domain: timeline.yLower...timeline.yUpper)
+                .chartXScale(domain: 0...max(1, timeline.durationMinutes))
+                .chartXSelection(value: $inspectedMinute)
+                .frame(height: 126)
+                .accessibilityLabel("Courbe cardiaque réelle ; sélection synchronisée avec le parcours GPS")
+                HStack(spacing: 7) {
+                    if let inspectedMinute {
+                        Label(PaceFormat.duration(inspectedMinute * 60), systemImage: "clock")
+                            .foregroundStyle(PaceColors.porcelain)
+                    } else {
+                        Label("FC mesurée", systemImage: "heart")
+                    }
+                    Spacer()
+                    if let nearest {
+                        Text("\(Int(nearest.bpm.rounded())) bpm")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(PaceColors.volt)
+                    } else if inspectedMinute != nil {
+                        Text("Pas de FC mesurée à cet instant")
+                    } else {
+                        Text("\(timeline.points.count) mesures")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(PaceColors.titanium)
+                if timeline.gapCount > 0 {
+                    Text("Les interruptions de mesure sont conservées : la courbe ne suppose pas de valeurs pendant les coupures.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Courbe cardiaque indisponible. Utilisez le curseur pour inspecter le parcours GPS enregistré.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { inspectedMinute ?? 0 },
+                    set: { inspectedMinute = $0 }),
+                    in: 0...max(1, track.duration / 60))
+                    .tint(PaceColors.volt)
+                    .accessibilityLabel("Position sur le parcours GPS")
+            }
+        }
+        .padding(17)
+        .background(PaceColors.surface,
+                    in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 19, style: .continuous)
+                .strokeBorder(PaceColors.volt.opacity(0.14), lineWidth: 1)
         }
     }
 }
